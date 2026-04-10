@@ -12,9 +12,9 @@
 ### 0.1 What we are replacing
 The sibling project `~/bitgn-contest` contains a working Codex-backed agent with 1008 historical traces in this repo's `task-t01-t43-logs-produced-by-bitgn-contest-agent/` directory. We replace it because:
 
-- Its tool Union omits `execute_*` RPC verbs — the 0% failure cluster (`t31, t36, t39, t40`) almost certainly needs them.
 - 35% of historical runs never emitted `/respond`, indicating crashes or forced termination with no clean failure path.
 - The overall pass rate baseline is **44%** across the 1008 runs. This is the number we must beat.
+- The zero-score cluster (`t31, t36, t39, t40`) has no stated root-cause hypothesis yet. An earlier draft of this spec speculated that the baseline agent was missing `execute_*` RPC verbs, but inspection of `bitgn/vm/pcm_pb2.pyi` and `pcm.proto` shows the PcmRuntime surface is exactly **11 RPCs** (Read, Write, Delete, MkDir, Move, List, Tree, Find, Search, Context, Answer) — there are no `Execute*` or `Outline` verbs to miss. A reference agent (vakovalskii/phantom-agent) scores ~86% on BitGN with precisely this 11-verb surface, so the gap to 44% cannot come from missing verbs. The real cause will be investigated against live new-agent traces.
 
 ### 0.2 Empirical facts extracted from 1008 existing traces
 These calibrate every timeout and budget in this spec:
@@ -26,7 +26,6 @@ These calibrate every timeout and budget in this spec:
 | Tool result size: median / p95 / p99 / max | 274 B / 1.9 KB / 2.6 KB / 87 KB (single `/fs/search`) |
 | Trace size: median / p90 / max | 33 KB / 119 KB / 800 KB |
 | Top tools observed | `/fs/read`, `/fs/search`, `/fs/list`, `/fs/context`, `/fs/tree`, `/fs/write`, `/respond` |
-| `execute_*` verbs observed | **0 occurrences** |
 | Outcome distribution | OK 33%, NONE_CLARIFICATION 22%, ERR_INTERNAL 15%, NONE_UNSUPPORTED 9%, DENIED_SECURITY 7% |
 | Runs with no `/respond` at all | 353 (35%) |
 | Overall pass rate | 44% |
@@ -123,16 +122,13 @@ class NextStep(BaseModel):
     function: Union[
         Req_Tree, Req_Find, Req_Search, Req_List, Req_Read,
         Req_Write, Req_Delete, Req_MkDir, Req_Move,
-        Req_Context, Req_Outline,
-        Req_ExecuteUnary, Req_ExecuteServerStream,
-        Req_ExecuteClientStream, Req_ExecuteBidiStream,
-        Req_ExecuteOutline, Req_ExecuteClose,
+        Req_Context,
         ReportTaskCompletion,
     ]
 ```
 
 Notes:
-- **`execute_*` verbs are in the Union from day 1.** This is the single most important coverage fix vs. the baseline agent.
+- **The Union mirrors the PcmRuntime surface exactly.** 10 tool verbs (`Read, Write, Delete, MkDir, Move, List, Tree, Find, Search, Context`) plus `ReportTaskCompletion` (which the adapter translates to the `Answer` RPC on emission). This matches the 11 Request types exported by `bitgn.vm.pcm_pb2` and the 11 RPCs declared in `pcm.proto`. No speculative verbs are included; the coverage check in §5.2 Test 1 is a mechanical contract that this correspondence holds.
 - `identity_verified` and `plan_remaining_steps_brief` are kept as part of the hardened-single-session pattern — they force the planner to commit to facts in the same structured output it uses for terminals. They are **observational-only** in v1: the enforcer does not gate on them (see §2.4 for why).
 - `ReportTaskCompletion.outcome` is a `Literal`, not a string — Pydantic rejects invalid outcomes at parse time. The full set of five outcomes (including `OUTCOME_ERR_INTERNAL`) matches the sibling agent's surface so that the benchmark driver does not need any wrapper translation.
 
@@ -405,7 +401,7 @@ The real quality gate is the regression harness (§5.4), which measures pass rat
 ### 5.2 Unit tests (the entire suite, ~120 LoC total)
 
 **Test 1 — Tool coverage** (`tests/test_tool_coverage.py`, ~10 LoC)
-Asserts that every verb in `KNOWN_PCM_RUNTIME_TOOLS` appears in the `NextStep.function` Union. Protects against the #1 historical failure mode (the baseline agent was missing `execute_*`).
+Asserts that every verb in `KNOWN_PCM_RUNTIME_TOOLS` (derived by introspecting `bitgn.vm.pcm_pb2` for `*Request` types) appears in the `NextStep.function` Union, and vice versa. A mechanical contract that the planner's tool surface stays in lockstep with the PcmRuntime RPC surface across SDK upgrades — if a future BitGN release adds or removes an RPC, this test fails until the Union is updated.
 
 **Test 2 — Schema round-trip** (`tests/test_schemas.py`, ~15 LoC)
 For each Union variant, synthesize an instance, dump to JSON, reparse, assert equality. Catches Pydantic / structured-output drift on the next dependency bump.
@@ -599,10 +595,11 @@ bitgn-contest-with-claude/
 
 ## 9. Open questions (to resolve during implementation planning)
 
-1. **Exact `execute_*` verb signatures.** Need to read the PCM protobuf definitions to lock the `Req_Execute*` Pydantic shapes. Blocked on reading `bitgn.vm.pcm_pb2` contents.
-2. **`llm_http_timeout_sec=30` validation.** Calibrated against assumption, not measurement. Must measure on first 50 new-agent runs and adjust.
-3. **Whether the BitGN SDK supports sync context managers for the runtime client.** Affects `adapter/pcm.py` resource cleanup shape.
-4. **Whether cliproxyapi's OpenAI-compatible endpoint supports `response_format` structured outputs for gpt-5.3-codex.** If not, the backend falls back to manual JSON parsing with critique-injection retry — the loop already handles this via P3.
+1. **Zero-score cluster root cause (`t31, t36, t39, t40`).** The historical baseline scored 0/N on these four tasks. An earlier draft speculated about missing `execute_*` RPC verbs, but the PcmRuntime surface has no such verbs (see §0.1, §2.2 Notes). The real cause is unknown. Investigate against live new-agent traces: re-run these four tasks under the new agent, bucket the failures by terminal outcome and final tool-call sequence, and look for a common pattern (timeout? schema validation? evidence-exhaustion?). Do **not** block the first merge on a fix — the merge gate requires ≥ 1/3 per task, which is a more forgiving bar than root-cause understanding.
+2. **Exact `Req_*` Pydantic field shapes.** Read each `*Request` type in `bitgn.vm.pcm_pb2` and lock the field names, types, and optionality into the Pydantic variants. No unknowns here — this is mechanical transcription from the generated stubs.
+3. **`llm_http_timeout_sec=30` validation.** Calibrated against assumption, not measurement. Must measure on first 50 new-agent runs and adjust.
+4. **Whether the BitGN SDK supports sync context managers for the runtime client.** Affects `adapter/pcm.py` resource cleanup shape.
+5. **Whether cliproxyapi's OpenAI-compatible endpoint supports `response_format` structured outputs for gpt-5.3-codex.** If not, the backend falls back to manual JSON parsing with critique-injection retry — the loop already handles this via P3.
 
 These are resolved during the writing-plans phase, not deferred forever.
 
