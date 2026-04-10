@@ -157,7 +157,7 @@ Responsibilities:
 ### 2.4 Enforcer (`enforcer.py`)
 Pure-Python policy check. **Runs only on terminal emission** (when `next_step.function` is `ReportTaskCompletion`). Not a critic, not a correctness oracle — there is no ground-truth reward in production, so the enforcer can only check policy invariants that must hold regardless of the task.
 
-**Minimum-confidence ruleset.** v1 ships exactly one rule. Every other candidate rule considered in the historical-log research was rolled back because the confidence was not high enough to justify shipping it ahead of real calibration data from the new agent. The cost of shipping an uncertain rule (turning a passing run into a failing one via a bad retry) is worse than the cost of missing a failure we would have caught.
+**Minimum-confidence ruleset.** v1 ships two rules: a structural self-consistency check (R1) and one data-derived hard-gate whose historical signal is clean enough to ship ahead of live calibration (R2). Every other candidate rule is deferred to §2.4.1 with its historical measurements preserved, to be revisited once the new agent has its own trace corpus. The general default is to defer rather than ship uncalibrated, because the cost of a bad retry (turning a passing run into a failing one) can exceed the cost of a missed catch. R2 is the exception because its historical false-positive count is literally zero.
 
 ```python
 def check_terminal(session: Session, step: NextStep) -> Verdict:
@@ -166,16 +166,34 @@ def check_terminal(session: Session, step: NextStep) -> Verdict:
         return Verdict(ok=True)
     reasons = []
 
-    # R1 — Grounding-refs reachability.
-    # Every path cited in grounding_refs must appear in session.seen_refs.
-    # Self-consistency check: if the planner cites a file it never successfully
-    # read, something is wrong. Zero false-positive risk — a legitimate
-    # completion cannot cite files it never opened. Principled, not statistical;
-    # cost near-zero; failure mode ("cite a file I never opened") is a classic
-    # LLM hallucination fingerprint.
+    # R1 — Grounding-refs reachability [principle, uncalibrated].
+    # Every path cited in grounding_refs should appear in session.seen_refs.
+    # Self-consistency check: a completion citing a file the planner never
+    # successfully read is a classic hallucination fingerprint. The rule is
+    # itself uncalibrated — grounding_refs is new in our schema and has no
+    # historical signal — and it carries a known false-positive path: path
+    # normalization. If the planner cites "./foo.py" while seen_refs holds
+    # "foo.py", the rule fires incorrectly. Accepted for v1; when the first
+    # false-positive shows up in real runs, canonicalize both sides before
+    # the membership test.
     for ref in fn.grounding_refs:
         if ref not in session.seen_refs:
             reasons.append(f"grounding_ref {ref!r} never successfully read")
+
+    # R2 — OUTCOME_ERR_INTERNAL hard-gate [data, recent-format corpus N=473].
+    # 82 catches @ 100% precision, 0 false positives. Strongest clean signal
+    # in the historical corpus and the only data-derived rule that clears
+    # the minimum-confidence bar without live calibration. The rule rejects
+    # the terminal and triggers one retry with critique injection; if the
+    # retry also emits OUTCOME_ERR_INTERNAL, the retry-exhaustion policy
+    # (below) submits anyway, bounding the downside at one extra LLM call.
+    # Cancel-path synthetic terminals (§3.2) are written directly to the
+    # trace by the worker and never pass through check_terminal, so this
+    # rule does not fire on them.
+    if fn.outcome == "OUTCOME_ERR_INTERNAL":
+        reasons.append(
+            "OUTCOME_ERR_INTERNAL rejected: 100% historical failure rate on 473-run corpus"
+        )
 
     return Verdict(ok=not reasons, reasons=reasons)
 ```
@@ -184,7 +202,7 @@ def check_terminal(session: Session, step: NextStep) -> Verdict:
 
 #### 2.4.1 Candidate rules deferred until real-run calibration
 
-These rules were evaluated against the historical-log corpus (`scripts/research-logs-from-old-agent/rule_evaluator.py`) and **intentionally not shipped** in v1. Each has some signal, but none reached the confidence bar set for this section: a rule ships only when it has zero plausible way of turning a passing run into a failing one. Catch counts and precision are best-effort measurements on 473 paired recent-format runs (234 pass, 239 fail) against the sibling Codex agent.
+These rules were evaluated against the historical-log corpus (`scripts/research-logs-from-old-agent/rule_evaluator.py`) and not shipped in v1. Each has some signal on the sibling agent's data, but none has both a clean false-positive story on the new agent and a known retry-stability cost. Catch counts and precision are measurements on 473 paired recent-format runs (234 pass, 239 fail) against the sibling Codex agent — informative priors, not ship justification.
 
 | Candidate | Signal on historical corpus | Why deferred |
 |---|---|---|
@@ -192,7 +210,6 @@ These rules were evaluated against the historical-log corpus (`scripts/research-
 | **Rulebook-loaded gate** (reject non-refusal terminal where `rulebook_loaded` is False) | 88 catches @ 84.6% precision | Precision computed against a refusal-exempt set that included CLARIFICATION as rejectable. AGENTS.md arguably allows CLARIFICATION as a legitimate outcome, so the refusal set is unsettled. Rule overlap with other deferred candidates also uncomputed — may be catching the same failures twice. |
 | **Content-read gate** (reject non-refusal terminal with zero successful `/fs/read`) | 19 catches @ 86.4% precision | Small N on the fire side (19). Confounded by agent-version drift across the 10-day corpus window. The older set-based version of this check had **negative** delta. |
 | **Planner self-assertion via `finalization_ready`** (reject non-refusal terminal where planner self-reports not ready) | 120 catches @ 77.4% precision | Largest catch count in the corpus, but **22% false-positive rate** means forcing a retry on ~52 passing runs. Retry stability is untested — if even 10% of those retries flip pass→fail the net effect is a pass-rate loss. Requires a new `finalization_ready` field on `ReportTaskCompletion`, which is speculative schema weight attached to an unconfident rule. |
-| **`OUTCOME_ERR_INTERNAL` as reject rule** (or schema removal) | 82 catches @ 100% precision | Cleanest signal in the corpus, but shipping the rule (or removing the outcome from the schema) is a guess about what happens when the planner is denied its current escape hatch. It may self-correct, or it may hallucinate `OUTCOME_OK` to satisfy the schema. Cannot distinguish without real runs. |
 | **Planner self-assertion via `identity_verified`** (from the existing NextStep field) | Uncalibrated — field is new in our schema | Kept as an observational field on `NextStep` (hardened-single-session pattern) but the enforcer does not gate on it in v1. Promote to a rule only after real runs show the planner uses the field honestly. |
 
 **Rules the historical data killed** (dropped outright — no path to promotion):
@@ -206,12 +223,15 @@ These rules were evaluated against the historical-log corpus (`scripts/research-
 | `OUTCOME_OK` minimum message length | pass median 160 vs fail median 168 | — | distributions overlap perfectly |
 | `NONE_CLARIFICATION` keyword check | 40% vs 37% | — | no discriminative power |
 
-**Promotion workflow.** A deferred candidate gets promoted into §2.4's shipped ruleset only when it clears **both** of these bars:
+**Promotion workflow.** A deferred candidate is considered for promotion when it clears the following bars. These thresholds are first-pass numbers, revisable once the new-agent corpus gives us a clearer sense of the score distribution.
 
-1. **Real-run signal.** The first regression-harness runs of the new agent (§5.1) produce their own trace corpus. Re-run `rule_evaluator.py` against the new corpus — not the historical one — and confirm the candidate still has positive delta with reasonable catches on the new agent's actual failure modes.
-2. **Retry stability.** Before promoting any rule with a non-zero false-positive rate, measure what happens when the rule fires on a passing run and the retry is forced: does the retry keep the pass, or does it flip to a fail? This is not measurable from historical data; it requires live A/B.
+1. **Shadow-mode measurement.** Enable the candidate in observe-only mode: the enforcer logs `would_have_fired` on the trace but does not reject. Accumulate shadow-mode data across the regression harness runs of the new agent (§5.4) until the sample covers **at least 100 traces** with at least **30 of the 43 tasks** represented. This produces `fire@pass`, `fire@fail`, and `delta_pp` on the new-agent distribution rather than the sibling's.
 
-Until both bars are cleared, candidates stay in §2.4.1 and out of `check_terminal`.
+2. **Signal strength on the new corpus.** `delta_pp ≥ 10` **and** `catches ≥ 10`. The ten-point delta cuts out single-digit noise (the historical `identity_gate`'s four catches would fail this bar, as intended). Ten absolute catches is the floor below which any precision number is dominated by noise.
+
+3. **Retry stability on false positives.** For each passing run the rule would fire on in shadow mode, replay the trace with the rule enabled, forcing the retry-with-critique path. Measure the pass→fail flip rate. **Required: ≤20% flips**, measured on at least **10 shadow-mode fires-on-passes**. If fewer than 10 passing runs trigger the rule in shadow mode, retry stability is not measurable yet and the rule stays deferred until more runs accumulate. The 20% threshold is rough; halve it for any rule whose catch count is small enough that the expected catches − expected flips delta is close to zero.
+
+These bars are meant as a structured checklist, not a legal bar. If a candidate clearly clears bars 2 and 3 by a wide margin, ship it. If it marginally clears them, document the marginal case in the commit body and ship it. If the new-agent distribution looks nothing like the historical one (e.g., a new failure mode appears that none of these candidates addresses), add new candidates to `rule_evaluator.py` instead of forcing the deferred list.
 
 **Findings the enforcer cannot fix** (noted here so we don't pretend it can):
 - `OUTCOME_NONE_CLARIFICATION` has a **36% pass rate** in the recent-format corpus. The agent hallucinates ambiguity ~64% of the time it claims clarification is needed. Prompt/planning issue — belongs in §2.5, with `outcome_justification` as the lever.
@@ -283,7 +303,7 @@ Each task worker receives a `threading.Event` (`cancel_event`) and a wall-clock 
 
 - The orchestrator sets `cancel_event` when the deadline fires OR when a SIGTERM arrives.
 - The worker checks `cancel_event` at the top of every step-loop iteration.
-- On cancel, the worker emits a synthetic `ReportTaskCompletion(outcome="OUTCOME_ERR_INTERNAL", message="cancelled:timeout")`, flushes the trace, and returns. The benchmark driver sees the failed outcome and records the task as failed.
+- On cancel, the worker emits a synthetic `ReportTaskCompletion(outcome="OUTCOME_ERR_INTERNAL", message="cancelled:timeout")`, flushes the trace, and returns. The benchmark driver sees the failed outcome and records the task as failed. This synthetic terminal is written directly by the worker and **bypasses the §2.4 enforcer** — `check_terminal` only runs on terminals produced by the planner's `next_step`, so the R2 `OUTCOME_ERR_INTERNAL` hard-gate does not reject cancel-path terminals.
 - No thread is abandoned. No partial traces are lost.
 
 Grace period after cancel_event fires: `task_timeout_grace_sec = 20` (enough to flush trace + one submit call).
