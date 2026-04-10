@@ -32,10 +32,20 @@ These calibrate every timeout and budget in this spec:
 | Overall pass rate | 44% |
 
 ### 0.3 Success criteria
-- Overall pass rate ≥ **55%** on `bitgn/pac1-dev` (replayed 3× per task, 156 runs).
-- Zero-score cluster (`t31, t36, t39, t40`) scores ≥ 1/3 each.
-- No task regresses from ≥1/3 to 0/3 vs. the current baseline.
+
+**Target (contest goal): 100% pass rate on `bitgn/pac1-dev` and `bitgn/pac1-prod`.**
+This is what we are aiming for, full stop. Every iteration is judged by how much closer we got to 100%. No "good enough" threshold — the contest goal is winning, not a passing grade.
+
+**Merge gate (day-to-day quality control):**
+- **Monotonic ratchet.** Once a benchmark run achieves pass rate `R`, all subsequent runs must achieve at least `R`. No fixed floor. The first committed run establishes the initial bar; every improvement raises it permanently.
+- **No per-task regression.** A task that was passing ≥1/3 in the previous best-of cannot drop to 0/3 in the current run.
+- **Zero-score cluster** (`t31, t36, t39, t40` in the historical baseline) must score ≥ 1/3 each before the first merge.
+
+**Why a ratchet instead of a 100% hard gate:** if 100% were a hard pre-merge gate, one transient cliproxyapi rate-limit on a 156-run regression would block every subsequent commit until the flake resolved. The ratchet converges monotonically toward 100% while still tolerating the stochasticity inherent to LLM serving.
+
+**Speed targets:**
 - Single-task median wall-clock under 90 s, p95 under 240 s.
+- Full `bitgn/pac1-dev` regression (52 tasks × 3 runs = 156 runs) under 30 min with `max_parallel=4`.
 
 ---
 
@@ -130,40 +140,87 @@ Notes:
 ```python
 @dataclass
 class Session:
-    seen_refs: set[str]            # populated by successful reads
+    seen_refs: set[str]            # populated by successful reads (for grounding_refs)
+    tools_called: set[str]         # every tool name that dispatched successfully (for §2.4 gates)
     rulebook_loaded: bool
     identity_loaded: bool
     step: int
     recent_calls: deque[tuple]     # sliding window for loop detector, maxlen=6
+    nudges_emitted: int            # budget counter for §4.2 invariant 4
 ```
 
 Responsibilities:
 - Track what the agent has actually successfully read (for grounding_refs enforcement).
 - Track whether the identity/rulebook pre-pass completed.
+- Track the set of successfully-dispatched tool names (consumed by §2.4 enforcer rules 1 and 2).
 - Loop detector: if the same `(tool_name, canonicalized_args)` tuple appears 3× in the last 6 calls, inject a nudge into the next prompt and log an event.
+- Count nudges emitted against the §4.2 per-task budget.
 
 ### 2.4 Enforcer (`enforcer.py`)
 Pure-Python policy check. **Runs only on terminal emission** (when `next_step.function` is `ReportTaskCompletion`). Not a critic, not a correctness oracle — there is no ground-truth reward in production, so the enforcer can only check policy invariants that must hold regardless of the task.
 
+**The rules below are derived empirically from the 1008 historical traces** (see `docs/superpowers/specs/appendix-enforcer-analysis.md`), not guessed. Each rule has a measured true-positive rate from real failing runs and a measured false-positive rate from real passing runs. Rules with no statistical signal were dropped.
+
 ```python
+# Refusal outcomes are exempt from read/identity gates because a task can
+# legitimately be refused from its description alone (e.g., "format my disk").
+REFUSAL_OUTCOMES = {"OUTCOME_NONE_UNSUPPORTED", "OUTCOME_DENIED_SECURITY"}
+
+# Any of these counts as "the agent actually looked at something."
+READ_LIKE_TOOLS = {"/fs/read", "/fs/list", "/fs/search", "/fs/tree", "/fs/find", "/fs/outline"}
+
+# Any of these counts as "the agent established who/where it is."
+IDENTITY_TOOLS = {"/fs/context", "/load-respond-instructions", "/fs/read"}
+
 def check_terminal(session: Session, step: NextStep) -> Verdict:
     fn = step.function
     if not isinstance(fn, ReportTaskCompletion):
         return Verdict(ok=True)
     reasons = []
-    if not session.identity_loaded:
-        reasons.append("identity gate: pre-pass never loaded identity context")
-    if not step.identity_verified:
-        reasons.append("planner asserted identity_verified=False at terminal")
+
+    # Rule 1 — Identity-context gate.
+    # Signal: 99.5% of passing runs loaded identity tools vs 87.8% of failing runs.
+    # Exempt refusal outcomes (you can refuse a task without loading context).
+    if fn.outcome not in REFUSAL_OUTCOMES:
+        if not session.identity_loaded:
+            reasons.append("identity gate: no identity tool called before terminal")
+
+    # Rule 2 — Nontrivial-work gate.
+    # Signal: 72/559 failures (13%) terminated without ever calling a read-like tool,
+    # vs only 2/443 passes (0.5%). Exempt refusal outcomes.
+    if fn.outcome not in REFUSAL_OUTCOMES:
+        if not (session.tools_called & READ_LIKE_TOOLS):
+            reasons.append(
+                f"nontrivial-work gate: {fn.outcome} without any read/list/search/tree call"
+            )
+
+    # Rule 3 — Planner self-assertion.
+    # The Planner sets identity_verified=True as part of NextStep. If it asserts
+    # False AND the outcome requires knowing context, reject.
+    if fn.outcome not in REFUSAL_OUTCOMES and not step.identity_verified:
+        reasons.append("planner self-reported identity_verified=False at non-refusal terminal")
+
+    # Rule 4 — Grounding refs must be reachable.
+    # The old trace format didn't record grounding_refs explicitly, so this rule
+    # cannot be calibrated against historical data. It is kept on principle:
+    # fabricated references to files never read are a hallucination fingerprint
+    # that the regression harness will validate on real runs.
     for ref in fn.grounding_refs:
         if ref not in session.seen_refs:
             reasons.append(f"grounding_ref {ref!r} never successfully read")
-    if fn.outcome == "OUTCOME_OK" and len(fn.message.strip()) < 10:
-        reasons.append("OUTCOME_OK with near-empty message")
-    if fn.outcome == "OUTCOME_NONE_CLARIFICATION" and "clarif" not in fn.message.lower():
-        reasons.append("NONE_CLARIFICATION outcome without clarification content")
+
     return Verdict(ok=not reasons, reasons=reasons)
 ```
+
+**Rules explicitly dropped** because the historical data shows no signal:
+- **OUTCOME_OK minimum message length.** Passing OK runs have median msg_len=160 but min=3; failing OK runs have median=168. Passing and failing distributions overlap almost perfectly.
+- **NONE_CLARIFICATION keyword check.** "clarif" or "?" appears in 40% of passing clarification runs and 37% of failing ones — no discriminative power.
+
+**Biggest finding that the enforcer cannot fix** (noted here so we don't pretend it can):
+- `OUTCOME_NONE_CLARIFICATION` has a **29% pass rate** — the agent hallucinates ambiguity 70% of the time it claims clarification is needed. This is a prompt/planning issue, not something algorithmic policy can catch. It belongs in §2.5 prompt design, not here.
+- `OUTCOME_OK` has **43% false positives** — when the agent says "done," the grader disagrees nearly half the time. Same root cause category: planner confidence is miscalibrated. Mitigation lives in prompts + the `outcome_justification` required field, not in enforcer rules.
+
+**Session state requirement:** Rule 2 references `session.tools_called` (a `set[str]`). Add this field to `Session` in §2.3 — it's populated by the adapter on every successful tool dispatch.
 
 **Retry policy:** 1 retry with the verdict's reasons injected into the next prompt as critique. If the retry also fails enforcement → **submit anyway**. The agent's best attempt is better than no submission at all. The enforcer verdict and the `submit_anyway` decision are both logged to the trace for post-hoc analysis.
 
@@ -304,6 +361,8 @@ This makes the failure histogram buildable from pure JSON via the §6 tooling �
 | `rate_limit_backoff_ms` | **[500, 1500, 4000, 10000]** | 4 attempts, drops the 16 s tail that exceeded cancel grace |
 
 **`task_timeout_sec=0`** disables the wall-clock cancel entirely (dev-loop convenience).
+
+**Recalibration policy:** every value in the table above was extracted from the *old agent's* historical traces (§0.2). The new agent's execution profile will differ — different tool verbs, different prompt, different model latency. **After the first 50 real new-agent runs**, re-run the §0.2 analysis against the fresh traces and adjust these defaults. Record the recalibration as a separate commit with the empirical justification in the commit body. Do not treat these initial numbers as final.
 
 ### 4.2 Error-handling invariants
 
