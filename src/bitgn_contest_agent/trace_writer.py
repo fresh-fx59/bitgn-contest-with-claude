@@ -117,6 +117,46 @@ class TraceWriter:
                 self._fh.flush()
                 self._fh.close()
 
+    def patch_outcome_score(self, score: float) -> None:
+        """Back-fill the grader score into the already-written outcome.
+
+        T24 deviation: the agent loop writes the outcome record with
+        `score: null` because it doesn't know the grader verdict — that
+        only comes back from `harness.end_task()`, which runs AFTER the
+        loop has returned. Without back-filling, bench_summary falls
+        back to the agent's self-reported OUTCOME_OK, which systematically
+        over-counts passes (observed 7 false positives on the first
+        full bench run against bitgn/pac1-dev). This method rewrites
+        the last outcome record in place so bench_summary sees the
+        grader-assessed score.
+
+        Must be called after close(). The file is rewritten in full
+        because JSONL offers no in-place partial-line edit primitive.
+        """
+        with self._lock:
+            if not self._fh.closed:
+                raise RuntimeError(
+                    "patch_outcome_score must be called after close()"
+                )
+            lines = self._path.read_text(encoding="utf-8").splitlines()
+            for i in range(len(lines) - 1, -1, -1):
+                line = lines[i].strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                if rec.get("kind") == "outcome":
+                    rec["score"] = score
+                    lines[i] = json.dumps(
+                        rec, separators=(",", ":"), ensure_ascii=False
+                    )
+                    self._path.write_text(
+                        "\n".join(lines) + "\n", encoding="utf-8"
+                    )
+                    return
+            raise RuntimeError(
+                f"no outcome record found in trace {self._path}"
+            )
+
     def write_crash_sidecar(self, error: str, *, traceback_text: str) -> None:
         """Write <trace>_CRASHED.json. Uses a separate I/O path so a broken
         main handle does not lose the crash info."""

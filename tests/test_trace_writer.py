@@ -4,9 +4,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from bitgn_contest_agent.trace_schema import (
     TRACE_SCHEMA_VERSION,
     TraceMeta,
+    TraceOutcome,
     load_jsonl,
 )
 from bitgn_contest_agent.trace_writer import TraceWriter
@@ -56,6 +59,71 @@ def test_writer_survives_crash_and_writes_crashed_sidecar(tmp_path: Path) -> Non
     assert blob["error"] == "synthetic boom"
     assert blob["traceback"] == "tb here"
     assert blob["partial_trace"] == str(path)
+
+
+def test_patch_outcome_score_backfills_grader_verdict(tmp_path: Path) -> None:
+    """T24 regression: the CLI knows the grader score only after the loop
+    exits. patch_outcome_score must back-fill it into the already-written
+    outcome so bench_summary sees the grader verdict, not the agent's
+    self-reported OUTCOME_OK."""
+    path = tmp_path / "trace.jsonl"
+    w = TraceWriter(path=path)
+    w.write_meta(_mk_meta())
+    w.append_task(task_id="t1", task_text="...")
+    w.append_outcome(
+        TraceOutcome(
+            terminated_by="report_completion",
+            reported="OUTCOME_OK",
+            enforcer_bypassed=False,
+            error_kind=None,
+            error_msg=None,
+            total_steps=3,
+            total_llm_calls=3,
+            total_prompt_tokens=0,
+            total_completion_tokens=0,
+            total_cached_tokens=0,
+            score=None,
+        )
+    )
+    w.close()
+
+    w.patch_outcome_score(0.0)  # grader disagreed
+
+    records = list(load_jsonl(path))
+    assert len(records) == 3
+    outcome = records[-1]
+    assert isinstance(outcome, TraceOutcome)
+    assert outcome.score == 0.0
+    assert outcome.reported == "OUTCOME_OK"  # other fields untouched
+    assert outcome.total_steps == 3
+
+
+def test_patch_outcome_score_raises_if_writer_still_open(tmp_path: Path) -> None:
+    path = tmp_path / "trace.jsonl"
+    w = TraceWriter(path=path)
+    w.write_meta(_mk_meta())
+    w.append_outcome(
+        TraceOutcome(
+            terminated_by="report_completion",
+            reported="OUTCOME_OK",
+            total_steps=1,
+            total_llm_calls=1,
+            total_prompt_tokens=0,
+            total_completion_tokens=0,
+        )
+    )
+    with pytest.raises(RuntimeError, match="after close"):
+        w.patch_outcome_score(1.0)
+    w.close()
+
+
+def test_patch_outcome_score_raises_if_no_outcome_present(tmp_path: Path) -> None:
+    path = tmp_path / "trace.jsonl"
+    w = TraceWriter(path=path)
+    w.write_meta(_mk_meta())
+    w.close()
+    with pytest.raises(RuntimeError, match="no outcome record"):
+        w.patch_outcome_score(1.0)
 
 
 def test_writer_is_thread_safe_per_instance(tmp_path: Path) -> None:

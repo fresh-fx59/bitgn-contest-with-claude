@@ -153,6 +153,14 @@ def _run_single_task(
         writer.close()
 
         score, _detail = harness.end_task(started)
+        # Back-fill the grader score into the trace so bench_summary
+        # sees the authoritative verdict instead of the agent's
+        # self-reported OUTCOME_OK. Best-effort — a failure here must
+        # not lose the task result.
+        try:
+            writer.patch_outcome_score(float(score))
+        except Exception:
+            pass
         return TaskExecutionResult(
             task_id=task.task_id,
             score=float(score),
