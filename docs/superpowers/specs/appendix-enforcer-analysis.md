@@ -1,8 +1,12 @@
-# Appendix — Empirical Derivation of §2.4 Enforcer Rules
+# Appendix — Empirical Derivation of §2.4 Enforcer Rules (v1, superseded)
+
+**Status:** **SUPERSEDED** by the recent-format analysis baked directly into §2.4 of the main design doc and the rule registry in `scripts/research-logs-from-old-agent/rule_evaluator.py`. Kept for historical reference because it documents the exact reasoning behind the first-pass ruleset and the set of rules that were dropped with their drop rationale.
 
 **Date:** 2026-04-10
-**Source data:** `task-t01-t43-logs-produced-by-bitgn-contest-agent/` — 1008 historical traces from the sibling Codex-backed agent.
-**Purpose:** Every enforcer rule in §2.4 of the main design doc was either (a) supported by measurable signal in the historical data, or (b) explicitly dropped for lack of signal. This appendix records the measurements so future readers can verify the reasoning.
+**Source data:** `task-t01-t43-logs-produced-by-bitgn-contest-agent/` — 1008 historical traces from the sibling Codex-backed agent, aggregated across all schema variants.
+**Why superseded:** This appendix used a single inline one-shot script to look at the top-level canonical JSON traces only. That format does not expose the planner's internal workflow state (`evidence_inventory`, `verification_status`, `finalization_ready`, `terminal_mode`, etc.), so only the weakest rules could be calibrated. The v2 analysis uses `scripts/research-logs-from-old-agent/` to pair canonical JSON with the iterations JSONL sidecar, restricts to the most recent schema family (473 paired runs, 234 passing, 239 failing, all 43 tasks covered), and finds stronger signals for different rules. See §2.4 of the main design doc and run `python3 scripts/research-logs-from-old-agent/rule_evaluator.py --all` for current numbers.
+
+**Purpose (v1, preserved as-is below):** Every enforcer rule in §2.4 of the main design doc was either (a) supported by measurable signal in the historical data, or (b) explicitly dropped for lack of signal. This appendix records the measurements so future readers can verify the reasoning.
 
 ## Baseline
 

@@ -108,13 +108,16 @@ class ReportTaskCompletion(BaseModel):
     rulebook_notes: str = Field(..., min_length=1)
     outcome_justification: str = Field(..., min_length=1)
     completed_steps_laconic: List[str]
+    finalization_ready: bool  # planner self-assertion consumed by §2.4 R4
     outcome: Literal[
         "OUTCOME_OK",
         "OUTCOME_DENIED_SECURITY",
         "OUTCOME_NONE_CLARIFICATION",
         "OUTCOME_NONE_UNSUPPORTED",
-        "OUTCOME_ERR_INTERNAL",
     ]
+    # Note: OUTCOME_ERR_INTERNAL is intentionally NOT in this Literal.
+    # See §2.4 — internal errors bubble through Python exception handling,
+    # not through a self-reported task outcome.
 
 class NextStep(BaseModel):
     current_state: str
@@ -134,77 +137,110 @@ class NextStep(BaseModel):
 Notes:
 - **`execute_*` verbs are in the Union from day 1.** This is the single most important coverage fix vs. the baseline agent.
 - Fields embedded in `NextStep` (`identity_verified`, `plan_remaining_steps_brief`) force the planner to self-check before emitting a terminal — the hardened-single-session pattern.
+- `ReportTaskCompletion.finalization_ready` is a self-assertion consumed by §2.4 R4. Modelled on the sibling agent's `workflow_state.finalization_ready` field, which was the single strongest catch signal in the 473-run recent-format research corpus (120 catches @ 77.4% precision).
+- **`OUTCOME_ERR_INTERNAL` is deliberately absent from the `Outcome` literal.** The sibling agent's `OUTCOME_ERR_INTERNAL` had 82 cases in the recent corpus and **not one** of them passed the grader. Making that outcome unrepresentable at the schema layer is stronger than catching it at the enforcer — the planner cannot self-surrender through a terminal response. Internal failures propagate through Python exception handling (§4.1 patterns P1–P7) and surface as a synthetic completion record in the trace, not as a valid structured output.
 - `ReportTaskCompletion.outcome` is a `Literal`, not a string — Pydantic rejects invalid outcomes at parse time.
 
 ### 2.3 Session state (`session.py`)
 ```python
 @dataclass
 class Session:
-    seen_refs: set[str]            # populated by successful reads (for grounding_refs)
-    tools_called: set[str]         # every tool name that dispatched successfully (for §2.4 gates)
-    rulebook_loaded: bool
-    identity_loaded: bool
+    seen_refs: set[str]            # populated by successful /fs/read (for §2.4 R5 grounding_refs)
+    tools_called: set[str]         # every tool name that dispatched successfully (loop detector + logging)
+    read_count: int                # successful /fs/read count (for §2.4 R3 content-read gate)
+    rulebook_loaded: bool          # /load-respond-instructions succeeded (for §2.4 R2 rulebook gate)
+    identity_loaded: bool          # identity/context tool succeeded (for §2.4 R1 identity gate)
     step: int
     recent_calls: deque[tuple]     # sliding window for loop detector, maxlen=6
     nudges_emitted: int            # budget counter for §4.2 invariant 4
 ```
 
 Responsibilities:
-- Track what the agent has actually successfully read (for grounding_refs enforcement).
-- Track whether the identity/rulebook pre-pass completed.
-- Track the set of successfully-dispatched tool names (consumed by §2.4 enforcer rules 1 and 2).
+- Track what the agent has actually successfully read (for §2.4 R5 grounding_refs enforcement).
+- Increment `read_count` on every successful `/fs/read` (consumed by §2.4 R3).
+- Track whether the identity/rulebook pre-pass completed (consumed by §2.4 R1 and R2).
+- Maintain `tools_called` for the loop detector and trace logging only. No enforcer rule reads it directly — §2.4 gates all use dedicated counters because the set-based check had negative signal in the recent-format corpus.
 - Loop detector: if the same `(tool_name, canonicalized_args)` tuple appears 3× in the last 6 calls, inject a nudge into the next prompt and log an event.
 - Count nudges emitted against the §4.2 per-task budget.
 
 ### 2.4 Enforcer (`enforcer.py`)
 Pure-Python policy check. **Runs only on terminal emission** (when `next_step.function` is `ReportTaskCompletion`). Not a critic, not a correctness oracle — there is no ground-truth reward in production, so the enforcer can only check policy invariants that must hold regardless of the task.
 
-**The rules below are derived empirically from the 1008 historical traces** (see `docs/superpowers/specs/appendix-enforcer-analysis.md`), not guessed. Each rule has a measured true-positive rate from real failing runs and a measured false-positive rate from real passing runs. Rules with no statistical signal were dropped.
+**Rule sources.** Every rule below cites at least one of these provenance tags:
+- **[data]** — measured on the 473-run recent-format paired corpus via `scripts/research-logs-from-old-agent/rule_evaluator.py`. Each rule reports `catches` (failures it would have rejected) and `precision` (of all runs it fires on, fraction that actually failed).
+- **[AGENTS.md]** — quoted clause from the repo's top-level `AGENTS.md` that requires the behaviour the rule encodes. These are our own operating constraints, not the sibling agent's.
+- **[principle]** — cheap, mechanical checks that cannot be calibrated from historical data because the field is new in our schema. They are kept because the cost is near-zero and the failure mode (hallucinated refs, contradicted self-reports) is a well-known LLM pattern.
+
+The older 1008-trace one-shot analysis (`appendix-enforcer-analysis.md`) is preserved for historical reference, but the rules below **supersede** it — they target the recent schema where the planner's own workflow state was accessible for the first time.
 
 ```python
-# Refusal outcomes are exempt from read/identity gates because a task can
-# legitimately be refused from its description alone (e.g., "format my disk").
-REFUSAL_OUTCOMES = {"OUTCOME_NONE_UNSUPPORTED", "OUTCOME_DENIED_SECURITY"}
-
-# Any of these counts as "the agent actually looked at something."
-READ_LIKE_TOOLS = {"/fs/read", "/fs/list", "/fs/search", "/fs/tree", "/fs/find", "/fs/outline"}
-
-# Any of these counts as "the agent established who/where it is."
-IDENTITY_TOOLS = {"/fs/context", "/load-respond-instructions", "/fs/read"}
+# Refusal outcomes are exempt from content-read and identity gates because a
+# task can legitimately be refused from its description alone. See AGENTS.md:
+# "use OUTCOME_NONE_CLARIFICATION when the benchmark expects a resolution
+# outcome" and the ERC3-like identity/policy-pass clause.
+REFUSAL_OUTCOMES = {
+    "OUTCOME_NONE_UNSUPPORTED",
+    "OUTCOME_DENIED_SECURITY",
+    "OUTCOME_NONE_CLARIFICATION",  # refinement: AGENTS.md explicitly allows this as a resolution outcome
+}
 
 def check_terminal(session: Session, step: NextStep) -> Verdict:
     fn = step.function
     if not isinstance(fn, ReportTaskCompletion):
         return Verdict(ok=True)
     reasons = []
+    non_refusal = fn.outcome not in REFUSAL_OUTCOMES
 
-    # Rule 1 — Identity-context gate.
-    # Signal: 99.5% of passing runs loaded identity tools vs 87.8% of failing runs.
-    # Exempt refusal outcomes (you can refuse a task without loading context).
-    if fn.outcome not in REFUSAL_OUTCOMES:
-        if not session.identity_loaded:
-            reasons.append("identity gate: no identity tool called before terminal")
+    # R1 — Identity-context gate.
+    # [data] catches 4 failures @ 100% precision (recent corpus).
+    # [AGENTS.md] "perform a pre-execution identity and policy pass first:
+    # resolve actor context (whoami equivalent), select applicable rule set
+    # (public/authenticated or role-scoped), and only then execute side-
+    # effectful steps."
+    if non_refusal and not session.identity_loaded:
+        reasons.append("identity gate: no identity/context tool called before terminal")
 
-    # Rule 2 — Nontrivial-work gate.
-    # Signal: 72/559 failures (13%) terminated without ever calling a read-like tool,
-    # vs only 2/443 passes (0.5%). Exempt refusal outcomes.
-    if fn.outcome not in REFUSAL_OUTCOMES:
-        if not (session.tools_called & READ_LIKE_TOOLS):
-            reasons.append(
-                f"nontrivial-work gate: {fn.outcome} without any read/list/search/tree call"
-            )
+    # R2 — Rulebook-loaded gate (replaces the old "nontrivial-work" set check).
+    # [data] catches 88 failures @ 84.6% precision. The single strongest
+    # hard-gate signal in the recent corpus after OUTCOME_ERR_INTERNAL.
+    # [AGENTS.md] "Treat every in-scope AGENTS.md as authoritative. If an
+    # AGENTS.md points to other project, vault, or repository instructions,
+    # treat that referenced guidance as part of the governing instruction
+    # chain." The Planner cannot satisfy this without first loading the
+    # rulebook for the active subtree.
+    if non_refusal and not session.rulebook_loaded:
+        reasons.append("rulebook gate: respond-instructions / AGENTS.md not loaded before terminal")
 
-    # Rule 3 — Planner self-assertion.
-    # The Planner sets identity_verified=True as part of NextStep. If it asserts
-    # False AND the outcome requires knowing context, reject.
-    if fn.outcome not in REFUSAL_OUTCOMES and not step.identity_verified:
-        reasons.append("planner self-reported identity_verified=False at non-refusal terminal")
+    # R3 — Content-read gate.
+    # [data] catches 19 failures @ 86.4% precision. This replaces the
+    # READ_LIKE_TOOLS set-intersection rule, which had negative signal in
+    # the recent corpus (the set included /fs/tree and /fs/list, which fire
+    # during discovery without producing content evidence). The planner's
+    # own "did we actually read content?" counter is the right signal.
+    # [AGENTS.md] "treat tool calls as primary evidence and natural language
+    # as secondary: gather data from tools first, then answer with explicit
+    # constraint and permission checks."
+    if non_refusal and session.read_count == 0:
+        reasons.append("content-read gate: zero successful /fs/read calls before terminal")
 
-    # Rule 4 — Grounding refs must be reachable.
-    # The old trace format didn't record grounding_refs explicitly, so this rule
-    # cannot be calibrated against historical data. It is kept on principle:
-    # fabricated references to files never read are a hallucination fingerprint
-    # that the regression harness will validate on real runs.
+    # R4 — Planner self-assertion (new NextStep field).
+    # [data] catches 120 failures @ 77.4% precision via the planner's own
+    # finalization_ready flag on the sibling agent. Precision is below
+    # hard-gate threshold, but the retry policy below bounds the cost:
+    # a false reject costs one extra LLM call, while a true reject catches
+    # half of all failures. Worth the cost.
+    # [AGENTS.md] "Do not advance to the next implementation step until the
+    # active regression or validation target is confirmed fixed by the
+    # required verification for that step."
+    if non_refusal and step.finalization_ready is False:
+        reasons.append("planner self-assertion: finalization_ready=False at non-refusal terminal")
+
+    # R5 — Grounding-refs reachability.
+    # [principle] cannot be calibrated — the sibling agent's planner always
+    # emitted grounding_refs on OUTCOME_OK (0 catches / 0 false positives on
+    # the empty-refs check). Our schema requires refs for OK and the check
+    # that every ref was actually read is a cheap mechanical guard against
+    # the classic "cite a file I never opened" hallucination.
     for ref in fn.grounding_refs:
         if ref not in session.seen_refs:
             reasons.append(f"grounding_ref {ref!r} never successfully read")
@@ -212,17 +248,39 @@ def check_terminal(session: Session, step: NextStep) -> Verdict:
     return Verdict(ok=not reasons, reasons=reasons)
 ```
 
-**Rules explicitly dropped** because the historical data shows no signal:
-- **OUTCOME_OK minimum message length.** Passing OK runs have median msg_len=160 but min=3; failing OK runs have median=168. Passing and failing distributions overlap almost perfectly.
-- **NONE_CLARIFICATION keyword check.** "clarif" or "?" appears in 40% of passing clarification runs and 37% of failing ones — no discriminative power.
+**Rules the data killed** (recent-format corpus):
 
-**Biggest finding that the enforcer cannot fix** (noted here so we don't pretend it can):
-- `OUTCOME_NONE_CLARIFICATION` has a **29% pass rate** — the agent hallucinates ambiguity 70% of the time it claims clarification is needed. This is a prompt/planning issue, not something algorithmic policy can catch. It belongs in §2.5 prompt design, not here.
-- `OUTCOME_OK` has **43% false positives** — when the agent says "done," the grader disagrees nearly half the time. Same root cause category: planner confidence is miscalibrated. Mitigation lives in prompts + the `outcome_justification` required field, not in enforcer rules.
+| Rule | fire@pass | fire@fail | verdict |
+|---|---:|---:|---|
+| `READ_LIKE_TOOLS` set intersection ("nontrivial-work gate") | 4/234 | 2/239 | **negative delta** — worse than random; dropped in favour of `read_count` |
+| `grounding_refs_empty_on_ok` | 0 | 0 | no signal — planner always emits refs on OK |
+| `post_mutation_unverified` | 0 | 0 | field not populated in traces |
+| `loop_forced_fallback` | 0 | 0 | field not populated at terminal |
+| `OUTCOME_OK` minimum message length | pass median 160 vs fail median 168 | — | distributions overlap perfectly |
+| `NONE_CLARIFICATION` keyword check | 40% vs 37% | — | no discriminative power |
 
-**Session state requirement:** Rule 2 references `session.tools_called` (a `set[str]`). Add this field to `Session` in §2.3 — it's populated by the adapter on every successful tool dispatch.
+**Rules the data could have supported, but are intentionally handled upstream of the enforcer:**
+
+- `OUTCOME_ERR_INTERNAL` as a reject rule had 100% precision / 82 catches in the recent corpus — the single cleanest signal. Instead of enforcing it at terminal, we **remove this outcome from the `Outcome` enum entirely**. The planner cannot report an error as a task outcome; if it cannot proceed, that is an internal error bubbled up through the Python error-handling layer (§4.1 patterns P1–P7), not a self-reported successful termination. This is a stronger move than an enforcer rule — it is unrepresentable rather than unenforceable.
+
+**Biggest findings the enforcer cannot fix** (noted here so we don't pretend it can):
+- `OUTCOME_NONE_CLARIFICATION` has a **36% pass rate** in the recent corpus — the agent hallucinates ambiguity ~64% of the time it claims clarification is needed. This is a prompt/planning issue. It belongs in §2.5 prompt design, not here. Required field `outcome_justification` is the lever.
+- `OUTCOME_OK` has **~33% false positives** in the recent corpus (52 failing OKs out of 160). When the agent says "done," the grader disagrees a third of the time. Same root cause category: planner confidence is miscalibrated. Mitigation lives in prompts + the `completed_steps_laconic` and `outcome_justification` required fields, not in enforcer rules.
+
+**Session state requirements (added to §2.3):**
+- `rulebook_loaded: bool` — set True by the adapter when the Planner calls `/load-respond-instructions` or its successor and the call succeeds. Consumed by R2.
+- `read_count: int` — incremented by the adapter on every successful `/fs/read`. Consumed by R3. Note: `tools_called: set[str]` is still tracked for logging and the loop detector, but no enforcer rule reads it directly.
+
+**NextStep schema requirement (added to §2.2):**
+- `ReportTaskCompletion.finalization_ready: bool` — the Planner's self-reported assertion that all obligations for the task have been completed. Consumed by R4. Modelled on the sibling agent's `workflow_state.finalization_ready` field which provided the strongest catch signal in the corpus.
 
 **Retry policy:** 1 retry with the verdict's reasons injected into the next prompt as critique. If the retry also fails enforcement → **submit anyway**. The agent's best attempt is better than no submission at all. The enforcer verdict and the `submit_anyway` decision are both logged to the trace for post-hoc analysis.
+
+**How to reproduce the rule-by-rule numbers:**
+```
+python3 scripts/research-logs-from-old-agent/rule_evaluator.py --all
+```
+The registry in `rule_evaluator.py` is the canonical source for the catch and precision figures cited above. Anyone proposing a new rule should add it to that registry first and only promote it to this section if the data supports it.
 
 ### 2.5 Prompts (`prompts.py`)
 Separate module, owned by the design — not buried in the loop. The system prompt is the #1 reliability lever.
@@ -284,7 +342,7 @@ Each task worker receives a `threading.Event` (`cancel_event`) and a wall-clock 
 
 - The orchestrator sets `cancel_event` when the deadline fires OR when a SIGTERM arrives.
 - The worker checks `cancel_event` at the top of every step-loop iteration.
-- On cancel, the worker emits a synthetic `ReportTaskCompletion(outcome="OUTCOME_ERR_INTERNAL", message="cancelled:timeout")`, flushes the trace, and returns.
+- On cancel, the worker writes a synthetic `{"kind":"outcome","terminated_by":"cancel_timeout","error_kind":"task_timeout", ...}` trace event, flushes, and returns. It does **not** fabricate a `ReportTaskCompletion` — that outcome is reserved for the planner's own successful termination, and `OUTCOME_ERR_INTERNAL` no longer exists in the schema (see §2.2). The benchmark driver sees the synthetic outcome and records the task as failed, which is the correct semantic.
 - No thread is abandoned. No partial traces are lost.
 
 Grace period after cancel_event fires: `task_timeout_grace_sec = 20` (enough to flush trace + one submit call).
@@ -310,7 +368,7 @@ Only the static system prompt (turn 0) is reliably cacheable across tasks. The p
 
 **Closed enums:**
 - `error_kind`: `null | BACKEND_ERROR | SUBMISSION_FAILED | CONTEXT_OVERFLOW | INTERNAL_CRASH | MAX_STEPS | CANCELLED`
-- `terminated_by`: `report_completion | error | cancel | exhausted`
+- `terminated_by`: `report_completion | cancel_timeout | error | cancel | exhausted`
 - `event.event_kind`: `validation_retry | loop_nudge | rate_limit_backoff | timeout_cancel | enforcer_reject`
 - `tool_result.error_code`: `null | RPC_DEADLINE | RPC_UNAVAILABLE | PCM_ERROR | INVALID_ARG | UNKNOWN`
 
