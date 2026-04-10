@@ -22,7 +22,7 @@ from typing import List, Optional
 from pydantic import ValidationError
 
 from bitgn_contest_agent.adapter.pcm import PcmAdapter, ToolResult
-from bitgn_contest_agent.backend.base import Backend, Message
+from bitgn_contest_agent.backend.base import Backend, Message, TransientBackendError
 from bitgn_contest_agent.enforcer import Verdict, check_terminal
 from bitgn_contest_agent.prompts import critique_injection, loop_nudge, system_prompt
 from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
@@ -37,6 +37,7 @@ from bitgn_contest_agent.trace_writer import TraceWriter
 
 
 _MAX_NUDGES = 2
+_DEFAULT_BACKOFF_MS: tuple[int, ...] = (500, 1500, 4000, 10000)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +64,7 @@ class AgentLoop:
         max_steps: int,
         llm_http_timeout_sec: float,
         cancel_event: Optional[threading.Event] = None,
+        backend_backoff_ms: tuple[int, ...] = _DEFAULT_BACKOFF_MS,
     ) -> None:
         self._backend = backend
         self._adapter = adapter
@@ -70,6 +72,7 @@ class AgentLoop:
         self._max_steps = max_steps
         self._llm_http_timeout_sec = llm_http_timeout_sec
         self._cancel_event = cancel_event
+        self._backoff_ms = backend_backoff_ms
 
     def run(self, *, task_id: str, task_text: str) -> AgentLoopResult:
         session = Session()
@@ -99,13 +102,19 @@ class AgentLoop:
                 messages.append(Message(role="user", content=pending_nudge))
                 pending_nudge = None
 
-            # Backend call + P3 validation retry.
+            # Backend call + P2 transient retry + P3 validation retry.
             try:
-                step_obj = self._backend.next_step(
-                    messages=messages,
-                    response_schema=NextStep,
-                    timeout_sec=self._llm_http_timeout_sec,
+                maybe_step = self._call_backend_with_retry(
+                    messages, at_step=step_idx
                 )
+                if maybe_step is None:
+                    return self._finish_error(
+                        totals,
+                        step_idx,
+                        error_kind="BACKEND_ERROR",
+                        error_msg="transient backend exhausted",
+                    )
+                step_obj = maybe_step
             except ValidationError as exc:
                 self._writer.append_event(
                     at_step=step_idx,
@@ -119,11 +128,17 @@ class AgentLoop:
                     )
                 ]
                 try:
-                    step_obj = self._backend.next_step(
-                        messages=retry_messages,
-                        response_schema=NextStep,
-                        timeout_sec=self._llm_http_timeout_sec,
+                    maybe_retry = self._call_backend_with_retry(
+                        retry_messages, at_step=step_idx
                     )
+                    if maybe_retry is None:
+                        return self._finish_error(
+                            totals,
+                            step_idx,
+                            error_kind="BACKEND_ERROR",
+                            error_msg="transient backend exhausted on validation retry",
+                        )
+                    step_obj = maybe_retry
                 except ValidationError as exc2:
                     return self._finish_error(
                         totals,
@@ -159,12 +174,14 @@ class AgentLoop:
                         )
                     ]
                     try:
-                        retry_step = self._backend.next_step(
-                            messages=retry_messages,
-                            response_schema=NextStep,
-                            timeout_sec=self._llm_http_timeout_sec,
+                        maybe_retry_step = self._call_backend_with_retry(
+                            retry_messages, at_step=step_idx
                         )
-                        totals.llm_calls += 1
+                        if maybe_retry_step is None:
+                            retry_step = step_obj  # fall through to submit_anyway
+                        else:
+                            retry_step = maybe_retry_step
+                            totals.llm_calls += 1
                     except ValidationError:
                         retry_step = step_obj  # fall through to submit_anyway
                     retry_fn = retry_step.function
@@ -254,6 +271,41 @@ class AgentLoop:
         )
 
     # -- helpers ---------------------------------------------------------
+
+    def _call_backend_with_retry(
+        self,
+        messages: List[Message],
+        *,
+        at_step: int,
+    ) -> Optional[NextStep]:
+        """P2 — bounded exponential backoff on TransientBackendError.
+
+        Returns NextStep on success, or None if all attempts exhausted
+        (caller should then finish with BACKEND_ERROR). ValidationError
+        propagates to the caller's P3 handler.
+        """
+        last_exc: Optional[Exception] = None
+        for attempt, wait_ms in enumerate([0, *self._backoff_ms], start=0):
+            if wait_ms > 0:
+                self._writer.append_event(
+                    at_step=at_step,
+                    event_kind="rate_limit_backoff",
+                    wait_ms=wait_ms,
+                    attempt=attempt,
+                )
+                time.sleep(wait_ms / 1000.0)
+            try:
+                return self._backend.next_step(
+                    messages=messages,
+                    response_schema=NextStep,
+                    timeout_sec=self._llm_http_timeout_sec,
+                )
+            except TransientBackendError as exc:
+                last_exc = exc
+                continue
+        if last_exc is not None:
+            return None
+        return None
 
     def _log_step(
         self,

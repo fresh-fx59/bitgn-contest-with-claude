@@ -9,7 +9,7 @@ import pytest
 
 from bitgn_contest_agent.agent import AgentLoop, AgentLoopResult
 from bitgn_contest_agent.adapter.pcm import PcmAdapter, ToolResult
-from bitgn_contest_agent.backend.base import Backend, Message
+from bitgn_contest_agent.backend.base import Backend, Message, TransientBackendError
 from bitgn_contest_agent.schemas import NextStep
 from bitgn_contest_agent.session import Session
 from bitgn_contest_agent.trace_schema import TRACE_SCHEMA_VERSION, TraceMeta
@@ -202,4 +202,81 @@ def test_agent_loop_hits_max_steps_and_fails(tmp_path: Path) -> None:
 
     assert result.terminated_by == "exhausted"
     assert result.error_kind == "MAX_STEPS"
+    writer.close()
+
+
+class _FlakyBackend(Backend):
+    """Raises TransientBackendError once, then returns the canned step."""
+
+    def __init__(self, step: NextStep, raise_times: int = 1) -> None:
+        self._step = step
+        self._remaining_raises = raise_times
+        self.calls = 0
+
+    def next_step(self, messages, response_schema, timeout_sec):  # type: ignore[override]
+        self.calls += 1
+        if self._remaining_raises > 0:
+            self._remaining_raises -= 1
+            raise TransientBackendError("429", attempt=self.calls)
+        return self._step
+
+
+def test_agent_loop_retries_on_transient_backend_error(tmp_path: Path, monkeypatch) -> None:
+    # Replace time.sleep so tests stay fast.
+    monkeypatch.setattr("bitgn_contest_agent.agent.time.sleep", lambda s: None)
+    backend = _FlakyBackend(
+        _mk_step(
+            {
+                "tool": "report_completion",
+                "message": "done",
+                "grounding_refs": ["AGENTS.md"],
+                "rulebook_notes": "n",
+                "outcome_justification": "read",
+                "completed_steps_laconic": ["read AGENTS.md"],
+                "outcome": "OUTCOME_OK",
+            }
+        ),
+        raise_times=2,
+    )
+    adapter = _mk_adapter_mock()
+    adapter.run_prepass.side_effect = lambda *, session, trace_writer: _fake_prepass(session)
+    writer = _mk_writer(tmp_path)
+
+    loop = AgentLoop(
+        backend=backend,
+        adapter=adapter,
+        writer=writer,
+        max_steps=5,
+        llm_http_timeout_sec=30.0,
+        backend_backoff_ms=(1, 1, 1, 1),
+    )
+    result = loop.run(task_id="t1", task_text="do it")
+
+    assert result.terminated_by == "report_completion"
+    assert backend.calls == 3  # 2 transient failures + 1 success
+    writer.close()
+
+
+def test_agent_loop_fails_task_after_backend_exhaustion(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("bitgn_contest_agent.agent.time.sleep", lambda s: None)
+
+    class _AlwaysFlaky(Backend):
+        def next_step(self, messages, response_schema, timeout_sec):  # type: ignore[override]
+            raise TransientBackendError("no capacity")
+
+    adapter = _mk_adapter_mock()
+    adapter.run_prepass.side_effect = lambda *, session, trace_writer: _fake_prepass(session)
+    writer = _mk_writer(tmp_path)
+
+    loop = AgentLoop(
+        backend=_AlwaysFlaky(),
+        adapter=adapter,
+        writer=writer,
+        max_steps=5,
+        llm_http_timeout_sec=30.0,
+        backend_backoff_ms=(1, 1, 1, 1),
+    )
+    result = loop.run(task_id="t1", task_text="do it")
+    assert result.terminated_by == "error"
+    assert result.error_kind == "BACKEND_ERROR"
     writer.close()
