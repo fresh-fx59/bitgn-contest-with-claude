@@ -55,16 +55,26 @@ class Orchestrator:
     def run(self, tasks: Sequence[TaskSpec]) -> List[TaskExecutionResult]:
         results: List[TaskExecutionResult] = [None] * len(tasks)  # type: ignore[list-item]
         cancel_events: dict[int, threading.Event] = {i: threading.Event() for i in range(len(tasks))}
+        # start_times[i] is None until the worker actually picks up task i.
+        # T24 observation: capturing start_times at pool.submit() time
+        # burns the deadline of every queued task before it has a chance
+        # to run. With 43 tasks and max_parallel=4, tasks 21..42 were
+        # pre-cancelled on the first bench run (see artifacts/bench/
+        # 9f3ff56_*.json — t21..t43 all show 0 steps, terminated_by=cancel).
+        # Deadlines must be measured from the moment the worker begins
+        # executing the runner, not from submission time.
+        start_times: dict[int, Optional[float]] = {i: None for i in range(len(tasks))}
+        deadlines: dict[int, Optional[float]] = {i: None for i in range(len(tasks))}
+        start_lock = threading.Lock()
+
+        def _launch(task_idx: int) -> TaskExecutionResult:
+            with start_lock:
+                start_times[task_idx] = time.monotonic()
+            return self._wrap_runner(tasks[task_idx], cancel_events[task_idx])
 
         with cf.ThreadPoolExecutor(max_workers=self._max_parallel_tasks) as pool:
             futures = {
-                pool.submit(self._wrap_runner, tasks[i], cancel_events[i]): i
-                for i in range(len(tasks))
-            }
-            start_times = {futures[f]: time.monotonic() for f in futures}
-            deadlines = {
-                i: (start_times[i] + self._task_timeout_sec) if self._task_timeout_sec > 0 else None
-                for i in range(len(tasks))
+                pool.submit(_launch, i): i for i in range(len(tasks))
             }
 
             pending = set(futures.keys())
@@ -72,14 +82,23 @@ class Orchestrator:
                 done, pending = cf.wait(
                     pending, timeout=0.25, return_when=cf.FIRST_COMPLETED
                 )
-                # Fire deadlines.
+                # Fire deadlines for tasks that have actually started.
                 now = time.monotonic()
                 for fut, idx in list(futures.items()):
+                    if fut.done():
+                        continue
+                    with start_lock:
+                        started = start_times[idx]
+                    if started is None:
+                        continue  # still queued; deadline not yet active
+                    if deadlines[idx] is None and self._task_timeout_sec > 0:
+                        deadlines[idx] = started + self._task_timeout_sec
                     dl = deadlines[idx]
-                    if dl is not None and now >= dl and not fut.done():
+                    if dl is not None and now >= dl:
                         cancel_events[idx].set()
-                        # Extend the future's effective deadline by grace
-                        # so the worker can flush its trace.
+                        # Extend the effective deadline by grace so the
+                        # worker has room to flush its trace before the
+                        # next loop iteration re-checks.
                         deadlines[idx] = dl + self._grace_sec
                 for fut in done:
                     idx = futures[fut]

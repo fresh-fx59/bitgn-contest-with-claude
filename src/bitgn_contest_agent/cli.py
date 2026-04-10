@@ -239,6 +239,14 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
         all_results.extend(orch.run(tasks))
 
     if args.output:
+        # scripts/ is a sibling of src/, not part of the installed package
+        # (pyproject.toml only packages src/). Pytest finds it via its
+        # implicit rootdir sys.path injection; at runtime we need to do
+        # the same here so the CLI works from both the editable install
+        # and a built wheel invoked from the repo checkout.
+        _repo_root = Path(__file__).resolve().parents[2]
+        if str(_repo_root) not in sys.path:
+            sys.path.insert(0, str(_repo_root))
         from scripts.bench_summary import summarize  # type: ignore[attr-defined]
 
         summary = summarize(logs_dir=Path(cfg.log_dir) / run_id)

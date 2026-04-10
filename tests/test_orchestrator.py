@@ -75,6 +75,44 @@ def test_orchestrator_cancels_long_running_task_after_deadline() -> None:
     assert elapsed < 2.5  # cancel fired before natural completion
 
 
+def test_orchestrator_queued_task_deadline_starts_at_execution_not_submission() -> None:
+    """T24 regression: when tasks > max_parallel, queued tasks must get
+    their full task_timeout_sec budget starting from when the worker
+    actually picks them up — not from when the pool was populated.
+
+    The original implementation captured start_times at pool.submit()
+    time, which burned the deadline of 23/43 tasks in the first bench
+    run before they ever made an LLM call.
+    """
+    # 6 tasks, 2 workers, each task takes ~1s, deadline 2s.
+    # Correct behavior: all 6 tasks pass (each gets its own 2s budget
+    # from its own start time). Buggy behavior: tasks 4-5 start ~3s
+    # after submission, their deadline has already fired, and they
+    # get cancelled immediately.
+    tasks = [
+        TaskSpec(task_id=f"t{i}", task_index=i, task_text="...")
+        for i in range(6)
+    ]
+    runner = _mk_runner(
+        TaskExecutionResult(
+            task_id="", score=1.0, terminated_by="report_completion",
+            error_kind=None, error_msg=None,
+        ),
+        sleep_s=1.0,
+    )
+    orch = Orchestrator(
+        runner=runner,
+        max_parallel_tasks=2,
+        task_timeout_sec=2,
+        task_timeout_grace_sec=1,
+    )
+    results = orch.run(tasks)
+    assert len(results) == 6
+    assert all(
+        r.terminated_by == "report_completion" for r in results
+    ), f"queued tasks were cancelled: {[r.terminated_by for r in results]}"
+
+
 def test_orchestrator_isolation_one_failure_does_not_abort_others() -> None:
     tasks = [
         TaskSpec(task_id="good", task_index=0, task_text="..."),
