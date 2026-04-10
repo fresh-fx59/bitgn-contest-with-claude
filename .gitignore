@@ -3,3 +3,14 @@ task-t01-t43-logs-produced-by-bitgn-contest-agent/
 
 # Git worktrees — isolated development workspaces
 .worktrees/
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+build/
+dist/
+logs/
+artifacts/bench/*_scratch.json
