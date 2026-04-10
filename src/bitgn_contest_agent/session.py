@@ -1,0 +1,37 @@
+"""Session state and loop detector.
+
+One instance per task run. Lives in the worker thread. Never shared
+across tasks (even within the same orchestrator run).
+"""
+from __future__ import annotations
+
+from collections import deque
+from dataclasses import dataclass, field
+from typing import Deque, Tuple
+
+
+_RECENT_WINDOW = 6
+_REPEAT_THRESHOLD = 3
+
+
+@dataclass(slots=True)
+class Session:
+    seen_refs: set[str] = field(default_factory=set)
+    rulebook_loaded: bool = False
+    identity_loaded: bool = False
+    step: int = 0
+    recent_calls: Deque[Tuple[str, ...]] = field(
+        default_factory=lambda: deque(maxlen=_RECENT_WINDOW)
+    )
+    nudges_emitted: int = 0
+
+    def loop_nudge_needed(self, call: Tuple[str, ...]) -> bool:
+        """Record a (tool, canonical_args) tuple; return True if the same
+        tuple has appeared _REPEAT_THRESHOLD times in the last _RECENT_WINDOW
+        entries (i.e., this very call is the threshold-hitting one)."""
+        self.recent_calls.append(call)
+        count = sum(1 for c in self.recent_calls if c == call)
+        return count >= _REPEAT_THRESHOLD
+
+    def nudge_budget_remaining(self, *, max_nudges: int) -> int:
+        return max(0, max_nudges - self.nudges_emitted)
