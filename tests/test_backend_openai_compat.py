@@ -12,7 +12,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from bitgn_contest_agent.backend.base import Message, TransientBackendError
-from bitgn_contest_agent.backend.openai_compat import OpenAIChatBackend
+from bitgn_contest_agent.backend.openai_compat import (
+    OpenAIChatBackend,
+    _extract_json_object,
+)
 from bitgn_contest_agent.schemas import NextStep
 
 
@@ -51,11 +54,24 @@ def test_structured_path_returns_parsed_next_step(mocker: Any) -> None:
     fake_client.beta.chat.completions.parse.assert_called_once()
 
 
-def test_fallback_path_parses_content_json(mocker: Any) -> None:
+def test_fallback_path_concatenates_streamed_deltas(mocker: Any) -> None:
+    """The fallback path streams and concatenates delta.content across chunks
+    (cliproxyapi only emits message body via streaming, not via non-stream
+    chat completions — T24 observation)."""
     fake_client = MagicMock()
-    completion = MagicMock()
-    completion.choices = [MagicMock(message=MagicMock(content=_sample_step_json()))]
-    fake_client.chat.completions.create.return_value = completion
+    full_json = _sample_step_json()
+    # Split into 4 arbitrary chunks to exercise concatenation ordering.
+    splits = [0, 12, 40, 80, len(full_json)]
+    chunks: list[Any] = []
+    for lo, hi in zip(splits, splits[1:]):
+        chunk = MagicMock()
+        chunk.choices = [MagicMock(delta=MagicMock(content=full_json[lo:hi]))]
+        chunks.append(chunk)
+    # Terminal chunk with empty delta (mirrors OpenAI's finish-only tail).
+    tail = MagicMock()
+    tail.choices = [MagicMock(delta=MagicMock(content=None))]
+    chunks.append(tail)
+    fake_client.chat.completions.create.return_value = iter(chunks)
 
     backend = OpenAIChatBackend(
         client=fake_client,
@@ -70,7 +86,12 @@ def test_fallback_path_parses_content_json(mocker: Any) -> None:
         timeout_sec=30.0,
     )
     assert isinstance(out, NextStep)
-    fake_client.chat.completions.create.assert_called_once()
+    assert out.function.tool == "read"
+    # stream=True must be passed to the SDK
+    kwargs = fake_client.chat.completions.create.call_args.kwargs
+    assert kwargs.get("stream") is True
+    # response_format must NOT be passed — it breaks cliproxyapi's conversion.
+    assert "response_format" not in kwargs
 
 
 def test_rate_limit_is_remapped_to_transient_backend_error() -> None:
@@ -107,3 +128,45 @@ def test_timeout_is_remapped_to_transient_backend_error() -> None:
     )
     with pytest.raises(TransientBackendError):
         backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
+
+
+def test_httpx_readtimeout_from_stream_iteration_is_remapped_to_transient() -> None:
+    """T24 observation: the openai SDK's retry wrapper only covers the
+    initial request, so httpx.ReadTimeout raised *while iterating* a
+    streaming response escapes as-is. _TRANSIENT_EXCEPTIONS must
+    catch it so the P2 backoff in AgentLoop can retry."""
+    import httpx
+
+    def _raise_midstream() -> Any:
+        yield MagicMock(choices=[MagicMock(delta=MagicMock(content='{"x":'))])
+        raise httpx.ReadTimeout("timed out", request=MagicMock())
+
+    fake_client = MagicMock()
+    fake_client.chat.completions.create.return_value = _raise_midstream()
+    backend = OpenAIChatBackend(
+        client=fake_client,
+        model="gpt-5.3-codex",
+        reasoning_effort="medium",
+        use_structured_output=False,
+    )
+    with pytest.raises(TransientBackendError):
+        backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
+
+
+def test_extract_json_object_strips_markdown_fences() -> None:
+    raw = '```json\n{"tool":"tree","root":"/"}\n```'
+    assert _extract_json_object(raw) == '{"tool":"tree","root":"/"}'
+
+
+def test_extract_json_object_slices_to_outermost_braces() -> None:
+    raw = 'Sure, here is the NextStep: {"current_state":"x","f":{"a":1}} end'
+    assert _extract_json_object(raw) == '{"current_state":"x","f":{"a":1}}'
+
+
+def test_extract_json_object_handles_braces_inside_strings() -> None:
+    raw = '{"msg":"contains } brace","ok":true}'
+    assert _extract_json_object(raw) == raw
+
+
+def test_extract_json_object_returns_original_when_no_braces() -> None:
+    assert _extract_json_object("plain text") == "plain text"

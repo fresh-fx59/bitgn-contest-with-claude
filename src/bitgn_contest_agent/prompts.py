@@ -21,6 +21,38 @@ exactly one PcmRuntime RPC):
 You MUST emit exactly one `NextStep` JSON object per turn. Its
 `function` field must be one of the tool variants above.
 
+The NextStep envelope has exactly this shape — `function` is a nested
+object selected by its `tool` discriminator, NEVER a bare string:
+
+  {
+    "current_state": "<your thinking scratchpad>",
+    "plan_remaining_steps_brief": ["step 1", "step 2"],
+    "identity_verified": false,
+    "function": { "tool": "tree", "root": "/" }
+  }
+
+Other valid `function` shapes (one per turn, pick one):
+  { "tool": "read",              "path": "AGENTS.md" }
+  { "tool": "write",             "path": "notes.txt", "content": "..." }
+  { "tool": "delete",            "path": "tmp.txt" }
+  { "tool": "mkdir",             "path": "new_dir" }
+  { "tool": "move",              "from_name": "a", "to_name": "b" }
+  { "tool": "list",              "name": "some_dir" }
+  { "tool": "tree",              "root": "/" }
+  { "tool": "find",              "root": "/", "name": "", "type": "TYPE_ALL", "limit": 10 }
+  { "tool": "search",            "root": "/", "pattern": "TODO", "limit": 10 }
+  { "tool": "context" }
+  { "tool": "report_completion",
+    "message": "...",
+    "grounding_refs": ["AGENTS.md", "README.md"],
+    "rulebook_notes": "...",
+    "outcome_justification": "...",
+    "completed_steps_laconic": ["read AGENTS.md", "..."],
+    "outcome": "OUTCOME_OK" }
+
+Return ONLY the NextStep JSON object. No prose, no markdown fences, no
+commentary before or after the object.
+
 Identity + rulebook discipline:
   1. Before doing any task-specific work, call `tree root="/"`, then
      `read path="AGENTS.md"`, then `context`. Treat any that succeed as

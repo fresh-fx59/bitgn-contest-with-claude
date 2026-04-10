@@ -242,20 +242,31 @@ class AgentLoop:
                     session.seen_refs.add(ref)
 
             # Feed the tool result back to the planner.
+            #
+            # T24 observation: cliproxyapi translates OpenAI chat-completions
+            # into Codex /v1/responses items. A `role="tool"` message is
+            # mapped to a `function_call_output` item that requires a
+            # matching `call_id`, but our assistant messages are plain JSON
+            # content — not OpenAI `tool_calls` — so cliproxyapi emits an
+            # empty call_id string and Codex rejects the request with
+            # `Invalid 'input[N].call_id': empty string`. Wrap the tool
+            # result in a `role="user"` message so it round-trips as plain
+            # text, sidestepping the function-call translation entirely.
             messages.append(
                 Message(
                     role="assistant",
                     content=step_obj.model_dump_json(),
                 )
             )
+            tool_body = (
+                tool_result.content
+                if tool_result.ok
+                else f"ERROR ({tool_result.error_code}): {tool_result.error}"
+            )
             messages.append(
                 Message(
-                    role="tool",
-                    content=(
-                        tool_result.content
-                        if tool_result.ok
-                        else f"ERROR ({tool_result.error_code}): {tool_result.error}"
-                    ),
+                    role="user",
+                    content=f"Tool result:\n{tool_body}",
                 )
             )
 
