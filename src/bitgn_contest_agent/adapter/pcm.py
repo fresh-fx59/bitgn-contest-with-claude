@@ -7,14 +7,16 @@ to be fixed.
 """
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Sequence, Tuple
+from typing import Any, Callable, Dict, Sequence, Tuple
 
 from bitgn.vm import pcm_pb2
 from bitgn.vm.pcm_connect import PcmRuntimeClientSync
 
 from bitgn_contest_agent.schemas import (
+    NextStep,  # noqa: F401 — used by T10 type hints
     ReportTaskCompletion,
     Req_Context,
     Req_Delete,
@@ -27,6 +29,8 @@ from bitgn_contest_agent.schemas import (
     Req_Tree,
     Req_Write,
 )
+
+_LOG = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +49,36 @@ class ToolResult:
         return len(self.content.encode("utf-8", errors="replace"))
 
 
+def _response_to_text(resp: Any) -> str:
+    """Extract a printable representation of any pcm_pb2 response.
+
+    Generated proto messages are not JSON-serializable out of the box, so
+    we use the protobuf MessageToJson helper + a plain string fallback.
+    """
+    try:
+        from google.protobuf.json_format import MessageToJson
+
+        return MessageToJson(resp, preserving_proto_field_name=True, indent=None)
+    except Exception:
+        return str(resp)
+
+
+_FIND_TYPE_MAP: Dict[str, int] = {
+    "TYPE_ALL": pcm_pb2.FindRequest.TYPE_ALL,
+    "TYPE_FILES": pcm_pb2.FindRequest.TYPE_FILES,
+    "TYPE_DIRS": pcm_pb2.FindRequest.TYPE_DIRS,
+}
+
+
+_OUTCOME_MAP: Dict[str, int] = {
+    "OUTCOME_OK": pcm_pb2.OUTCOME_OK,
+    "OUTCOME_DENIED_SECURITY": pcm_pb2.OUTCOME_DENIED_SECURITY,
+    "OUTCOME_NONE_CLARIFICATION": pcm_pb2.OUTCOME_NONE_CLARIFICATION,
+    "OUTCOME_NONE_UNSUPPORTED": pcm_pb2.OUTCOME_NONE_UNSUPPORTED,
+    "OUTCOME_ERR_INTERNAL": pcm_pb2.OUTCOME_ERR_INTERNAL,
+}
+
+
 class PcmAdapter:
     def __init__(
         self,
@@ -55,12 +89,130 @@ class PcmAdapter:
         self._runtime = runtime
         self._max_bytes = max_tool_result_bytes
 
-    # Task 9 implements these. Task 10 implements run_prepass.
-    def dispatch(self, req: Any) -> ToolResult:  # noqa: ARG002 — filled in T9
-        raise NotImplementedError
+    # -- dispatch ---------------------------------------------------------
+
+    def dispatch(self, req: Any) -> ToolResult:
+        start = time.monotonic()
+        try:
+            if isinstance(req, Req_Read):
+                resp = self._runtime.read(pcm_pb2.ReadRequest(path=req.path))
+                return self._finish(start, resp, refs=(req.path,))
+            if isinstance(req, Req_Write):
+                resp = self._runtime.write(
+                    pcm_pb2.WriteRequest(path=req.path, content=req.content)
+                )
+                return self._finish(start, resp, refs=())
+            if isinstance(req, Req_Delete):
+                resp = self._runtime.delete(pcm_pb2.DeleteRequest(path=req.path))
+                return self._finish(start, resp, refs=())
+            if isinstance(req, Req_MkDir):
+                resp = self._runtime.mk_dir(pcm_pb2.MkDirRequest(path=req.path))
+                return self._finish(start, resp, refs=())
+            if isinstance(req, Req_Move):
+                resp = self._runtime.move(
+                    pcm_pb2.MoveRequest(from_name=req.from_name, to_name=req.to_name)
+                )
+                return self._finish(start, resp, refs=())
+            if isinstance(req, Req_List):
+                resp = self._runtime.list(pcm_pb2.ListRequest(name=req.name))
+                return self._finish(start, resp, refs=())
+            if isinstance(req, Req_Tree):
+                resp = self._runtime.tree(pcm_pb2.TreeRequest(root=req.root))
+                return self._finish(start, resp, refs=())
+            if isinstance(req, Req_Find):
+                resp = self._runtime.find(
+                    pcm_pb2.FindRequest(
+                        root=req.root,
+                        name=req.name,
+                        type=_FIND_TYPE_MAP[req.type],
+                        limit=req.limit,
+                    )
+                )
+                return self._finish(start, resp, refs=())
+            if isinstance(req, Req_Search):
+                resp = self._runtime.search(
+                    pcm_pb2.SearchRequest(
+                        root=req.root, pattern=req.pattern, limit=req.limit
+                    )
+                )
+                return self._finish(start, resp, refs=())
+            if isinstance(req, Req_Context):
+                resp = self._runtime.context(pcm_pb2.ContextRequest())
+                return self._finish(start, resp, refs=())
+            raise TypeError(f"unsupported request type: {type(req).__name__}")
+        except Exception as exc:
+            wall_ms = int((time.monotonic() - start) * 1000)
+            return ToolResult(
+                ok=False,
+                content="",
+                refs=(),
+                error=str(exc),
+                error_code=self._classify_exception(exc),
+                wall_ms=wall_ms,
+            )
+
+    def submit_terminal(self, completion: ReportTaskCompletion) -> ToolResult:
+        start = time.monotonic()
+        try:
+            resp = self._runtime.answer(
+                pcm_pb2.AnswerRequest(
+                    message=completion.message,
+                    outcome=_OUTCOME_MAP[completion.outcome],
+                    refs=list(completion.grounding_refs),
+                )
+            )
+            return self._finish(start, resp, refs=tuple(completion.grounding_refs))
+        except Exception as exc:
+            wall_ms = int((time.monotonic() - start) * 1000)
+            return ToolResult(
+                ok=False,
+                content="",
+                refs=(),
+                error=str(exc),
+                error_code=self._classify_exception(exc),
+                wall_ms=wall_ms,
+            )
 
     def run_prepass(self, *, session: Any, trace_writer: Any) -> None:  # noqa: ARG002 — filled in T10
         raise NotImplementedError
 
-    def submit_terminal(self, completion: ReportTaskCompletion) -> ToolResult:  # filled in T9
-        raise NotImplementedError
+    # -- helpers ----------------------------------------------------------
+
+    def _finish(
+        self,
+        start: float,
+        resp: Any,
+        *,
+        refs: Tuple[str, ...],
+    ) -> ToolResult:
+        text = _response_to_text(resp)
+        encoded = text.encode("utf-8", errors="replace")
+        original_bytes = len(encoded)
+        truncated = False
+        if original_bytes > self._max_bytes:
+            encoded = encoded[: self._max_bytes]
+            text = encoded.decode("utf-8", errors="replace")
+            truncated = True
+        wall_ms = int((time.monotonic() - start) * 1000)
+        return ToolResult(
+            ok=True,
+            content=text,
+            refs=refs,
+            error=None,
+            error_code=None,
+            wall_ms=wall_ms,
+            truncated=truncated,
+            original_bytes=original_bytes if truncated else 0,
+        )
+
+    def _classify_exception(self, exc: Exception) -> str:
+        name = type(exc).__name__
+        if "Deadline" in name or "Timeout" in name:
+            return "RPC_DEADLINE"
+        if "Unavailable" in name or "Connection" in name:
+            return "RPC_UNAVAILABLE"
+        if "InvalidArgument" in name or isinstance(exc, (TypeError, ValueError)):
+            return "INVALID_ARG"
+        if "PcmError" in name:
+            return "PCM_ERROR"
+        return "UNKNOWN"
