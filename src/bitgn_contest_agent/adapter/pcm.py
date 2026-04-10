@@ -173,8 +173,35 @@ class PcmAdapter:
                 wall_ms=wall_ms,
             )
 
-    def run_prepass(self, *, session: Any, trace_writer: Any) -> None:  # noqa: ARG002 — filled in T10
-        raise NotImplementedError
+    def run_prepass(self, *, session: Any, trace_writer: Any) -> None:
+        """Best-effort identity bootstrap.
+
+        Attempts tree(/), read(AGENTS.md), context(). Each failure is
+        recorded and proceeds to the next call — identity_loaded flips
+        true on ANY success. Per §1 the session is task-local, and the
+        trace writer captures every attempt for the analyzer.
+        """
+        pre_cmds = [
+            ("tree", Req_Tree(tool="tree", root="/")),
+            ("read_agents_md", Req_Read(tool="read", path="AGENTS.md")),
+            ("context", Req_Context(tool="context")),
+        ]
+        for label, req in pre_cmds:
+            result = self.dispatch(req)
+            if result.ok:
+                session.identity_loaded = True
+                if label == "read_agents_md":
+                    session.rulebook_loaded = True
+                for ref in result.refs:
+                    session.seen_refs.add(ref)
+            trace_writer.append_prepass(
+                cmd=label,
+                ok=result.ok,
+                bytes=result.bytes,
+                wall_ms=result.wall_ms,
+                error=result.error,
+                error_code=result.error_code,
+            )
 
     # -- helpers ----------------------------------------------------------
 
