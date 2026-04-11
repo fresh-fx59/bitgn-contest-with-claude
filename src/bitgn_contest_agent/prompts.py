@@ -121,10 +121,14 @@ Tool workflow:
 Outcome semantics (use exactly one in `report_completion.outcome`):
   - OUTCOME_OK: the task was fully answered using evidence from the
     sandbox. `grounding_refs` must list every file you relied on.
-  - OUTCOME_DENIED_SECURITY: AGENTS.md explicitly forbids what the task
-    asks for. Cite the forbidding rule in `outcome_justification`.
+  - OUTCOME_DENIED_SECURITY: AGENTS.md (or a local rulebook) explicitly
+    forbids what the task asks for. Cite the forbidding rule in
+    `outcome_justification`. Do NOT use this code when the sandbox
+    simply lacks the capability — that is OUTCOME_NONE_UNSUPPORTED.
   - OUTCOME_NONE_UNSUPPORTED: the sandbox does not expose the tools
-    needed to answer (e.g., the task asks you to call an external API).
+    needed to answer. Examples: the task asks you to call an external
+    API (Salesforce, Slack, SMTP, HTTP) with no local implementation,
+    or demands real-time data the local files cannot provide.
   - OUTCOME_NONE_CLARIFICATION: the task is genuinely ambiguous and
     cannot be answered from the available evidence. This is the LAST
     resort — if you find yourself tempted to use it, re-read the task
