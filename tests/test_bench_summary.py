@@ -74,3 +74,47 @@ import pytest  # bottom import so tests above can use pytest.approx
 def test_schema_version_is_1_1_0():
     from scripts.bench_summary import BENCH_SUMMARY_SCHEMA_VERSION
     assert BENCH_SUMMARY_SCHEMA_VERSION == "1.1.0"
+
+
+def test_summarize_emits_v1_1_additive_fields(tmp_path: Path) -> None:
+    """summarize() must emit all v1.1 additive fields in overall and per-task."""
+    _write_trace(tmp_path / "t1__run0.jsonl", task_id="t1", outcome="OUTCOME_OK", score=1.0, steps=5)
+
+    out = summarize(logs_dir=tmp_path)
+
+    # schema version
+    assert out["schema_version"] == "1.1.0"
+
+    # overall v1.1 additive fields
+    overall = out["overall"]
+    for key in (
+        "runs_per_task",
+        "pass_rate_median",
+        "pass_rate_min",
+        "pass_rate_ci_lower",
+        "pass_rate_ci_upper",
+        "total_input_tokens",
+        "total_output_tokens",
+        "total_reasoning_tokens",
+        "trace_dir",
+        "divergence_count",
+    ):
+        assert key in overall, f"missing overall key: {key}"
+
+    assert overall["total_input_tokens"] == 100
+    assert overall["total_output_tokens"] == 10
+    assert overall["total_reasoning_tokens"] == 0
+    assert overall["divergence_count"] == 0
+    assert overall["runs_per_task"] == 1
+
+    # per-task v1.1 additive fields
+    t1 = out["tasks"]["t1"]
+    for key in ("passes_per_run", "input_tokens", "output_tokens", "reasoning_tokens", "harness_url", "divergence_steps"):
+        assert key in t1, f"missing per-task key: {key}"
+
+    assert t1["input_tokens"] == 100
+    assert t1["output_tokens"] == 10
+    assert t1["reasoning_tokens"] == 0
+    assert t1["harness_url"] == ""
+    assert t1["divergence_steps"] == []
+    assert t1["passes_per_run"] == [1]
