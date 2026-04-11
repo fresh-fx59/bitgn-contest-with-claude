@@ -16,9 +16,11 @@ from pathlib import Path
 from typing import Any, Dict, Iterable
 
 from bitgn_contest_agent.bench.aggregate import aggregate_runs
+from bitgn_contest_agent.bench.divergence import is_divergent_step
 from bitgn_contest_agent.trace_schema import (
     TraceMeta,
     TraceOutcome,
+    TraceStep,
     load_jsonl,
 )
 
@@ -31,13 +33,21 @@ def _iter_jsonl_files(logs_dir: Path) -> Iterable[Path]:
     return sorted(Path(logs_dir).rglob("*.jsonl"))
 
 
-def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome] | None:
+def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, list[int]] | None:
     meta: TraceMeta | None = None
     outcome: TraceOutcome | None = None
+    divergence_steps: list[int] = []
     try:
         for rec in load_jsonl(path):
             if isinstance(rec, TraceMeta):
                 meta = rec
+            elif isinstance(rec, TraceStep):
+                ns = rec.next_step or {}
+                current_state = ns.get("current_state", "") if isinstance(ns, dict) else ""
+                plan_brief = ns.get("plan_remaining_steps_brief", []) if isinstance(ns, dict) else []
+                text = current_state + " " + " ".join(str(p) for p in plan_brief)
+                if is_divergent_step(text):
+                    divergence_steps.append(rec.step)
             elif isinstance(rec, TraceOutcome):
                 outcome = rec
     except (ValueError, json.JSONDecodeError):
@@ -47,12 +57,12 @@ def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome] 
     score = float(outcome.score) if outcome.score is not None else (
         1.0 if (outcome.reported == "OUTCOME_OK" and outcome.terminated_by == "report_completion") else 0.0
     )
-    return meta.task_id, score, outcome.total_steps, meta, outcome
+    return meta.task_id, score, outcome.total_steps, meta, outcome, divergence_steps
 
 
 def summarize(*, logs_dir: Path) -> Dict[str, Any]:
-    # by_task maps task_id -> list of (score, steps, meta, outcome) per run
-    by_task: dict[str, list[tuple[float, int, TraceMeta, TraceOutcome]]] = defaultdict(list)
+    # by_task maps task_id -> list of (score, steps, meta, outcome, divergence_steps) per run
+    by_task: dict[str, list[tuple[float, int, TraceMeta, TraceOutcome, list[int]]]] = defaultdict(list)
     total_runs = 0
     total_passes = 0
 
@@ -60,8 +70,8 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
         run = _extract_run(path)
         if run is None:
             continue
-        task_id, score, steps, meta, outcome = run
-        by_task[task_id].append((score, steps, meta, outcome))
+        task_id, score, steps, meta, outcome, divergence_steps = run
+        by_task[task_id].append((score, steps, meta, outcome, divergence_steps))
         total_runs += 1
         if score >= 1.0:
             total_passes += 1
@@ -73,20 +83,23 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
 
     for task_id, entries in sorted(by_task.items()):
         runs = len(entries)
-        passes = sum(1 for s, _, __, ___ in entries if s >= 1.0)
-        med_steps = int(statistics.median(s for _, s, __, ___ in entries)) if entries else 0
-        passes_per_run = [1 if s >= 1.0 else 0 for s, _, __, ___ in entries]
+        passes = sum(1 for e in entries if e[0] >= 1.0)
+        med_steps = int(statistics.median(e[1] for e in entries)) if entries else 0
+        passes_per_run = [1 if e[0] >= 1.0 else 0 for e in entries]
 
         # Token sums from TraceOutcome
-        task_input = sum(oc.total_prompt_tokens for _, __, ___, oc in entries)
-        task_output = sum(oc.total_completion_tokens for _, __, ___, oc in entries)
-        task_reasoning = sum(oc.total_reasoning_tokens for _, __, ___, oc in entries)
+        task_input = sum(e[3].total_prompt_tokens for e in entries)
+        task_output = sum(e[3].total_completion_tokens for e in entries)
+        task_reasoning = sum(e[3].total_reasoning_tokens for e in entries)
 
         total_input_tokens += task_input
         total_output_tokens += task_output
         total_reasoning_tokens += task_reasoning
 
         harness_url = (entries[0][2].harness_url or "") if entries else ""
+
+        # Divergence: union of step indices across all runs, sorted and deduped
+        divergence_all = sorted(set().union(*[set(e[4]) for e in entries]))
 
         tasks_out[task_id] = {
             "runs": runs,
@@ -98,7 +111,7 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
             "output_tokens": task_output,
             "reasoning_tokens": task_reasoning,
             "harness_url": harness_url,
-            "divergence_steps": [],  # T1.10 will populate
+            "divergence_steps": divergence_all,
         }
 
     # aggregate_runs expects a list of per-run summary dicts. In Phase 1 every
@@ -109,7 +122,7 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
     task_summaries = []
     for task_id, entries in by_task.items():
         runs = len(entries)
-        passes = sum(1 for s, _, __, ___ in entries if s >= 1.0)
+        passes = sum(1 for e in entries if e[0] >= 1.0)
         task_summaries.append({"overall": {"pass_rate": passes / runs if runs else 0.0}})
 
     agg = aggregate_runs(task_summaries, seed=12345)
@@ -133,7 +146,7 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
             "total_output_tokens": total_output_tokens,
             "total_reasoning_tokens": total_reasoning_tokens,
             "trace_dir": str(Path(logs_dir).resolve()),
-            "divergence_count": 0,  # T1.8 will populate
+            "divergence_count": sum(len(t["divergence_steps"]) for t in tasks_out.values()),
         },
         "tasks": tasks_out,
     }

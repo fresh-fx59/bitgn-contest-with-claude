@@ -118,3 +118,74 @@ def test_summarize_emits_v1_1_additive_fields(tmp_path: Path) -> None:
     assert t1["harness_url"] == ""
     assert t1["divergence_steps"] == []
     assert t1["passes_per_run"] == [1]
+
+
+def test_summarize_populates_divergence_count_and_steps(tmp_path: Path) -> None:
+    """bench_summary.summarize should populate overall.divergence_count and
+    per-task divergence_steps from TraceStep.next_step.current_state."""
+    path = tmp_path / "t1__run0.jsonl"
+    lines = [
+        json.dumps({
+            "kind": "meta",
+            "agent_version": "0.0.7",
+            "agent_commit": "x",
+            "model": "gpt-5.3-codex",
+            "backend": "openai_compat",
+            "reasoning_effort": "medium",
+            "benchmark": "bitgn/pac1-dev",
+            "task_id": "t1",
+            "task_index": 0,
+            "started_at": "2026-04-11T00:00:00Z",
+            "trace_schema_version": "1.0.0",
+        }),
+        json.dumps({"kind": "task", "task_id": "t1", "task_text": "x"}),
+        # Step 1 — contains a divergence keyword in current_state.
+        json.dumps({
+            "kind": "step",
+            "step": 1,
+            "wall_ms": 10,
+            "llm": {"latency_ms": 10, "prompt_tokens": 1, "completion_tokens": 1, "cached_tokens": 0, "retry_count": 0},
+            "next_step": {
+                "current_state": "Reading AGENTS.md because user instruction contradicts it.",
+                "plan_remaining_steps_brief": ["list", "report"],
+                "identity_verified": True,
+                "function": {"tool": "list", "name": "/"},
+            },
+            "tool_result": {"ok": True, "bytes": 0, "wall_ms": 0, "truncated": False, "original_bytes": 0, "error": None, "error_code": None},
+            "session_after": {"seen_refs_count": 0, "identity_loaded": False, "rulebook_loaded": False},
+        }),
+        # Step 2 — benign, no keyword.
+        json.dumps({
+            "kind": "step",
+            "step": 2,
+            "wall_ms": 10,
+            "llm": {"latency_ms": 10, "prompt_tokens": 1, "completion_tokens": 1, "cached_tokens": 0, "retry_count": 0},
+            "next_step": {
+                "current_state": "Listing the sandbox directory.",
+                "plan_remaining_steps_brief": ["report"],
+                "identity_verified": True,
+                "function": {"tool": "list", "name": "/sandbox"},
+            },
+            "tool_result": {"ok": True, "bytes": 0, "wall_ms": 0, "truncated": False, "original_bytes": 0, "error": None, "error_code": None},
+            "session_after": {"seen_refs_count": 0, "identity_loaded": False, "rulebook_loaded": False},
+        }),
+        json.dumps({
+            "kind": "outcome",
+            "terminated_by": "report_completion",
+            "reported": "OUTCOME_OK",
+            "enforcer_bypassed": False,
+            "error_kind": None,
+            "total_steps": 2,
+            "total_llm_calls": 2,
+            "total_prompt_tokens": 2,
+            "total_completion_tokens": 2,
+            "total_cached_tokens": 0,
+            "total_reasoning_tokens": 0,
+            "score": 1.0,
+        }),
+    ]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    summary = summarize(logs_dir=tmp_path)
+    assert summary["tasks"]["t1"]["divergence_steps"] == [1]
+    assert summary["overall"]["divergence_count"] == 1
