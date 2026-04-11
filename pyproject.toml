@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bitgn-contest-agent"
+version = "0.1.1"
+description = "BitGN PAC1 contest agent (single-session, provider-agnostic SGR)"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.6",
+  "openai>=1.40",
+  "bitgn-local-sdk",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-mock>=3.12",
+]
+
+[project.scripts]
+bitgn-agent = "bitgn_contest_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+# bitgn-local-sdk is not on PyPI; resolve from the local clone.
+bitgn-local-sdk = { path = "/home/claude-developer/bitgn-local-sdk", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
