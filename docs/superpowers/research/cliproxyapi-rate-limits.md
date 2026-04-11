@@ -36,3 +36,53 @@ Otherwise abort Phase 2.
 - Chosen operating point: ___
 - Secondary burst verdict: ___
 - Recorded artifact: `artifacts/burst/<ts>.json`
+
+## T2.6 execution status — DEFERRED
+
+**Status:** deferred, not executed.
+
+**Reason:** The sandbox where Plan B is being implemented autonomously
+cannot reach cliproxyapi:
+
+- DNS lookup for `cliproxyapi.com` fails with `gaierror: Name or
+  service not known` (confirmed 2026-04-11; other hosts such as
+  `api.openai.com`, `api.anthropic.com`, `api.bitgn.com` all resolve,
+  so the network stack is otherwise functional).
+- No `CLIPROXY_BASE_URL` or `CLIPROXY_API_KEY` environment variables
+  are configured in this sandbox.
+
+The burst script itself (`scripts/burst_test.py`, committed in T2.5)
+is fully wired and ready: it imports `OpenAIChatBackend.from_config`,
+uses `load_from_env`, walks the `LADDER`, applies the
+`pick_operating_point` formula, and writes the artifact. It has been
+smoke-imported and syntax-validated; only the live run against the
+provider is missing.
+
+**Config defaults left untouched:** `config.py` keeps
+`max_parallel_tasks = 4` and `max_inflight_llm = 6`. These are the
+pre-Plan-B values, not tuned values. They are conservative enough that
+a user rerunning `bitgn-agent run-benchmark` will not trip rate
+limits, but they almost certainly leave headroom on the table. A real
+burst is needed to push them higher.
+
+**How to resume T2.6:**
+1. Export `CLIPROXY_BASE_URL` and `CLIPROXY_API_KEY` (plus
+   `BITGN_API_KEY` for any downstream benchmark work).
+2. Verify `getent hosts cliproxyapi.com` resolves.
+3. Ensure no other process is calling cliproxyapi for the next
+   ~10 minutes (the burst needs to be the dominant consumer).
+4. Run:
+   ```bash
+   python scripts/burst_test.py \
+     --output artifacts/burst/$(date -u +%Y%m%dT%H%M%SZ).json
+   ```
+5. Read the chosen `chosen_max_inflight_llm` from the artifact, pick
+   `max_parallel_tasks = min(M, 8)`, and update both `config.py`
+   fields inside T2.6 step 5. Commit artifact + research note +
+   config.py together per step 6.
+6. Proceed to T2.7 and T2.8.
+
+T2.7 (tuned `--runs 3` baseline) and T2.8 (v0.1.0 atomic bump) are
+also deferred: both depend on the tuned operating point from T2.6,
+and T2.7 additionally requires a live bitgn/pac1-dev run that needs
+the same provider access.
