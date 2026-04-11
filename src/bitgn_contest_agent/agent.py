@@ -22,7 +22,7 @@ from typing import List, Optional
 from pydantic import ValidationError
 
 from bitgn_contest_agent.adapter.pcm import PcmAdapter, ToolResult
-from bitgn_contest_agent.backend.base import Backend, Message, TransientBackendError
+from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, TransientBackendError
 from bitgn_contest_agent.enforcer import Verdict, check_terminal
 from bitgn_contest_agent.prompts import critique_injection, loop_nudge, system_prompt
 from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
@@ -52,6 +52,7 @@ class AgentLoopResult:
     total_prompt_tokens: int
     total_completion_tokens: int
     total_cached_tokens: int
+    total_reasoning_tokens: int
 
 
 class AgentLoop:
@@ -103,6 +104,7 @@ class AgentLoop:
                 pending_nudge = None
 
             # Backend call + P2 transient retry + P3 validation retry.
+            step_result: NextStepResult
             try:
                 maybe_step = self._call_backend_with_retry(
                     messages, at_step=step_idx
@@ -114,7 +116,11 @@ class AgentLoop:
                         error_kind="BACKEND_ERROR",
                         error_msg="transient backend exhausted",
                     )
-                step_obj = maybe_step
+                step_result = maybe_step
+                totals.prompt_tokens += maybe_step.prompt_tokens
+                totals.completion_tokens += maybe_step.completion_tokens
+                totals.reasoning_tokens += maybe_step.reasoning_tokens
+                step_obj = maybe_step.parsed
             except ValidationError as exc:
                 self._writer.append_event(
                     at_step=step_idx,
@@ -138,7 +144,11 @@ class AgentLoop:
                             error_kind="BACKEND_ERROR",
                             error_msg="transient backend exhausted on validation retry",
                         )
-                    step_obj = maybe_retry
+                    step_result = maybe_retry
+                    totals.prompt_tokens += maybe_retry.prompt_tokens
+                    totals.completion_tokens += maybe_retry.completion_tokens
+                    totals.reasoning_tokens += maybe_retry.reasoning_tokens
+                    step_obj = maybe_retry.parsed
                 except ValidationError as exc2:
                     return self._finish_error(
                         totals,
@@ -180,7 +190,10 @@ class AgentLoop:
                         if maybe_retry_step is None:
                             retry_step = step_obj  # fall through to submit_anyway
                         else:
-                            retry_step = maybe_retry_step
+                            totals.prompt_tokens += maybe_retry_step.prompt_tokens
+                            totals.completion_tokens += maybe_retry_step.completion_tokens
+                            totals.reasoning_tokens += maybe_retry_step.reasoning_tokens
+                            retry_step = maybe_retry_step.parsed
                             totals.llm_calls += 1
                     except ValidationError:
                         retry_step = step_obj  # fall through to submit_anyway
@@ -207,6 +220,9 @@ class AgentLoop:
                     step_obj,
                     tool_result,
                     session,
+                    prompt_tokens=step_result.prompt_tokens,
+                    completion_tokens=step_result.completion_tokens,
+                    reasoning_tokens=step_result.reasoning_tokens,
                     enforcer_verdict=enforcer_verdict,
                     enforcer_action=enforcer_action,
                 )
@@ -270,7 +286,16 @@ class AgentLoop:
                 )
             )
 
-            self._log_step(step_idx, step_start, step_obj, tool_result, session)
+            self._log_step(
+                step_idx,
+                step_start,
+                step_obj,
+                tool_result,
+                session,
+                prompt_tokens=step_result.prompt_tokens,
+                completion_tokens=step_result.completion_tokens,
+                reasoning_tokens=step_result.reasoning_tokens,
+            )
             totals.steps += 1
 
         # Exhausted max_steps.
@@ -288,10 +313,10 @@ class AgentLoop:
         messages: List[Message],
         *,
         at_step: int,
-    ) -> Optional[NextStep]:
+    ) -> Optional[NextStepResult]:
         """P2 — bounded exponential backoff on TransientBackendError.
 
-        Returns NextStep on success, or None if all attempts exhausted
+        Returns NextStepResult on success, or None if all attempts exhausted
         (caller should then finish with BACKEND_ERROR). ValidationError
         propagates to the caller's P3 handler.
         """
@@ -311,7 +336,7 @@ class AgentLoop:
                     response_schema=NextStep,
                     timeout_sec=self._llm_http_timeout_sec,
                 )
-                return result.parsed
+                return result
             except TransientBackendError as exc:
                 last_exc = exc
                 continue
@@ -327,6 +352,9 @@ class AgentLoop:
         tool_result: ToolResult,
         session: Session,
         *,
+        prompt_tokens: int,
+        completion_tokens: int,
+        reasoning_tokens: int,
         enforcer_verdict: list[str] | None = None,
         enforcer_action: str | None = None,
     ) -> None:
@@ -336,8 +364,9 @@ class AgentLoop:
             wall_ms=wall_ms,
             llm=StepLLMStats(
                 latency_ms=wall_ms,
-                prompt_tokens=0,
-                completion_tokens=0,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                reasoning_tokens=reasoning_tokens,
                 cached_tokens=0,
                 retry_count=0,
             ),
@@ -377,6 +406,7 @@ class AgentLoop:
             total_prompt_tokens=totals.prompt_tokens,
             total_completion_tokens=totals.completion_tokens,
             total_cached_tokens=totals.cached_tokens,
+            total_reasoning_tokens=totals.reasoning_tokens,
         )
         self._writer.append_outcome(outcome)
         return AgentLoopResult(
@@ -390,6 +420,7 @@ class AgentLoop:
             total_prompt_tokens=totals.prompt_tokens,
             total_completion_tokens=totals.completion_tokens,
             total_cached_tokens=totals.cached_tokens,
+            total_reasoning_tokens=totals.reasoning_tokens,
         )
 
     def _finish_error(
@@ -411,6 +442,7 @@ class AgentLoop:
             total_prompt_tokens=totals.prompt_tokens,
             total_completion_tokens=totals.completion_tokens,
             total_cached_tokens=totals.cached_tokens,
+            total_reasoning_tokens=totals.reasoning_tokens,
         )
         self._writer.append_outcome(outcome)
         return AgentLoopResult(
@@ -424,6 +456,7 @@ class AgentLoop:
             total_prompt_tokens=totals.prompt_tokens,
             total_completion_tokens=totals.completion_tokens,
             total_cached_tokens=totals.cached_tokens,
+            total_reasoning_tokens=totals.reasoning_tokens,
         )
 
     def _finish_cancelled(self, totals: "_Totals", step_idx: int) -> AgentLoopResult:
@@ -440,6 +473,7 @@ class AgentLoop:
             total_prompt_tokens=totals.prompt_tokens,
             total_completion_tokens=totals.completion_tokens,
             total_cached_tokens=totals.cached_tokens,
+            total_reasoning_tokens=totals.reasoning_tokens,
         )
         self._writer.append_outcome(outcome)
         return AgentLoopResult(
@@ -453,6 +487,7 @@ class AgentLoop:
             total_prompt_tokens=totals.prompt_tokens,
             total_completion_tokens=totals.completion_tokens,
             total_cached_tokens=totals.cached_tokens,
+            total_reasoning_tokens=totals.reasoning_tokens,
         )
 
 
@@ -463,6 +498,7 @@ class _Totals:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     cached_tokens: int = 0
+    reasoning_tokens: int = 0
 
 
 def _canonical_call(fn: object) -> tuple[str, ...]:

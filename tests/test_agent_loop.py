@@ -1,6 +1,7 @@
 """Agent loop scaffold — happy path + enforcer retry path."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Sequence
 from unittest.mock import MagicMock
@@ -10,7 +11,7 @@ import pytest
 from bitgn_contest_agent.agent import AgentLoop, AgentLoopResult
 from bitgn_contest_agent.adapter.pcm import PcmAdapter, ToolResult
 from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, TransientBackendError
-from bitgn_contest_agent.schemas import NextStep
+from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
 from bitgn_contest_agent.session import Session
 from bitgn_contest_agent.trace_schema import TRACE_SCHEMA_VERSION, TraceMeta
 from bitgn_contest_agent.trace_writer import TraceWriter
@@ -25,19 +26,19 @@ def _mk_step(function: dict) -> NextStep:
     )
 
 
+def _wrap(step: NextStep) -> NextStepResult:
+    """Wrap a NextStep with zero tokens for backward compatibility."""
+    return NextStepResult(parsed=step, prompt_tokens=0, completion_tokens=0, reasoning_tokens=0)
+
+
 class _ScriptedBackend(Backend):
-    def __init__(self, scripted: list[NextStep]) -> None:
+    def __init__(self, scripted: list[NextStepResult]) -> None:
         self._steps = list(scripted)
         self.calls = 0
 
     def next_step(self, messages: Sequence[Message], response_schema, timeout_sec):  # type: ignore[override]
         self.calls += 1
-        return NextStepResult(
-            parsed=self._steps.pop(0),
-            prompt_tokens=0,
-            completion_tokens=0,
-            reasoning_tokens=0,
-        )
+        return self._steps.pop(0)
 
 
 def _mk_writer(tmp_path: Path) -> TraceWriter:
@@ -85,8 +86,8 @@ def _fake_prepass(session: Session) -> None:
 def test_agent_loop_happy_path_read_then_report(tmp_path: Path) -> None:
     backend = _ScriptedBackend(
         [
-            _mk_step({"tool": "read", "path": "AGENTS.md"}),
-            _mk_step(
+            _wrap(_mk_step({"tool": "read", "path": "AGENTS.md"})),
+            _wrap(_mk_step(
                 {
                     "tool": "report_completion",
                     "message": "done",
@@ -96,7 +97,7 @@ def test_agent_loop_happy_path_read_then_report(tmp_path: Path) -> None:
                     "completed_steps_laconic": ["read AGENTS.md"],
                     "outcome": "OUTCOME_OK",
                 }
-            ),
+            )),
         ]
     )
     adapter = _mk_adapter_mock()
@@ -122,7 +123,7 @@ def test_agent_loop_happy_path_read_then_report(tmp_path: Path) -> None:
 def test_agent_loop_enforcer_rejects_fabricated_ref_then_retries(tmp_path: Path) -> None:
     backend = _ScriptedBackend(
         [
-            _mk_step(
+            _wrap(_mk_step(
                 {
                     "tool": "report_completion",
                     "message": "done",
@@ -132,8 +133,8 @@ def test_agent_loop_enforcer_rejects_fabricated_ref_then_retries(tmp_path: Path)
                     "completed_steps_laconic": ["thought about it"],
                     "outcome": "OUTCOME_OK",
                 }
-            ),
-            _mk_step(
+            )),
+            _wrap(_mk_step(
                 {
                     "tool": "report_completion",
                     "message": "done",
@@ -143,7 +144,7 @@ def test_agent_loop_enforcer_rejects_fabricated_ref_then_retries(tmp_path: Path)
                     "completed_steps_laconic": ["read AGENTS.md"],
                     "outcome": "OUTCOME_OK",
                 }
-            ),
+            )),
         ]
     )
     adapter = _mk_adapter_mock()
@@ -169,7 +170,7 @@ def test_agent_loop_enforcer_rejects_fabricated_ref_then_retries(tmp_path: Path)
 
 def test_agent_loop_submits_anyway_after_exhausted_enforcer_retry(tmp_path: Path) -> None:
     # Both the initial and the retry emit the same bad terminal.
-    bad_terminal = _mk_step(
+    bad_terminal = _wrap(_mk_step(
         {
             "tool": "report_completion",
             "message": "done",
@@ -179,7 +180,7 @@ def test_agent_loop_submits_anyway_after_exhausted_enforcer_retry(tmp_path: Path
             "completed_steps_laconic": ["-"],
             "outcome": "OUTCOME_OK",
         }
-    )
+    ))
     backend = _ScriptedBackend([bad_terminal, bad_terminal])
     adapter = _mk_adapter_mock()
     adapter.run_prepass.side_effect = lambda *, session, trace_writer: _fake_prepass(session)
@@ -196,7 +197,7 @@ def test_agent_loop_submits_anyway_after_exhausted_enforcer_retry(tmp_path: Path
 
 def test_agent_loop_hits_max_steps_and_fails(tmp_path: Path) -> None:
     # Backend keeps emitting read steps forever — never reaches terminal.
-    read_step = _mk_step({"tool": "read", "path": "AGENTS.md"})
+    read_step = _wrap(_mk_step({"tool": "read", "path": "AGENTS.md"}))
     backend = _ScriptedBackend([read_step] * 10)
     adapter = _mk_adapter_mock()
     adapter.run_prepass.side_effect = lambda *, session, trace_writer: _fake_prepass(session)
@@ -290,3 +291,50 @@ def test_agent_loop_fails_task_after_backend_exhaustion(tmp_path: Path, monkeypa
     assert result.terminated_by == "error"
     assert result.error_kind == "BACKEND_ERROR"
     writer.close()
+
+
+def test_agent_loop_writes_real_tokens_into_trace_and_totals(tmp_path: Path, monkeypatch) -> None:
+    """Tokens from NextStepResult must end up in both the step record and
+    the outcome's total fields. Verifies T1.6 plumbing end-to-end."""
+    report_step = _mk_step(
+        {
+            "tool": "report_completion",
+            "message": "done",
+            "grounding_refs": ["AGENTS.md"],
+            "rulebook_notes": "n",
+            "outcome_justification": "AGENTS.md was read",
+            "completed_steps_laconic": ["read AGENTS.md"],
+            "outcome": "OUTCOME_OK",
+        }
+    )
+    backend = _ScriptedBackend([
+        NextStepResult(parsed=report_step, prompt_tokens=137, completion_tokens=42, reasoning_tokens=9),
+    ])
+    adapter = _mk_adapter_mock()
+    adapter.run_prepass.side_effect = lambda *, session, trace_writer: _fake_prepass(session)
+    writer = _mk_writer(tmp_path)
+
+    loop = AgentLoop(
+        backend=backend,
+        adapter=adapter,
+        writer=writer,
+        max_steps=10,
+        llm_http_timeout_sec=30.0,
+    )
+    result = loop.run(task_id="t1", task_text="x")
+    writer.close()
+
+    # Outcome totals:
+    assert result.total_prompt_tokens == 137
+    assert result.total_completion_tokens == 42
+    assert result.total_reasoning_tokens == 9
+
+    # Step record carries them too:
+    trace_path = next(tmp_path.glob("*.jsonl"))
+    records = [json.loads(line) for line in trace_path.read_text().splitlines()]
+    step_records = [r for r in records if r.get("kind") == "step"]
+    assert step_records, "no step record written"
+    llm = step_records[0]["llm"]
+    assert llm["prompt_tokens"] == 137
+    assert llm["completion_tokens"] == 42
+    assert llm["reasoning_tokens"] == 9

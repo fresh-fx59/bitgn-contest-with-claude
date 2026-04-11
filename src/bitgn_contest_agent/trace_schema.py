@@ -93,6 +93,7 @@ class StepLLMStats(_BaseRecord):
     completion_tokens: int
     cached_tokens: int = 0
     retry_count: int = 0
+    reasoning_tokens: int = 0
 
 
 class StepToolResult(_BaseRecord):
@@ -145,6 +146,7 @@ class TraceOutcome(_BaseRecord):
     total_prompt_tokens: int
     total_completion_tokens: int
     total_cached_tokens: int = 0
+    total_reasoning_tokens: int = 0
     score: Optional[float] = None
 
 

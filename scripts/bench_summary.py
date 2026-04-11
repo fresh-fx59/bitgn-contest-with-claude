@@ -77,10 +77,10 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
         med_steps = int(statistics.median(s for _, s, __, ___ in entries)) if entries else 0
         passes_per_run = [1 if s >= 1.0 else 0 for s, _, __, ___ in entries]
 
-        # Token sums from TraceOutcome (reasoning_tokens defaults to 0 until T1.6)
+        # Token sums from TraceOutcome
         task_input = sum(oc.total_prompt_tokens for _, __, ___, oc in entries)
         task_output = sum(oc.total_completion_tokens for _, __, ___, oc in entries)
-        task_reasoning = 0  # T1.6 will populate this
+        task_reasoning = sum(oc.total_reasoning_tokens for _, __, ___, oc in entries)
 
         total_input_tokens += task_input
         total_output_tokens += task_output
