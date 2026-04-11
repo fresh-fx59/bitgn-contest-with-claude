@@ -1,8 +1,10 @@
-"""Aggregate a directory of JSONL traces into a bench_summary.
+"""Compute bench summary artifacts for a benchmark run directory.
 
-Per §6.6 Asset A, the output schema is FROZEN. Do not add, rename, or
-retype any field. New metrics belong in a separate artifact or in the
-full trace detail, not here. Cross-version comparisons depend on this.
+Schema v1.1 (additive over v1.0): extends overall and per-task records with
+multi-run aggregates, token usage, harness_url, and divergence counts.
+v1.0 consumers reading v1.1 output must tolerate unknown keys (Pydantic
+ConfigDict(extra="ignore")); v1.1 consumers reading v1.0 input fill missing
+fields with defaults.
 """
 from __future__ import annotations
 
@@ -21,7 +23,7 @@ from bitgn_contest_agent.trace_schema import (
 
 
 FROZEN_SCHEMA_KEYS = ("schema_version", "overall", "tasks")
-BENCH_SUMMARY_SCHEMA_VERSION = "1.0.0"
+BENCH_SUMMARY_SCHEMA_VERSION = "1.1.0"
 
 
 def _iter_jsonl_files(logs_dir: Path) -> Iterable[Path]:

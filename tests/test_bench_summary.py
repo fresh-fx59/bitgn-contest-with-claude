@@ -69,3 +69,8 @@ def test_summarize_is_stable_across_runs(tmp_path: Path) -> None:
 
 
 import pytest  # bottom import so tests above can use pytest.approx
+
+
+def test_schema_version_is_1_1_0():
+    from scripts.bench_summary import BENCH_SUMMARY_SCHEMA_VERSION
+    assert BENCH_SUMMARY_SCHEMA_VERSION == "1.1.0"
