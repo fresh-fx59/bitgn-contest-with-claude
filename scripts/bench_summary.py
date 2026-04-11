@@ -86,8 +86,7 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
         total_output_tokens += task_output
         total_reasoning_tokens += task_reasoning
 
-        # harness_url: getattr-safe since T1.7 will add it to TraceMeta
-        harness_url = getattr(entries[0][2], "harness_url", "") if entries else ""
+        harness_url = (entries[0][2].harness_url or "") if entries else ""
 
         tasks_out[task_id] = {
             "runs": runs,

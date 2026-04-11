@@ -134,6 +134,7 @@ def _run_single_task(
                 task_index=task.task_index,
                 started_at=datetime.now(timezone.utc).isoformat(),
                 trace_schema_version=TRACE_SCHEMA_VERSION,
+                harness_url=started.harness_url,
             )
         )
 

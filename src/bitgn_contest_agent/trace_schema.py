@@ -68,6 +68,7 @@ class TraceMeta(_BaseRecord):
     task_index: int
     started_at: str
     trace_schema_version: str
+    harness_url: Optional[str] = None
     cancelled: bool = False
 
 

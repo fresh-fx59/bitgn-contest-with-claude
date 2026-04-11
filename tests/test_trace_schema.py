@@ -107,3 +107,39 @@ def test_load_jsonl_parses_heterogeneous_records(tmp_path) -> None:
     assert len(records) == 4
     assert isinstance(records[0], TraceMeta)
     assert isinstance(records[-1], TraceOutcome)
+
+
+def test_trace_meta_accepts_harness_url() -> None:
+    m = TraceMeta(
+        agent_version="0.0.7",
+        agent_commit="abc",
+        model="gpt-5.3-codex",
+        backend="openai_compat",
+        reasoning_effort="medium",
+        benchmark="bitgn/pac1-dev",
+        task_id="t14",
+        task_index=13,
+        started_at="2026-04-11T00:00:00Z",
+        trace_schema_version=TRACE_SCHEMA_VERSION,
+        harness_url="https://vm.bitgn/trial_xyz",
+    )
+    assert m.harness_url == "https://vm.bitgn/trial_xyz"
+    # Round-trip through JSON keeps the field intact.
+    parsed = TraceMeta.model_validate_json(m.model_dump_json())
+    assert parsed.harness_url == "https://vm.bitgn/trial_xyz"
+
+
+def test_trace_meta_harness_url_defaults_to_none() -> None:
+    m = TraceMeta(
+        agent_version="0.0.7",
+        agent_commit="abc",
+        model="gpt-5.3-codex",
+        backend="openai_compat",
+        reasoning_effort="medium",
+        benchmark="bitgn/pac1-dev",
+        task_id="t14",
+        task_index=13,
+        started_at="2026-04-11T00:00:00Z",
+        trace_schema_version=TRACE_SCHEMA_VERSION,
+    )
+    assert m.harness_url is None
