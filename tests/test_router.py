@@ -108,3 +108,49 @@ def test_router_disabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
     r = load_router(skills_dir=FIX)
     decision = r.route("Please TEST-ROUTE this task")
     assert decision.category == "UNKNOWN"
+
+
+def test_classifier_prompt_format_and_parse(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_call_classifier should POST a classification prompt and parse the
+    JSON response."""
+    from bitgn_contest_agent import router
+
+    captured_messages: list = []
+
+    class _FakeClient:
+        class _Chat:
+            class _Completions:
+                @staticmethod
+                def create(*, model, messages, response_format, temperature, timeout):
+                    captured_messages.append(messages)
+
+                    class _Resp:
+                        class _Choice:
+                            class _Msg:
+                                content = '{"category": "TEST_CATEGORY", "confidence": 0.88, "extracted": {"target_name": "FOO"}}'
+                            message = _Msg()
+                        choices = [_Choice()]
+
+                    return _Resp()
+
+            completions = _Completions()
+
+        chat = _Chat()
+
+    monkeypatch.setattr(router, "_get_openai_client", lambda: _FakeClient())
+    result = router._call_classifier(
+        task_text="Some task text",
+        categories=["TEST_CATEGORY", "OTHER"],
+    )
+    assert isinstance(result, dict)
+    assert result["category"] == "TEST_CATEGORY"
+    assert result["confidence"] == 0.88
+    assert result["extracted"] == {"target_name": "FOO"}
+    # The system message must list the valid categories.
+    sys_msg = captured_messages[0][0]["content"]
+    assert "TEST_CATEGORY" in sys_msg
+    assert "OTHER" in sys_msg
+    assert "UNKNOWN" in sys_msg
+    # Task text must appear in the user message.
+    user_msg = captured_messages[0][1]["content"]
+    assert "Some task text" in user_msg

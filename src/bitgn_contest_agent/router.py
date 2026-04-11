@@ -171,5 +171,41 @@ def route(task_text: str) -> RoutingDecision:
 
 
 def _call_classifier(*, task_text: str, categories: List[str]) -> Any:
-    """Tier 2 — stubbed in task 0.6, filled in task 0.7."""
-    raise NotImplementedError("classifier not wired until task 0.7")
+    """Tier 2 — single call to a small GPT model via cliproxyapi.
+
+    Returns the parsed dict on success. Any failure raises; the caller
+    (`Router.route`) degrades to UNKNOWN on raised exceptions.
+    """
+    import json as _json
+    client = _get_openai_client()
+    category_list = "\n".join(f"- {c}" for c in categories) + "\n- UNKNOWN (none of the above apply confidently)"
+    system = (
+        "You classify bitgn benchmark tasks into one of these categories:\n"
+        f"{category_list}\n"
+        "\n"
+        "Return ONLY a JSON object of the form:\n"
+        "  {\"category\": \"<one of above>\", \"confidence\": <0.0-1.0>, "
+        "\"extracted\": {\"target_name\": \"<optional>\"}}\n"
+        "No prose. No markdown fences."
+    )
+    resp = client.chat.completions.create(
+        model=router_config.classifier_model(),
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": task_text},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.0,
+        timeout=10.0,
+    )
+    content = resp.choices[0].message.content
+    return _json.loads(content)
+
+
+def _get_openai_client():  # pragma: no cover — thin factory, tested via patching
+    import os
+    from openai import OpenAI
+    return OpenAI(
+        base_url=os.environ.get("OPENAI_BASE_URL"),
+        api_key=os.environ.get("OPENAI_API_KEY", "sk-proxy"),
+    )
