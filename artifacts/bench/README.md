@@ -131,6 +131,65 @@ The CLI's final `pass rate: N/M (P%)` line matches the JSON's
 self-reported. If they diverge, the per-task
 `TraceWriter.patch_outcome_score()` back-fill path is broken.
 
+## PROD switchover runbook
+
+`bitgn/pac1-prod` opens **2026-04-11T13:00+02:00** (CEST). Before
+that time only `bitgn/pac1-dev` is accessible. The design spec
+target is **100% pass rate on both `bitgn/pac1-dev` and
+`bitgn/pac1-prod`** (see
+`docs/superpowers/specs/2026-04-10-bitgn-agent-design.md:35`).
+
+The switchover is a single flag: `--benchmark bitgn/pac1-prod`.
+Neither the code nor the env config need to change; the benchmark
+id is threaded through `BitgnHarness` untouched. The same
+`cfg.bitgn_api_key` authenticates both benchmarks (confirmed:
+the interceptor in `src/bitgn_contest_agent/harness.py` sends a
+single `Bearer` header regardless of benchmark id).
+
+**First PROD run (variance-aware baseline):**
+
+```bash
+set -a && source .env && set +a
+COMMIT_SHA=$(git rev-parse --short HEAD)
+TS=$(date -u +%Y%m%dT%H%M%SZ)
+OUT="artifacts/bench/${COMMIT_SHA}_${TS}_prod_runs3.json"
+
+bitgn-agent run-benchmark \
+  --benchmark bitgn/pac1-prod \
+  --runs 3 \
+  --max-parallel 16 --max-inflight-llm 48 \
+  --output "$OUT"
+```
+
+Expected wall clock ~10 minutes. The leaderboard run name is
+`aleksei_aksenov-ai_engineer_helper-bitgn-agent` (hard-coded in
+`cli.py` and matched server-side; PROD and dev share the same
+run-name namespace). Each iteration calls `StartRun` → `StartTrial`
+per task → `EndTrial` → `SubmitRun` so all three iterations
+register on the leaderboard dashboard under that name.
+
+**Expected score on first PROD attempt:** unknown — PROD may have
+different tasks than dev. Treat any PROD result as the initial
+PROD floor, distinct from the dev floor recorded above. The dev
+floor (median=24/43, min=20/43) is not a prediction for PROD.
+
+**If the first PROD run fails hard** (network error, auth
+rejection, unknown benchmark id):
+1. Verify `BITGN_API_KEY` is the contest key, not a playground key
+2. Try `--benchmark bitgn/pac1-dev` to confirm credentials still
+   work against the known-good benchmark
+3. Check `/api.bitgn.com/bitgn.harness.HarnessService/GetBenchmark`
+   directly with `curl -X POST -H "Authorization: Bearer $BITGN_API_KEY"
+   -d '{"benchmark_id":"bitgn/pac1-prod"}'` to confirm the benchmark
+   id is valid server-side.
+
+**If PROD tasks differ from dev:** the trace schema is
+benchmark-agnostic, bench_summary and triage both work on
+whatever task_ids come back from the server. The "known always-
+fail tasks (14/43)" list in the ratchet memory is dev-specific;
+don't apply it to PROD until we have at least 3 PROD iterations
+of data.
+
 ## Known variance
 
 gpt-5.3-codex is non-deterministic and grader evaluation for several
