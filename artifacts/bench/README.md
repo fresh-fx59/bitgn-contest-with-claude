@@ -62,20 +62,69 @@ directly on the leaderboard flow.
 historical baseline; Plan B supersedes it with the variance-aware
 3-iteration measurement above.
 
+### Rejected experiment: `plan-b/phase-3-rules` (runtime_rules rewrite)
+
+Feature branch `plan-b/phase-3-rules` at commit `43d8d34` rewrote the
+system prompt into a 6-rule `runtime_rules.py` package and deleted
+the `OUTCOME_NONE_CLARIFICATION` "LAST resort" softener. Hypothesis:
+removing the softener would make the agent more committal on
+ambiguous tasks.
+
+Benched on 2026-04-11 with two back-to-back `--runs 3` invocations
+(n=6 iterations total) on the same `--max-parallel 16
+--max-inflight-llm 48` operating point:
+
+| Artifact | Per-iter passes |
+| --- | --- |
+| `43d8d34_20260411T080929Z_phase3_runs3.json` | 22, 25, 19 |
+| `43d8d34_20260411T082130Z_phase3_runs3_b.json` | 23, 21, 20 |
+| Combined (n=6) | 22, 25, 19, 23, 21, 20 |
+
+Combined phase-3 stats vs v0.1.0 trunk (n=3):
+
+| Metric | Trunk (n=3) | Phase-3 (n=6) | Delta |
+| --- | --- | --- | --- |
+| pass rate | 69/129 (53.5%) | 130/258 (50.4%) | −3.1pp |
+| median | 24/43 | 21.5/43 | −2.5 tasks |
+| min | 20/43 | 19/43 | −1 task |
+| always-pass set | 17 tasks | 16 tasks | −1 task |
+| ever-pass set | 29 tasks | 29 tasks | 0 tasks |
+
+Two-proportion z-test: z = −0.575 (not significant). The capability
+tradeoff is a **pure swap** — phase-3 unlocked 4 tasks never solved
+by trunk (`t04`, `t15`, `t29`, `t40`) while losing 4 previously
+flaky passers (`t03`, `t08`, `t12`, `t28`). The hypothesis was
+confirmed (removing the softener did make the agent more
+committal — on hard tasks it solved more; on ambiguous ones it
+committed wrong) but the net effect on median / min / always-pass
+is negative.
+
+**Decision: abandoned.** The `plan-b/phase-3-rules` branch is kept
+alive as a documented experiment but not merged. The parallel
+`--runs` iteration infrastructure (commit `43d8d34`) was cherry-
+picked onto trunk because it is independent of the prompt rewrite
+and cuts the bench wall-clock roughly in thirds.
+
 ## How to produce a new summary
 
 ```bash
 set -a && source .env && set +a
 bitgn-agent run-benchmark \
   --benchmark bitgn/pac1-dev \
-  --runs 3 --max-parallel 8 --max-inflight-llm 48 \
+  --runs 3 --max-parallel 16 --max-inflight-llm 48 \
   --output "artifacts/bench/$(git rev-parse --short HEAD)_$(date -u +%Y%m%dT%H%M%SZ)_runs3.json"
 ```
 
 `--runs 3` is the minimum variance-aware baseline. For quicker CI
 checks `--runs 1` is acceptable but the output is not a valid ratchet
-artifact on its own. `--max-parallel 8 --max-inflight-llm 48` is the
-tuned operating point from Plan B T2.6 (`artifacts/burst/*.json`).
+artifact on its own. `--max-inflight-llm 48` is the tuned upper
+bound on concurrent LLM calls from Plan B T2.6
+(`artifacts/burst/*.json`). With parallel `--runs` iterations (on by
+default for `runs>1` non-smoke), `--max-parallel 16` lets each
+iteration's pool grow without breaching the shared inflight cap —
+the semaphore governs rate-limit posture, not the per-iteration
+fan-out. Wall-clock for `--runs 3` on this operating point is ~10
+minutes (serial would be ~21).
 
 The CLI's final `pass rate: N/M (P%)` line matches the JSON's
 `overall.pass_rate` field — both are grader-scored, not agent-
