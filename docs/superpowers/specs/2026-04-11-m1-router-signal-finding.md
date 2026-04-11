@@ -76,6 +76,35 @@ security over-refusal, frontmatter discipline, outcome mapping).
 topical wins = **104 / 104 theoretical**, or more realistically **93-98 /
 104** at M3 depending on skill-body accuracy.
 
+### Decision ask for human review
+
+The +6 delta is a net win but **trades security-refusal coverage for
+topical coverage**. Three new under-refusals (t048, t073, t098) and one
+over-refusal (t060) were introduced by commit 163f546 deleting the
+`[IF SECURITY]` block. Before starting M1 skill stacking:
+
+**Question 1 — Partial revert?** Would you prefer a restricted revert
+of commit 163f546 that re-adds the `[IF SECURITY]` block verbatim while
+keeping the other `[IF FINANCE/DOCUMENT/INBOX/EXCEPTION]` deletions?
+This might lift the baseline from 85.0 toward 89.0 (clearing the 4
+regressions) before any M1 skill is written. Risk: some of the 12
+cleared tasks might re-regress if the old `[IF SECURITY]` block was
+part of what *caused* those failures.
+
+**Question 2 — M1 direction (Option A/B/C)?** Given the updated
+landscape (13 inbox-preview + 6 topical failures), which M1 architecture
+do you want?
+
+- **Option A (recommended):** Broad inbox-handler skill covering all 9
+  preview phrasings, skill body ~150 lines with all 4 inbox failure modes
+- **Option B:** Partial revert of 0.4 (keep SECURITY/INBOX `[IF]` blocks)
+  and route only the 6 topical failures via tier-1 regex. Lower ceiling
+  but lower variance.
+- **Option C:** Runtime router hook (classify after inbox body read).
+  Clean per-task signal but new architecture surface.
+
+I'll halt M1 implementation until you decide on these two questions.
+
 ### Artifacts
 
 - New baseline: `artifacts/bench/aab6675_m0gate_p16i24_gpt54_20260411T223213Z_prod_runs1.json` (85.0/104, run `run-22HrXikys1AXh4Fy6vQckdKXX`)
