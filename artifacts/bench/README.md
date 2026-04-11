@@ -133,18 +133,59 @@ self-reported. If they diverge, the per-task
 
 ## PROD switchover runbook
 
-`bitgn/pac1-prod` opens **2026-04-11T13:00+02:00** (CEST). Before
-that time only `bitgn/pac1-dev` is accessible. The design spec
+`bitgn/pac1-prod` opens **2026-04-11T13:00+02:00** (CEST / 11:00 UTC).
+Before that time only `bitgn/pac1-dev` is accessible. The gate was
+confirmed by direct probe at 09:04 UTC on 2026-04-11: `StartRun` on
+`bitgn/pac1-prod` returns HTTP 400 `invalid_argument: "invalid
+benchmark"` (distinct from the HTTP 500 `unknown: "benchmark not
+found"` every fake ID returns — the 400-vs-500 distinction proves the
+ID is known server-side and the gate is time-based). The design spec
 target is **100% pass rate on both `bitgn/pac1-dev` and
 `bitgn/pac1-prod`** (see
 `docs/superpowers/specs/2026-04-10-bitgn-agent-design.md:35`).
 
-The switchover is a single flag: `--benchmark bitgn/pac1-prod`.
-Neither the code nor the env config need to change; the benchmark
-id is threaded through `BitgnHarness` untouched. The same
-`cfg.bitgn_api_key` authenticates both benchmarks (confirmed:
-the interceptor in `src/bitgn_contest_agent/harness.py` sends a
-single `Bearer` header regardless of benchmark id).
+### Known PROD shape
+
+Per the contest organizers (confirmed 2026-04-11 before the gate
+opens):
+
+- **104 tasks** (2.4× larger than dev's 43 tasks).
+- **Same 8 task categories as dev**, though the per-task distribution
+  is unknown ahead of time. The categories are:
+  1. **Knowledge ops** — retrieve people/project/date/activity facts
+  2. **Relationship ops** — graph-style who-is-connected-to-what
+  3. **Finance ops** — practical money math (bills, invoices, totals)
+  4. **Document ops** — messy finance docs → structured records
+  5. **Inbox ops** — process the next incoming request in workflow order
+  6. **Communication ops** — replies, resends, attachment bundles
+  7. **Security and trust ops** — identity, sharing boundaries, prompt-injection
+  8. **Exception-handling ops** — ambiguity / unsafe / unsupported → clarify or refuse
+
+The "known always-fail tasks (11/43)" list in the ratchet memory is
+dev-specific; it does NOT apply to PROD and must not be used to
+pre-score or handicap a PROD run.
+
+**Retrospective read on phase-3 abandonment:** Category 8
+(exception-handling) is exactly the capability surface that the
+phase-3 `OUTCOME_NONE_CLARIFICATION` softener removal degraded
+(trunk `plan-b/phase-3-rules` @ `43d8d34`, rejected — see below).
+That phase-3 made the agent *more committal* on ambiguous tasks,
+which at n=6 lost 4 previously-passing dev tasks (`t03`, `t08`,
+`t12`, `t28`) to win back only 2 genuine capability unlocks at n=9
+(`t15`, `t29`). Given that exception-handling is now confirmed as a
+**named first-class PROD category** rather than a fringe handful of
+dev tasks, the abandon-phase-3 decision is pre-validated: on PROD
+the "commit-more-often" bias would land on a larger surface of
+exactly-wrong-direction tasks.
+
+### The switchover command
+
+A single flag: `--benchmark bitgn/pac1-prod`. Neither the code nor
+the env config need to change; the benchmark id is threaded through
+`BitgnHarness` untouched. The same `cfg.bitgn_api_key` authenticates
+both benchmarks (confirmed: the interceptor in
+`src/bitgn_contest_agent/harness.py` sends a single `Bearer` header
+regardless of benchmark id).
 
 **First PROD run (variance-aware baseline):**
 
@@ -161,17 +202,29 @@ bitgn-agent run-benchmark \
   --output "$OUT"
 ```
 
-Expected wall clock ~10 minutes. The leaderboard run name is
-`aleksei_aksenov-ai_engineer_helper-bitgn-agent` (hard-coded in
-`cli.py` and matched server-side; PROD and dev share the same
-run-name namespace). Each iteration calls `StartRun` → `StartTrial`
-per task → `EndTrial` → `SubmitRun` so all three iterations
-register on the leaderboard dashboard under that name.
+**Expected wall clock ~15-25 minutes** (dev `--runs 3` at the same
+operating point is ~10 min for 43 tasks; 104 tasks at the same
+`max_parallel=16 max_inflight=48` point scales sub-linearly because
+the shared LLM-inflight semaphore is already the binding constraint,
+not per-iteration task fan-out — see `artifacts/burst/*.json`). The
+leaderboard run name is `aleksei_aksenov-ai_engineer_helper-bitgn-agent`
+(hard-coded in `cli.py` and matched server-side; PROD and dev share
+the same run-name namespace). Each iteration calls `StartRun` →
+`StartTrial` per task → `EndTrial` → `SubmitRun` so all three
+iterations register on the leaderboard dashboard under that name.
 
-**Expected score on first PROD attempt:** unknown — PROD may have
-different tasks than dev. Treat any PROD result as the initial
-PROD floor, distinct from the dev floor recorded above. The dev
-floor (median=24/43, min=20/43) is not a prediction for PROD.
+**Trial count:** 104 tasks × 3 iterations = **312 trials per bench**
+(vs. 129 on dev). Expect proportionally more transient rate-limit
+retries through the backoff loop at `agent.py:331`; the `<=1` hard
+rate-limit failure gate is still the correct threshold to apply.
+
+**Expected score on first PROD attempt:** unknown. Treat any PROD
+result as the initial PROD floor, distinct from the dev floor
+recorded above. The dev floor (median=24/43=55.8%, min=20/43=46.5%)
+is **not** a prediction for PROD — do not extrapolate the percentage.
+Finance-ops and document-ops are new shapes that dev did not have a
+dedicated category for, so a dev-style always-pass rate on those is
+an unjustified assumption in either direction.
 
 **If the first PROD run fails hard** (network error, auth
 rejection, unknown benchmark id):
@@ -182,13 +235,10 @@ rejection, unknown benchmark id):
    directly with `curl -X POST -H "Authorization: Bearer $BITGN_API_KEY"
    -d '{"benchmark_id":"bitgn/pac1-prod"}'` to confirm the benchmark
    id is valid server-side.
-
-**If PROD tasks differ from dev:** the trace schema is
-benchmark-agnostic, bench_summary and triage both work on
-whatever task_ids come back from the server. The "known always-
-fail tasks (14/43)" list in the ratchet memory is dev-specific;
-don't apply it to PROD until we have at least 3 PROD iterations
-of data.
+4. If `StartRun` on `bitgn/pac1-prod` still returns 400
+   `invalid_argument` after the announced open time, the gate is
+   late — wait 5-10 min and re-probe. Do NOT assume a different
+   benchmark id; the 400 proves the ID is correct.
 
 ## Known variance
 
