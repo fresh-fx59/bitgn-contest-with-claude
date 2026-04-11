@@ -1,0 +1,67 @@
+{
+  "ts": "2026-04-11T06:21:17.613015+00:00",
+  "ladder": [
+    4,
+    8,
+    16,
+    32,
+    48,
+    64,
+    96
+  ],
+  "cooldown_sec": 60,
+  "window_sec": 15,
+  "break_threshold": 3,
+  "rungs": [
+    {
+      "N": 4,
+      "completions": 28,
+      "rate_limit_errors": 0,
+      "window_sec": 15
+    },
+    {
+      "N": 8,
+      "completions": 64,
+      "rate_limit_errors": 0,
+      "window_sec": 15
+    },
+    {
+      "N": 16,
+      "completions": 128,
+      "rate_limit_errors": 0,
+      "window_sec": 15
+    },
+    {
+      "N": 32,
+      "completions": 224,
+      "rate_limit_errors": 0,
+      "window_sec": 15
+    },
+    {
+      "N": 48,
+      "completions": 336,
+      "rate_limit_errors": 0,
+      "window_sec": 15
+    },
+    {
+      "N": 64,
+      "completions": 64,
+      "rate_limit_errors": 0,
+      "window_sec": 15
+    },
+    {
+      "N": 96,
+      "completions": 480,
+      "rate_limit_errors": 0,
+      "window_sec": 15
+    }
+  ],
+  "first_break_level": null,
+  "secondary": {
+    "N": 96,
+    "completions": 68,
+    "rate_limit_errors": 0,
+    "window_sec": 15
+  },
+  "chosen_max_inflight_llm": 48
+}

@@ -35,9 +35,12 @@ class AgentConfig:
     llm_http_timeout_sec: int = 30
     max_tool_result_bytes: int = 16384
 
-    # Parallelism (§3.1)
-    max_parallel_tasks: int = 4
-    max_inflight_llm: int = 6
+    # Parallelism (§3.1) — tuned in Plan B T2.6 from burst artifact
+    # artifacts/burst/20260411T061748Z.json (ladder cleared through
+    # N=96, pick_operating_point → DEFAULT_WHEN_CLEARED=48, then
+    # max_parallel_tasks = min(48, 8) = 8).
+    max_parallel_tasks: int = 8
+    max_inflight_llm: int = 48
 
     # Backend retry (§3.3)
     rate_limit_backoff_ms: Tuple[int, ...] = (500, 1500, 4000, 10000)
