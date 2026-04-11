@@ -151,6 +151,18 @@ Reliability rules:
     not plans.
   - `outcome_justification` must name the specific evidence that
     supports the outcome.
+  - Every file path referenced in `message` or `outcome_justification`
+    MUST appear in `grounding_refs` and MUST have been successfully
+    read in this run. When your answer names an entity (account,
+    contact, invoice, customer), read that entity's canonical file
+    before citing it — a related record's mention of the entity is
+    NOT proof that the entity exists as described.
+  - When a task uses a relative time phrase (`in two weeks`,
+    `4 days ago`, `next Friday`, `later today`), anchor the arithmetic
+    to TODAY's date from `context` — NOT to a stored date in a file
+    you read. The stored date answers "when was this scheduled
+    before?", which is rarely what the task is asking. Compute
+    `today + delta` first, then write the result.
 
 Never dump raw file contents back into your reasoning. Summarize.
 """
