@@ -8,6 +8,7 @@ import pytest
 from bitgn_contest_agent.backend.base import (
     Backend,
     Message,
+    NextStepResult,
     TransientBackendError,
 )
 from bitgn_contest_agent.schemas import NextStep
@@ -29,11 +30,16 @@ def test_transient_backend_error_is_exception_subclass() -> None:
 def test_backend_protocol_is_runtime_checkable() -> None:
     class Fake:
         def next_step(self, messages, response_schema, timeout_sec):  # type: ignore[override]
-            return NextStep(
-                current_state="x",
-                plan_remaining_steps_brief=["done"],
-                identity_verified=True,
-                function={"tool": "context"},
+            return NextStepResult(
+                parsed=NextStep(
+                    current_state="x",
+                    plan_remaining_steps_brief=["done"],
+                    identity_verified=True,
+                    function={"tool": "context"},
+                ),
+                prompt_tokens=0,
+                completion_tokens=0,
+                reasoning_tokens=0,
             )
 
     assert isinstance(Fake(), Backend)

@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from bitgn_contest_agent.backend.base import Message, TransientBackendError
+from bitgn_contest_agent.backend.base import Message, NextStepResult, TransientBackendError
 from bitgn_contest_agent.backend.openai_compat import (
     OpenAIChatBackend,
     _extract_json_object,
@@ -35,6 +35,11 @@ def test_structured_path_returns_parsed_next_step(mocker: Any) -> None:
     completion.choices = [
         MagicMock(message=MagicMock(parsed=fake_parsed, content=_sample_step_json()))
     ]
+    completion.usage = MagicMock(
+        prompt_tokens=10,
+        completion_tokens=5,
+        completion_tokens_details=MagicMock(reasoning_tokens=2),
+    )
     fake_client.beta.chat.completions.parse.return_value = completion
 
     backend = OpenAIChatBackend(
@@ -49,8 +54,8 @@ def test_structured_path_returns_parsed_next_step(mocker: Any) -> None:
         response_schema=NextStep,
         timeout_sec=30.0,
     )
-    assert isinstance(out, NextStep)
-    assert out.function.tool == "read"
+    assert isinstance(out, NextStepResult)
+    assert out.parsed.function.tool == "read"
     fake_client.beta.chat.completions.parse.assert_called_once()
 
 
@@ -66,10 +71,21 @@ def test_fallback_path_concatenates_streamed_deltas(mocker: Any) -> None:
     for lo, hi in zip(splits, splits[1:]):
         chunk = MagicMock()
         chunk.choices = [MagicMock(delta=MagicMock(content=full_json[lo:hi]))]
+        chunk.usage = None
         chunks.append(chunk)
+    # Usage chunk (mirrors OpenAI's usage-only tail with empty choices).
+    usage_chunk = MagicMock()
+    usage_chunk.choices = []
+    usage_chunk.usage = MagicMock(
+        prompt_tokens=10,
+        completion_tokens=5,
+        completion_tokens_details=MagicMock(reasoning_tokens=2),
+    )
+    chunks.append(usage_chunk)
     # Terminal chunk with empty delta (mirrors OpenAI's finish-only tail).
     tail = MagicMock()
     tail.choices = [MagicMock(delta=MagicMock(content=None))]
+    tail.usage = None
     chunks.append(tail)
     fake_client.chat.completions.create.return_value = iter(chunks)
 
@@ -85,11 +101,13 @@ def test_fallback_path_concatenates_streamed_deltas(mocker: Any) -> None:
         response_schema=NextStep,
         timeout_sec=30.0,
     )
-    assert isinstance(out, NextStep)
-    assert out.function.tool == "read"
+    assert isinstance(out, NextStepResult)
+    assert out.parsed.function.tool == "read"
     # stream=True must be passed to the SDK
     kwargs = fake_client.chat.completions.create.call_args.kwargs
     assert kwargs.get("stream") is True
+    # stream_options with include_usage must be passed to capture token counts.
+    assert kwargs.get("stream_options") == {"include_usage": True}
     # response_format must NOT be passed — it breaks cliproxyapi's conversion.
     assert "response_format" not in kwargs
 
@@ -170,3 +188,38 @@ def test_extract_json_object_handles_braces_inside_strings() -> None:
 
 def test_extract_json_object_returns_original_when_no_braces() -> None:
     assert _extract_json_object("plain text") == "plain text"
+
+
+def test_next_step_returns_result_wrapper_with_tokens(mocker: Any) -> None:
+    """Structured path must return NextStepResult with token counts from usage."""
+    fake_client = MagicMock()
+    fake_parsed = NextStep.model_validate_json(_sample_step_json())
+    completion = MagicMock()
+    completion.choices = [
+        MagicMock(message=MagicMock(parsed=fake_parsed, content=_sample_step_json()))
+    ]
+    completion.usage = MagicMock(
+        prompt_tokens=10,
+        completion_tokens=5,
+        completion_tokens_details=MagicMock(reasoning_tokens=2),
+    )
+    fake_client.beta.chat.completions.parse.return_value = completion
+
+    backend = OpenAIChatBackend(
+        client=fake_client,
+        model="gpt-5.3-codex",
+        reasoning_effort="medium",
+        use_structured_output=True,
+    )
+
+    result = backend.next_step(
+        messages=[Message(role="system", content="sys"), Message(role="user", content="t")],
+        response_schema=NextStep,
+        timeout_sec=30.0,
+    )
+    assert isinstance(result, NextStepResult)
+    assert isinstance(result.parsed, NextStep)
+    assert result.parsed.function.tool == "read"
+    assert result.prompt_tokens == 10
+    assert result.completion_tokens == 5
+    assert result.reasoning_tokens == 2

@@ -18,6 +18,15 @@ class Message:
     content: str
 
 
+@dataclass(frozen=True, slots=True)
+class NextStepResult:
+    """Wraps a parsed NextStep with token accounting from the provider."""
+    parsed: "NextStep"  # type: ignore[name-defined]
+    prompt_tokens: int
+    completion_tokens: int
+    reasoning_tokens: int
+
+
 class TransientBackendError(Exception):
     """Rate limit, 5xx, or network timeout. Caller retries with backoff."""
 
@@ -33,5 +42,5 @@ class Backend(Protocol):
         messages: Sequence[Message],
         response_schema: type[NextStep],
         timeout_sec: float,
-    ) -> NextStep:
+    ) -> NextStepResult:
         ...

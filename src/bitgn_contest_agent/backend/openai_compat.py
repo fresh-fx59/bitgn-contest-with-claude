@@ -17,7 +17,7 @@ import openai
 from openai import OpenAI
 from pydantic import ValidationError
 
-from bitgn_contest_agent.backend.base import Backend, Message, TransientBackendError
+from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, TransientBackendError
 from bitgn_contest_agent.schemas import NextStep
 
 
@@ -125,7 +125,7 @@ class OpenAIChatBackend(Backend):
         messages: Sequence[Message],
         response_schema: type[NextStep],
         timeout_sec: float,
-    ) -> NextStep:
+    ) -> NextStepResult:
         payload = [{"role": m.role, "content": m.content} for m in messages]
         try:
             if self._use_structured_output:
@@ -143,7 +143,17 @@ class OpenAIChatBackend(Backend):
                     # on bad JSON, caught by the agent loop's P3 path.
                     raw = completion.choices[0].message.content or ""
                     parsed = response_schema.model_validate_json(raw)
-                return parsed
+                usage = getattr(completion, "usage", None)
+                prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+                completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+                details = getattr(usage, "completion_tokens_details", None)
+                reasoning_tokens = getattr(details, "reasoning_tokens", 0) or 0
+                return NextStepResult(
+                    parsed=parsed,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    reasoning_tokens=reasoning_tokens,
+                )
             # T24 live-run observation: cliproxyapi drops message content on
             # the non-streaming chat-completions path (returns content: null
             # for every model in its model list, including gpt-5.3-codex,
@@ -156,11 +166,16 @@ class OpenAIChatBackend(Backend):
                 model=self._model,
                 messages=payload,
                 stream=True,
+                stream_options={"include_usage": True},
                 timeout=timeout_sec,
                 extra_body={"reasoning": {"effort": self._reasoning_effort}},
             )
             parts: list[str] = []
+            last_usage = None
             for chunk in stream:
+                chunk_usage = getattr(chunk, "usage", None)
+                if chunk_usage is not None:
+                    last_usage = chunk_usage
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta
@@ -168,7 +183,17 @@ class OpenAIChatBackend(Backend):
                 if piece:
                     parts.append(piece)
             raw = _extract_json_object("".join(parts))
-            return response_schema.model_validate_json(raw)
+            parsed = response_schema.model_validate_json(raw)
+            prompt_tokens = getattr(last_usage, "prompt_tokens", 0) or 0
+            completion_tokens = getattr(last_usage, "completion_tokens", 0) or 0
+            details = getattr(last_usage, "completion_tokens_details", None)
+            reasoning_tokens = getattr(details, "reasoning_tokens", 0) or 0
+            return NextStepResult(
+                parsed=parsed,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                reasoning_tokens=reasoning_tokens,
+            )
         except _TRANSIENT_EXCEPTIONS as exc:
             raise TransientBackendError(str(exc)) from exc
         except ValidationError:

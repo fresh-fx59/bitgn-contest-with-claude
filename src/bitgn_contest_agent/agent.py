@@ -306,11 +306,12 @@ class AgentLoop:
                 )
                 time.sleep(wait_ms / 1000.0)
             try:
-                return self._backend.next_step(
+                result = self._backend.next_step(
                     messages=messages,
                     response_schema=NextStep,
                     timeout_sec=self._llm_http_timeout_sec,
                 )
+                return result.parsed
             except TransientBackendError as exc:
                 last_exc = exc
                 continue

@@ -9,7 +9,7 @@ import pytest
 
 from bitgn_contest_agent.agent import AgentLoop, AgentLoopResult
 from bitgn_contest_agent.adapter.pcm import PcmAdapter, ToolResult
-from bitgn_contest_agent.backend.base import Backend, Message, TransientBackendError
+from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, TransientBackendError
 from bitgn_contest_agent.schemas import NextStep
 from bitgn_contest_agent.session import Session
 from bitgn_contest_agent.trace_schema import TRACE_SCHEMA_VERSION, TraceMeta
@@ -32,7 +32,12 @@ class _ScriptedBackend(Backend):
 
     def next_step(self, messages: Sequence[Message], response_schema, timeout_sec):  # type: ignore[override]
         self.calls += 1
-        return self._steps.pop(0)
+        return NextStepResult(
+            parsed=self._steps.pop(0),
+            prompt_tokens=0,
+            completion_tokens=0,
+            reasoning_tokens=0,
+        )
 
 
 def _mk_writer(tmp_path: Path) -> TraceWriter:
@@ -218,7 +223,12 @@ class _FlakyBackend(Backend):
         if self._remaining_raises > 0:
             self._remaining_raises -= 1
             raise TransientBackendError("429", attempt=self.calls)
-        return self._step
+        return NextStepResult(
+            parsed=self._step,
+            prompt_tokens=0,
+            completion_tokens=0,
+            reasoning_tokens=0,
+        )
 
 
 def test_agent_loop_retries_on_transient_backend_error(tmp_path: Path, monkeypatch) -> None:
