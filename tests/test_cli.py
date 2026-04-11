@@ -221,3 +221,136 @@ def test_smoke_flag_forces_parameters(monkeypatch, tmp_path):
     assert [t.task_id for t in captured["tasks"]] == SMOKE_TASKS
     # Smoke stays on the playground flow — no trial_id set.
     assert all(t.trial_id is None for t in captured["tasks"])
+
+
+def test_parser_parallel_iterations_tri_state() -> None:
+    """--parallel-iterations / --no-parallel-iterations override, default None."""
+    parser = build_parser()
+    ns = parser.parse_args(["run-benchmark"])
+    assert ns.parallel_iterations is None
+    ns = parser.parse_args(["run-benchmark", "--parallel-iterations"])
+    assert ns.parallel_iterations is True
+    ns = parser.parse_args(["run-benchmark", "--no-parallel-iterations"])
+    assert ns.parallel_iterations is False
+
+
+def test_cmd_run_benchmark_enables_parallel_iterations_for_runs_gt_1(
+    monkeypatch, tmp_path,
+):
+    """Auto-default: runs>1 non-smoke → parallel_iterations=True;
+    runs=1 → False; smoke → False even with runs>1."""
+    monkeypatch.setenv("BITGN_API_KEY", "fake")
+    monkeypatch.setenv("CLIPROXY_BASE_URL", "http://fake")
+    monkeypatch.setenv("CLIPROXY_API_KEY", "fake")
+
+    captured_flags: list[bool] = []
+
+    def fake_runner(cfg, **kw):
+        captured_flags.append(kw["parallel_iterations"])
+        return []
+
+    monkeypatch.setattr(
+        "bitgn_contest_agent.cli._run_tasks_and_summarize", fake_runner
+    )
+    # Avoid touching real BitGN endpoints during config wiring.
+    monkeypatch.setattr(
+        "bitgn_contest_agent.cli._make_harness", lambda cfg: object()
+    )
+    monkeypatch.setattr(
+        "bitgn_contest_agent.cli._make_backend", lambda cfg: object()
+    )
+
+    from bitgn_contest_agent.cli import main
+
+    main(["run-benchmark", "--benchmark", "bitgn/pac1-dev", "--runs", "3"])
+    assert captured_flags[-1] is True
+
+    main(["run-benchmark", "--benchmark", "bitgn/pac1-dev", "--runs", "1"])
+    assert captured_flags[-1] is False
+
+    main([
+        "run-benchmark", "--benchmark", "bitgn/pac1-dev",
+        "--runs", "3", "--smoke",
+    ])
+    assert captured_flags[-1] is False
+
+    main([
+        "run-benchmark", "--benchmark", "bitgn/pac1-dev",
+        "--runs", "3", "--no-parallel-iterations",
+    ])
+    assert captured_flags[-1] is False
+
+
+def test_run_tasks_and_summarize_parallel_iterations_executes_concurrently(
+    tmp_path,
+):
+    """Parallel iterations: iterations overlap in time and result order
+    matches submission order even when iteration 0 takes longer than 1."""
+    import threading
+    import time as _time
+
+    from bitgn_contest_agent.cli import _run_tasks_and_summarize
+    from bitgn_contest_agent.config import AgentConfig
+    from bitgn_contest_agent.orchestrator import TaskExecutionResult, TaskSpec
+
+    # Minimal config — task timeout generous, no parallelism inside
+    # iteration (1 task per iteration).
+    cfg = AgentConfig(
+        bitgn_api_key="x",
+        cliproxy_base_url="http://x",
+        cliproxy_api_key="x",
+        model="x",
+        reasoning_effort="medium",
+        benchmark="bitgn/pac1-dev",
+        log_dir=str(tmp_path),
+        max_steps=1,
+        max_parallel_tasks=1,
+        max_inflight_llm=2,
+        llm_http_timeout_sec=60,
+        rate_limit_backoff_ms=(100,),
+        task_timeout_sec=30,
+        task_timeout_grace_sec=5,
+        max_tool_result_bytes=1024,
+    )
+
+    iteration_start_times: dict[int, float] = {}
+    iteration_start_lock = threading.Lock()
+
+    def tasks_for_iteration(i: int):
+        with iteration_start_lock:
+            iteration_start_times[i] = _time.monotonic()
+        return [TaskSpec(task_id=f"t{i}", task_index=0, task_text="")]
+
+    # Patch the _run_single_task the orchestrator runner will invoke.
+    from unittest.mock import patch
+
+    def fake_single(cfg, harness, backend, task, run_id, run_index,
+                    cancel_event, inflight_semaphore=None, metrics=None):
+        # iteration 0 sleeps longer than 1 so parallel execution is
+        # detectable: serial would finish 1 before 0 completes only if
+        # they're actually concurrent.
+        _time.sleep(0.3 if run_index == 0 else 0.05)
+        return TaskExecutionResult(
+            task_id=task.task_id, score=1.0, terminated_by="report_completion",
+            error_kind=None, error_msg=None,
+        )
+
+    with patch("bitgn_contest_agent.cli._run_single_task", side_effect=fake_single):
+        t0 = _time.monotonic()
+        results = _run_tasks_and_summarize(
+            cfg,
+            harness=object(),
+            backend=object(),
+            run_id="unit",
+            runs=3,
+            output=None,
+            tasks_for_iteration=tasks_for_iteration,
+            parallel_iterations=True,
+        )
+        elapsed = _time.monotonic() - t0
+
+    # Serial would be ~0.3 + 0.05 + 0.05 = 0.4s minimum. Parallel caps
+    # at max(0.3, 0.05, 0.05) = 0.3s; give generous headroom for CI jitter.
+    assert elapsed < 0.38, f"expected parallel execution, took {elapsed:.3f}s"
+    # Result order preserved (iter0 task, iter1 task, iter2 task)
+    assert [r.task_id for r in results] == ["t0", "t1", "t2"]

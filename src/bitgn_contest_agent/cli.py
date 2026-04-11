@@ -54,6 +54,12 @@ def build_parser() -> argparse.ArgumentParser:
                            help="run the fixed smoke subset with hardcoded parallelism (180s budget)")
     run_bench.add_argument("--max-inflight-llm", type=int, default=None,
                            help="max concurrent LLM calls across all parallel tasks")
+    run_bench.add_argument("--parallel-iterations", dest="parallel_iterations",
+                           action="store_true", default=None,
+                           help="run --runs iterations concurrently (default on for runs>1 non-smoke)")
+    run_bench.add_argument("--no-parallel-iterations", dest="parallel_iterations",
+                           action="store_false",
+                           help="force serial iteration execution (old behavior)")
 
     tri = subs.add_parser("triage", help="classify bench failures")
     tri.add_argument("summary", nargs="?", default=None,
@@ -250,6 +256,7 @@ def _run_tasks_and_summarize(
     finalize_iteration: Callable[[int, List[TaskExecutionResult]], None] = lambda _i, _r: None,
     inflight_semaphore: threading.Semaphore | None = None,
     metrics: RunMetrics | None = None,
+    parallel_iterations: bool = False,
 ) -> list[TaskExecutionResult]:
     """Execute `runs` iterations and optionally write a bench_summary JSON.
 
@@ -258,9 +265,16 @@ def _run_tasks_and_summarize(
     the resulting TaskSpecs carry trial_ids. `finalize_iteration(i, results)`
     runs after each iteration — leaderboard flow uses it to call
     `submit_run(run_id)`. Smoke/playground flows pass a no-op.
+
+    When `parallel_iterations=True`, the iterations run concurrently via a
+    ThreadPoolExecutor with `max_workers=runs`. The shared
+    `inflight_semaphore` caps total LLM concurrency across every agent in
+    every iteration, so rate-limit posture is governed by that cap — not
+    by iteration count. Iteration result order is preserved in the
+    returned list.
     """
-    all_results: list[TaskExecutionResult] = []
-    for run_index in range(runs):
+
+    def run_iteration(run_index: int) -> list[TaskExecutionResult]:
         iter_tasks = tasks_for_iteration(run_index)
 
         def runner(task: TaskSpec, cancel_event: threading.Event, _ri=run_index):
@@ -284,7 +298,27 @@ def _run_tasks_and_summarize(
         )
         iter_results = orch.run(iter_tasks)
         finalize_iteration(run_index, iter_results)
-        all_results.extend(iter_results)
+        return iter_results
+
+    all_results: list[TaskExecutionResult] = []
+    if parallel_iterations and runs > 1:
+        # concurrent.futures import is local — keeps import cost off the
+        # serial / --runs 1 / smoke paths.
+        from concurrent.futures import ThreadPoolExecutor
+
+        logging.getLogger(__name__).info(
+            "running %d iterations in parallel (inflight_semaphore caps LLM concurrency)",
+            runs,
+        )
+        with ThreadPoolExecutor(max_workers=runs) as pool:
+            # Submit in order; gather results in order to preserve the
+            # (run_index, task_index) identity downstream.
+            futures = [pool.submit(run_iteration, i) for i in range(runs)]
+            for fut in futures:
+                all_results.extend(fut.result())
+    else:
+        for run_index in range(runs):
+            all_results.extend(run_iteration(run_index))
 
     if output:
         # scripts/ is a sibling of src/, not part of the installed package
@@ -348,8 +382,10 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
     # Per-iteration run_id map for leaderboard flow — populated by
-    # tasks_for_iteration, consumed by finalize_iteration.
+    # tasks_for_iteration, consumed by finalize_iteration. Lock protects
+    # it when parallel iterations populate concurrently.
     leaderboard_run_ids: dict[int, str] = {}
+    leaderboard_run_ids_lock = threading.Lock()
 
     if args.smoke:
         # Smoke uses the playground flow: a small fixed subset of tasks
@@ -377,7 +413,8 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
 
         def tasks_for_iteration(run_index: int) -> List[TaskSpec]:
             rid, trial_ids = harness.start_run(name=LEADERBOARD_RUN_NAME)
-            leaderboard_run_ids[run_index] = rid
+            with leaderboard_run_ids_lock:
+                leaderboard_run_ids[run_index] = rid
             return [
                 TaskSpec(
                     task_id=tid,  # placeholder until start_trial resolves the real id
@@ -389,7 +426,8 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
             ]
 
         def finalize_iteration(run_index: int, _results: List[TaskExecutionResult]) -> None:
-            rid = leaderboard_run_ids.get(run_index)
+            with leaderboard_run_ids_lock:
+                rid = leaderboard_run_ids.get(run_index)
             if rid is None:
                 return
             try:
@@ -405,6 +443,14 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
                     "submit_run failed for run_id=%s: %s", rid, exc,
                 )
 
+    # Default: parallel iterations ON for non-smoke multi-run benches.
+    # Smoke stays serial (small, deliberate, different flow). --runs 1
+    # also stays serial (nothing to parallelize).
+    if args.parallel_iterations is None:
+        parallel_iterations = (args.runs > 1) and (not args.smoke)
+    else:
+        parallel_iterations = bool(args.parallel_iterations)
+
     all_results = _run_tasks_and_summarize(
         cfg,
         harness=harness,
@@ -416,6 +462,7 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
         finalize_iteration=finalize_iteration,
         inflight_semaphore=inflight_semaphore,
         metrics=metrics,
+        parallel_iterations=parallel_iterations,
     )
 
     total = len(all_results)
