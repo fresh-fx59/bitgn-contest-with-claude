@@ -49,6 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
     run_bench.add_argument("--max-parallel", type=int, default=None)
     run_bench.add_argument("--output", default=None, help="bench_summary.json path")
     run_bench.add_argument("--log-dir", default=None)
+    run_bench.add_argument("--smoke", action="store_true",
+                           help="run the fixed smoke subset with hardcoded parallelism (180s budget)")
+    run_bench.add_argument("--max-inflight-llm", type=int, default=None,
+                           help="max concurrent LLM calls across all parallel tasks")
 
     tri = subs.add_parser("triage", help="classify bench failures")
     tri.add_argument("summary", nargs="?", default=None,
@@ -220,20 +224,20 @@ def _cmd_run_task(args: argparse.Namespace) -> int:
     return 0 if result.terminated_by == "report_completion" else 1
 
 
-def _cmd_run_benchmark(args: argparse.Namespace) -> int:
-    cfg = _resolve_config(args)
-    harness = _make_harness(cfg)
-    backend = _make_backend(cfg)
-
-    task_ids = harness.list_task_ids()
-    tasks: List[TaskSpec] = [
-        TaskSpec(task_id=tid, task_index=i, task_text="")
-        for i, tid in enumerate(task_ids)
-    ]
-
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+def _run_tasks_and_summarize(
+    cfg: AgentConfig,
+    tasks: List[TaskSpec],
+    *,
+    harness: BitgnHarness,
+    backend: OpenAIChatBackend,
+    run_id: str,
+    runs: int,
+    output: str | None,
+) -> list[TaskExecutionResult]:
+    """Execute `tasks` across `runs` repetitions and optionally write a
+    bench_summary JSON. Returns the flat list of TaskExecutionResult."""
     all_results: list[TaskExecutionResult] = []
-    for run_index in range(args.runs):
+    for run_index in range(runs):
         def runner(task: TaskSpec, cancel_event: threading.Event, _ri=run_index):
             return _run_single_task(
                 cfg=cfg,
@@ -253,7 +257,7 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
         )
         all_results.extend(orch.run(tasks))
 
-    if args.output:
+    if output:
         # scripts/ is a sibling of src/, not part of the installed package
         # (pyproject.toml only packages src/). Pytest finds it via its
         # implicit rootdir sys.path injection; at runtime we need to do
@@ -265,9 +269,58 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
         from scripts.bench_summary import summarize  # type: ignore[attr-defined]
 
         summary = summarize(logs_dir=Path(cfg.log_dir) / run_id)
-        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.output).write_text(json.dumps(summary, indent=2), encoding="utf-8")
-        print(f"bench summary → {args.output}")
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        Path(output).write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        print(f"bench summary → {output}")
+
+    return all_results
+
+
+def _cmd_run_benchmark(args: argparse.Namespace) -> int:
+    cfg = _resolve_config(args)
+
+    # --smoke overrides task list and parallelism BEFORE harness/backend creation.
+    # dataclasses.replace hits max_parallel_tasks a SECOND time (after _resolve_config
+    # already set it from --max-parallel) — intentional: smoke beats user args.
+    if args.smoke:
+        from bitgn_contest_agent.bench.smoke import (
+            SMOKE_TASKS,
+            SMOKE_MAX_PARALLEL,
+            SMOKE_MAX_INFLIGHT_LLM,
+        )
+        cfg = dataclasses.replace(
+            cfg,
+            max_parallel_tasks=SMOKE_MAX_PARALLEL,
+            max_inflight_llm=SMOKE_MAX_INFLIGHT_LLM,
+        )
+        tasks: List[TaskSpec] = [
+            TaskSpec(task_id=tid, task_index=i, task_text="")
+            for i, tid in enumerate(SMOKE_TASKS)
+        ]
+    else:
+        if args.max_inflight_llm is not None:
+            cfg = dataclasses.replace(cfg, max_inflight_llm=args.max_inflight_llm)
+
+    harness = _make_harness(cfg)
+    backend = _make_backend(cfg)
+
+    if not args.smoke:
+        task_ids = harness.list_task_ids()
+        tasks = [
+            TaskSpec(task_id=tid, task_index=i, task_text="")
+            for i, tid in enumerate(task_ids)
+        ]
+
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    all_results = _run_tasks_and_summarize(
+        cfg,
+        tasks,
+        harness=harness,
+        backend=backend,
+        run_id=run_id,
+        runs=args.runs,
+        output=args.output,
+    )
 
     total = len(all_results)
     passed = sum(1 for r in all_results if r.score >= 1.0)

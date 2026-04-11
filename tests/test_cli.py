@@ -159,3 +159,63 @@ def test_triage_cli_diff_mode(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "-t02" in out  # inbox cleared
     assert "+t30" in out  # timeout added
+
+
+def test_smoke_tasks_are_fixed():
+    from bitgn_contest_agent.bench.smoke import (
+        SMOKE_TASKS,
+        SMOKE_CEILING_SEC,
+        SMOKE_MAX_PARALLEL,
+        SMOKE_MAX_INFLIGHT_LLM,
+    )
+    assert SMOKE_TASKS == ["t02", "t42", "t41", "t15", "t43"]
+    assert SMOKE_CEILING_SEC == 180
+    assert SMOKE_MAX_PARALLEL == 5
+    assert SMOKE_MAX_INFLIGHT_LLM == 8
+
+
+def test_smoke_flag_forces_parameters(monkeypatch, tmp_path):
+    """--smoke must override --max-parallel and --max-inflight-llm and
+    force the hardcoded SMOKE_TASKS list."""
+    # load_from_env requires these three env vars
+    monkeypatch.setenv("BITGN_API_KEY", "fake")
+    monkeypatch.setenv("CLIPROXY_BASE_URL", "http://fake")
+    monkeypatch.setenv("CLIPROXY_API_KEY", "fake")
+
+    captured: dict = {}
+
+    def fake_runner(cfg, tasks, **kw):
+        captured["cfg"] = cfg
+        captured["tasks"] = tasks
+        captured["kw"] = kw
+        return []  # empty results; no summarize() path
+
+    monkeypatch.setattr(
+        "bitgn_contest_agent.cli._run_tasks_and_summarize", fake_runner
+    )
+
+    from bitgn_contest_agent.cli import main
+
+    out_path = tmp_path / "x.json"
+    rc = main([
+        "run-benchmark",
+        "--benchmark", "bitgn/pac1-dev",
+        "--smoke",
+        "--max-parallel", "99",
+        "--max-inflight-llm", "99",
+        "--output", str(out_path),
+    ])
+    # Fake returned empty → 0/0 pass rate → rc == 0
+    assert rc == 0
+
+    from bitgn_contest_agent.bench.smoke import (
+        SMOKE_TASKS,
+        SMOKE_MAX_PARALLEL,
+        SMOKE_MAX_INFLIGHT_LLM,
+    )
+    # --smoke must override the CLI --max-parallel=99 / --max-inflight-llm=99
+    assert captured["cfg"].max_parallel_tasks == SMOKE_MAX_PARALLEL
+    assert captured["cfg"].max_inflight_llm == SMOKE_MAX_INFLIGHT_LLM
+    # --smoke must force the task list to SMOKE_TASKS (TaskSpec objects ordered)
+    # tasks is list[TaskSpec] — compare the task_id sequence
+    assert [t.task_id for t in captured["tasks"]] == SMOKE_TASKS
