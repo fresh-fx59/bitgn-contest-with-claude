@@ -224,7 +224,7 @@ EOF
 
 ## Task 0.2: Refresh bitgn proto bindings and delete urllib bypass
 
-**Goal:** replace the stale StartRunRequest descriptor with one that includes `api_key`, then remove the `_connect_post_json` workaround at `src/bitgn_contest_agent/harness.py:108-138`.
+**STATUS: DEFERRED (no-op for M0).** Investigated 2026-04-11 — neither the sample-agents `.proto` source at `/home/claude-developer/bitgn-contest/external/sample-agents/proto/bitgn/harness.proto:195-198` nor the compiled `harness_pb2.py` / `harness_pb2.pyi` declares `api_key` on `StartRunRequest`. The proto definitions we have access to are out of sync with the live server. Option A (regenerate from proto) would not add the field. Option B (manually patch a serialized protobuf descriptor) is fragile and high-risk for zero user-visible reward. The urllib bypass at `harness.py:108-138` works, is well-documented, and is isolated. Keep it until upstream ships an updated wheel. This task stays DEFERRED and M0 proceeds directly to 0.3. Revisit if/when `StartRunRequest` gains `api_key` in the SDK.
 
 **Files:**
 - Modify: `/home/claude-developer/bitgn-local-sdk/bitgn/harness_pb2.py` (or regenerate)

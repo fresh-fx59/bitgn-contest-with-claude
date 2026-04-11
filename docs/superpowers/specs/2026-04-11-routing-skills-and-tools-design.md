@@ -166,7 +166,7 @@ Classifier output is parsed; if `confidence < 0.6`, treated as UNKNOWN. If parse
 
 **Tier 3 — UNKNOWN.** Returns `RoutingDecision(category="UNKNOWN", skill_name=None, ...)`. Caller skips skill injection and runs the generic base prompt.
 
-**Model selection.** `classifier_model` defaults to the value of env var `BITGN_CLASSIFIER_MODEL`, which itself defaults to the first of these that the local cliproxyapi catalog reports as available: `gpt-5.3-codex-mini`, `gpt-4o-mini`. Verification in M0 confirms which is reachable.
+**Model selection.** `classifier_model` defaults to the value of env var `BITGN_CLASSIFIER_MODEL`, which itself defaults to `gpt-5.4-mini` — resolved 2026-04-12 from the local cliproxyapi `/v1/models` catalog. Fallback candidates in preference order: `gpt-5.4-mini` → `gpt-5.1-codex-mini` → `gpt-5-codex-mini` → `claude-haiku-4-5-20251001`. `gpt-4o-mini` is NOT available in the local catalog.
 
 **Graceful degradation.** If the classifier call fails (network, auth, parse), the router logs the failure and returns UNKNOWN. The main loop runs with the base prompt and completes the task normally. Classifier failures must never break the main path.
 
@@ -775,7 +775,7 @@ Four stages. Each change passes through them in order. Any stage failure stops t
 
 | Var | Purpose | Default |
 |---|---|---|
-| `BITGN_CLASSIFIER_MODEL` | Model ID for tier-2 classifier LLM | Picked in M0 from cliproxyapi catalog, first of `gpt-5.3-codex-mini`, `gpt-4o-mini` |
+| `BITGN_CLASSIFIER_MODEL` | Model ID for tier-2 classifier LLM | `gpt-5.4-mini` (resolved 2026-04-12 from cliproxyapi catalog) |
 | `BITGN_CLASSIFIER_CONFIDENCE_THRESHOLD` | Minimum confidence below which classifier result is treated as UNKNOWN | `0.6` |
 | `BITGN_ROUTER_ENABLED` | Master switch for router; `0` disables router entirely (base prompt only) | `1` |
 | `BITGN_VALIDATE_YAML_ENABLED` | Master switch for enforcer-automatic YAML validation | `1` |
