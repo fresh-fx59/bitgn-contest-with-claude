@@ -14,9 +14,13 @@
 """
 from __future__ import annotations
 
+import json as _json
+import os
 import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Optional
 
 from pydantic import ValidationError
@@ -26,7 +30,7 @@ from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, T
 from bitgn_contest_agent.bench.run_metrics import RunMetrics
 from bitgn_contest_agent.enforcer import Verdict, check_terminal
 from bitgn_contest_agent.prompts import critique_injection, loop_nudge, system_prompt
-from bitgn_contest_agent.router import Router
+from bitgn_contest_agent.router import Router, RoutingDecision
 from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
 from bitgn_contest_agent.session import Session
 from bitgn_contest_agent.task_hints import hint_for_task
@@ -58,10 +62,41 @@ class AgentLoopResult:
     total_reasoning_tokens: int
 
 
+def _write_routing_log(task_id: str, decision: RoutingDecision) -> None:
+    """Append one JSONL line to artifacts/routing/run_<run_id>_routing.jsonl.
+
+    run_id is taken from the BITGN_RUN_ID env var set by the CLI when
+    a run is in progress; when unset (unit tests, ad-hoc) we skip the
+    write. Best-effort — a logging failure never breaks the agent loop.
+    """
+    run_id = os.environ.get("BITGN_RUN_ID", "")
+    if not run_id:
+        return
+    try:
+        path = Path(f"artifacts/routing/run_{run_id}_routing.jsonl")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "task_id": task_id,
+            "source": decision.source,
+            "category": decision.category,
+            "confidence": decision.confidence,
+            "extracted": decision.extracted,
+            "skill_name": decision.skill_name,
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+        with path.open("a") as f:
+            f.write(_json.dumps(entry) + "\n")
+    except OSError:
+        # Logging is best-effort; swallow filesystem errors so a
+        # missing artifacts/ dir never kills a bench run.
+        return
+
+
 def _build_initial_messages(
     *,
     task_text: str,
     router: Optional[Router] = None,
+    task_id: str = "",
 ) -> List[Message]:
     """Construct the initial messages for a task, including any router-
     injected bitgn skill body.
@@ -83,10 +118,11 @@ def _build_initial_messages(
 
     if router is not None:
         decision = router.route(task_text)
+        if task_id:
+            _write_routing_log(task_id, decision)
         if decision.skill_name is not None:
             body = router.skill_body_for(decision.skill_name)
             if body is not None:
-                import json as _json
                 prefix = (
                     f"SKILL CONTEXT (router-injected): {decision.skill_name}\n"
                     f"Captured variables: {_json.dumps(decision.extracted)}\n\n"
@@ -133,6 +169,7 @@ class AgentLoop:
         messages: List[Message] = _build_initial_messages(
             task_text=task_text,
             router=self._router,
+            task_id=task_id,
         )
 
         # Pre-pass (best effort).
