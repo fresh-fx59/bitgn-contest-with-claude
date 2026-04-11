@@ -102,14 +102,11 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
             "divergence_steps": [],  # T1.10 will populate
         }
 
-    # Build per-task pass rates for aggregate_runs
-    per_task_pass_rates: list[list[float]] = [
-        [float(s) for s, _, __, ___ in entries]
-        for entries in by_task.values()
-    ]
-
-    # aggregate_runs expects list of per-run summary dicts; adapt for per-task mode
-    # We compute the per-task pass_rate as passes/runs, then aggregate across tasks
+    # aggregate_runs expects a list of per-run summary dicts. In Phase 1 every
+    # directory is single-run-per-task, so we synthesize one summary per task —
+    # the bootstrap becomes "variance across tasks at this single run" and
+    # degenerates to identity for a single-task directory. Phase 2's real
+    # multi-run scoring will rework this call site with per-run summaries.
     task_summaries = []
     for task_id, entries in by_task.items():
         runs = len(entries)
