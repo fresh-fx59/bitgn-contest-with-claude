@@ -838,11 +838,11 @@ src/bitgn_contest_agent/
 
 These remain open as of draft finalization:
 
-1. **PROD live grader shape.** Resolved in M0, task 1. The spec assumes post-hoc grading; if live grading exists, some bitgn skills (e.g., `inbox-reply-write`) may grow a "watch for critique tokens" section.
+1. **PROD live grader shape.** RESOLVED 2026-04-11 — see `docs/superpowers/specs/2026-04-11-prod-grader-probe.md`. Headline answer: **playground flow on `bitgn/pac1-prod` returns live grader scores** (score + score_detail strings) immediately via `EndTrialRequest`; the embargo is a property of `RUN_KIND_BLIND` leaderboard runs only. No step-level streaming critique exists. Development loop → playground; milestone runs → leaderboard blind. `GetBenchmarkResponse.tasks[].preview` is a stable offline corpus for router tuning (104 previews available; entity names rotate per instantiation, so the benchmark is a generalization test by construction).
 2. **Cliproxyapi classifier model availability.** Resolved in M0, task 3.
 3. **Exact canonical smoke task per milestone.** Populated in M0 from inspection of ingested baselines.
 4. **Exact eight canonical sentinels.** Populated in M0 and committed to `docs/superpowers/specs/sentinels.csv`.
-5. **Whether `dateutil` is already in the project's deps.** Checked in M0, task 4; `compute_date_offset` implementation path chosen accordingly.
+5. **Whether `dateutil` is already in the project's deps.** RESOLVED 2026-04-11 — `pyproject.toml` declares only `pydantic`, `openai`, `bitgn-local-sdk`, `pytest`, `pytest-mock`. No `dateutil` and no `yaml` library. Date arithmetic stays skill-embedded via stdlib `datetime`; YAML validation is a hand-written narrow line-level checker (see §5.6.1).
 
 ## 13. Self-learning hooks (future work, scoped out)
 
