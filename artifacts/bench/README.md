@@ -136,6 +136,52 @@ alive as a documented experiment but not merged. The parallel
 picked onto trunk because it is independent of the prompt rewrite
 and cuts the bench wall-clock roughly in thirds.
 
+### Rejected experiment: inbox named-file override prompt edit
+
+Hypothesis: adding an explicit "task-level filename overrides the
+earliest-first ordering" clause to the `[IF INBOX]` block in the
+system prompt would unlock `t03` (codex5.3 was refusing `t03` with
+`OUTCOME_DENIED_SECURITY`, citing "strict ascending order" — a
+convention for self-pick drain tasks, not a security boundary).
+
+Benched on 2026-04-11 against the v0.2.0 ratchet floor at `e92156e`
+with the edit applied on top (uncommitted, working-tree only),
+same `--runs 3 --max-parallel 16 --max-inflight-llm 48` operating
+point. Artifact:
+`REJECTED_e92156e_plus_inbox_override_20260411T103401Z_dev_runs3.json`.
+
+| Metric | v0.2.0 floor | Edit (n=3) | Delta |
+| --- | --- | --- | --- |
+| pass rate | 81/129 (62.8%) | 51/129 (39.5%) | **−23.3pp** |
+| per-iter | 26, 28, 27 | 19, 17, 15 | −10 / −11 / −12 |
+| median | 27/43 | 17/43 | **−10 tasks** |
+| min | 26/43 | 15/43 | **−11 tasks** |
+| always-pass | 23 tasks | 12 tasks | −11 tasks |
+| never-pass | 12 tasks | 20 tasks | +8 tasks |
+
+The t03 target was indeed unlocked (1/3 → 3/3 across iterations —
+always-pass). But the edit catastrophically regressed seven
+trunk always-passers to never-pass (`t31`, `t32`, `t35`, `t38`,
+`t39`, `t41`, `t42`) and demoted six more to flaky (`t05`, `t07`,
+`t12`, `t19`, `t24`, `t34`). Net: gained 1 always-passer (`t03`),
+lost 11. The bloat of the new `[IF INBOX]` block — a long
+conditional distinguishing task-level naming from self-pick
+workflows — very likely spilled instruction weight onto tasks
+that have nothing to do with inbox ordering, crowding out the
+parts of the prompt those passers relied on.
+
+**Decision: abandoned.** Working tree reverted; ratchet stays at
+`fb4c39e_20260411T100728Z_codex53_newprompt_totalmatch_dev_runs3.json`.
+The artifact is preserved as `REJECTED_*` for the record; the
+corresponding `.stdout.log` / `.stderr.log` are intentionally
+gitignored under the `artifacts/bench/*.stdout.log` /
+`artifacts/bench/*.stderr.log` rules. Lesson: even a single-
+block prompt edit that looks isolated can wreck unrelated
+capabilities via instruction-weight competition — always
+`--runs 3` bench before committing. A future retry should
+target the t03 unlock with a **minimal** edit (one short
+sentence, no restructuring) and re-bench.
+
 ## How to produce a new summary
 
 ```bash
