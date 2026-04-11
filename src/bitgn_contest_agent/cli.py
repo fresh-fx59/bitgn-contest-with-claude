@@ -183,13 +183,17 @@ def _run_single_task(
         )
         writer.close()
 
-        score, _detail = harness.end_task(started)
-        # Back-fill the grader score into the trace so bench_summary
-        # sees the authoritative verdict instead of the agent's
-        # self-reported OUTCOME_OK. Best-effort — a failure here must
-        # not lose the task result.
+        score, detail = harness.end_task(started)
+        # Back-fill the grader score (and detail) into the trace so
+        # bench_summary sees the authoritative verdict instead of the
+        # agent's self-reported OUTCOME_OK, and so content-layer
+        # failures can be root-caused offline from the trace.
+        # Best-effort — a failure here must not lose the task result.
         try:
-            writer.patch_outcome_score(float(score))
+            writer.patch_outcome_score(
+                float(score),
+                score_detail=[str(s) for s in detail] if detail else None,
+            )
         except Exception:
             pass
         return TaskExecutionResult(

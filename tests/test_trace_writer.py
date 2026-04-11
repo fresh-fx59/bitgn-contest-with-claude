@@ -98,6 +98,75 @@ def test_patch_outcome_score_backfills_grader_verdict(tmp_path: Path) -> None:
     assert outcome.total_steps == 3
 
 
+def test_patch_outcome_score_persists_grader_score_detail(tmp_path: Path) -> None:
+    """Observability add (2026-04-11): the grader returns a list of
+    human-readable strings alongside the score, explaining which checks
+    failed. patch_outcome_score must persist them into the outcome record
+    so content-layer failures (agent wrote something plausible but wrong)
+    can be root-caused offline from the trace."""
+    path = tmp_path / "trace.jsonl"
+    w = TraceWriter(path=path)
+    w.write_meta(_mk_meta())
+    w.append_task(task_id="t1", task_text="...")
+    w.append_outcome(
+        TraceOutcome(
+            terminated_by="report_completion",
+            reported="OUTCOME_OK",
+            total_steps=4,
+            total_llm_calls=4,
+            total_prompt_tokens=0,
+            total_completion_tokens=0,
+            score=None,
+        )
+    )
+    w.close()
+
+    w.patch_outcome_score(
+        0.0,
+        score_detail=[
+            "check 'outbox/84446.json contains to=accounts-payable@...' FAILED",
+            "expected recipient billing@helios-tax-group.biz",
+        ],
+    )
+
+    records = list(load_jsonl(path))
+    outcome = records[-1]
+    assert isinstance(outcome, TraceOutcome)
+    assert outcome.score == 0.0
+    assert outcome.score_detail is not None
+    assert len(outcome.score_detail) == 2
+    assert "expected recipient" in outcome.score_detail[1]
+
+
+def test_patch_outcome_score_omits_detail_when_none(tmp_path: Path) -> None:
+    """Back-compat: calls that don't pass score_detail keep the field
+    absent (or null) on the outcome record — existing bench summaries
+    that ignore the field must continue to parse."""
+    path = tmp_path / "trace.jsonl"
+    w = TraceWriter(path=path)
+    w.write_meta(_mk_meta())
+    w.append_outcome(
+        TraceOutcome(
+            terminated_by="report_completion",
+            reported="OUTCOME_OK",
+            total_steps=1,
+            total_llm_calls=1,
+            total_prompt_tokens=0,
+            total_completion_tokens=0,
+            score=None,
+        )
+    )
+    w.close()
+
+    w.patch_outcome_score(1.0)  # no score_detail
+
+    records = list(load_jsonl(path))
+    outcome = records[-1]
+    assert isinstance(outcome, TraceOutcome)
+    assert outcome.score == 1.0
+    assert outcome.score_detail is None
+
+
 def test_patch_outcome_score_raises_if_writer_still_open(tmp_path: Path) -> None:
     path = tmp_path / "trace.jsonl"
     w = TraceWriter(path=path)

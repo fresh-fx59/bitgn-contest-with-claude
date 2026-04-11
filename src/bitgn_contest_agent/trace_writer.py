@@ -117,8 +117,14 @@ class TraceWriter:
                 self._fh.flush()
                 self._fh.close()
 
-    def patch_outcome_score(self, score: float) -> None:
-        """Back-fill the grader score into the already-written outcome.
+    def patch_outcome_score(
+        self,
+        score: float,
+        *,
+        score_detail: Optional[list[str]] = None,
+    ) -> None:
+        """Back-fill the grader score (and optional detail) into the
+        already-written outcome.
 
         T24 deviation: the agent loop writes the outcome record with
         `score: null` because it doesn't know the grader verdict — that
@@ -129,6 +135,13 @@ class TraceWriter:
         full bench run against bitgn/pac1-dev). This method rewrites
         the last outcome record in place so bench_summary sees the
         grader-assessed score.
+
+        Observability add (2026-04-11): grader also returns
+        `score_detail` — a list of human-readable strings naming which
+        checks failed. Callers pass it here so content-layer failures
+        can be root-caused from the trace alone (without this, the
+        trace shows what the agent wrote but not what the grader
+        expected).
 
         Must be called after close(). The file is rewritten in full
         because JSONL offers no in-place partial-line edit primitive.
@@ -146,6 +159,8 @@ class TraceWriter:
                 rec = json.loads(line)
                 if rec.get("kind") == "outcome":
                     rec["score"] = score
+                    if score_detail is not None:
+                        rec["score_detail"] = list(score_detail)
                     lines[i] = json.dumps(
                         rec, separators=(",", ":"), ensure_ascii=False
                     )

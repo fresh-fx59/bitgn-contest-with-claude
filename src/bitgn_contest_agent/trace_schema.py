@@ -149,6 +149,12 @@ class TraceOutcome(_BaseRecord):
     total_cached_tokens: int = 0
     total_reasoning_tokens: int = 0
     score: Optional[float] = None
+    # Grader feedback returned alongside the score. Populated by
+    # `patch_outcome_score` after `harness.end_task()` returns. Used for
+    # root-causing content-layer failures where the agent's write looks
+    # plausible but the grader says no — the detail strings usually name
+    # the expected value.
+    score_detail: Optional[List[str]] = None
 
 
 TraceRecord = Union[TraceMeta, TraceTask, TracePrepass, TraceStep, TraceEvent, TraceOutcome]
