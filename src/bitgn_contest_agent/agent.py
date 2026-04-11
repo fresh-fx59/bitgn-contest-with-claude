@@ -26,6 +26,7 @@ from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, T
 from bitgn_contest_agent.bench.run_metrics import RunMetrics
 from bitgn_contest_agent.enforcer import Verdict, check_terminal
 from bitgn_contest_agent.prompts import critique_injection, loop_nudge, system_prompt
+from bitgn_contest_agent.router import Router
 from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
 from bitgn_contest_agent.session import Session
 from bitgn_contest_agent.task_hints import hint_for_task
@@ -57,6 +58,50 @@ class AgentLoopResult:
     total_reasoning_tokens: int
 
 
+def _build_initial_messages(
+    *,
+    task_text: str,
+    router: Optional[Router] = None,
+) -> List[Message]:
+    """Construct the initial messages for a task, including any router-
+    injected bitgn skill body.
+
+    Order:
+      [0] system: system_prompt()
+      [1] user:   task_text
+      [2] user:   bitgn skill body (if router hit)
+      [3] user:   task_hints.hint_for_task(task_text) (if any)
+
+    The system prompt and task-text messages stay bit-identical across
+    tasks so the provider-side prompt cache remains hot. Skill and
+    task-hint injections are appended as additional user messages.
+    """
+    messages: List[Message] = [
+        Message(role="system", content=system_prompt()),
+        Message(role="user", content=task_text),
+    ]
+
+    if router is not None:
+        decision = router.route(task_text)
+        if decision.skill_name is not None:
+            body = router.skill_body_for(decision.skill_name)
+            if body is not None:
+                import json as _json
+                prefix = (
+                    f"SKILL CONTEXT (router-injected): {decision.skill_name}\n"
+                    f"Captured variables: {_json.dumps(decision.extracted)}\n\n"
+                )
+                messages.append(
+                    Message(role="user", content=prefix + body)
+                )
+
+    task_hint = hint_for_task(task_text)
+    if task_hint is not None:
+        messages.append(Message(role="user", content=task_hint))
+
+    return messages
+
+
 class AgentLoop:
     def __init__(
         self,
@@ -70,6 +115,7 @@ class AgentLoop:
         backend_backoff_ms: tuple[int, ...] = _DEFAULT_BACKOFF_MS,
         inflight_semaphore: Optional[threading.Semaphore] = None,
         metrics: Optional[RunMetrics] = None,
+        router: Optional[Router] = None,
     ) -> None:
         self._backend = backend
         self._adapter = adapter
@@ -80,23 +126,14 @@ class AgentLoop:
         self._backoff_ms = backend_backoff_ms
         self._inflight_semaphore = inflight_semaphore
         self._metrics = metrics
+        self._router = router
 
     def run(self, *, task_id: str, task_text: str) -> AgentLoopResult:
         session = Session()
-        messages: List[Message] = [
-            Message(role="system", content=system_prompt()),
-            Message(role="user", content=task_text),
-        ]
-
-        # Task-local hints — pattern-gated hardcode fixes for known PROD
-        # failure modes. Injected as a third user message so the system
-        # prompt and task-text messages stay bit-identical (provider-side
-        # cache remains hot). hint_for_task() returns None for tasks
-        # that don't match any pattern; in that case no message is
-        # added and the loop behaves exactly as before.
-        task_hint = hint_for_task(task_text)
-        if task_hint is not None:
-            messages.append(Message(role="user", content=task_hint))
+        messages: List[Message] = _build_initial_messages(
+            task_text=task_text,
+            router=self._router,
+        )
 
         # Pre-pass (best effort).
         self._adapter.run_prepass(session=session, trace_writer=self._writer)

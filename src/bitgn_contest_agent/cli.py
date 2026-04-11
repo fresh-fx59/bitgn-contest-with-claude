@@ -30,6 +30,7 @@ from bitgn_contest_agent.orchestrator import (
     TaskExecutionResult,
     TaskSpec,
 )
+from bitgn_contest_agent.router import Router, load_router
 from bitgn_contest_agent.trace_schema import TRACE_SCHEMA_VERSION, TraceMeta
 from bitgn_contest_agent.trace_writer import TraceWriter
 
@@ -119,6 +120,24 @@ def _git_commit_short() -> str:
         return "unknown"
 
 
+_ROUTER_SINGLETON: Router | None = None
+
+
+def _get_router() -> Router:
+    """Lazy-load and cache a Router for the current process.
+
+    Skills directory defaults to src/bitgn_contest_agent/skills. Empty at
+    M0, populated in M1+. Any skill-load failure is a hard error — we
+    want the CLI to refuse to start rather than silently degrade to an
+    empty router.
+    """
+    global _ROUTER_SINGLETON
+    if _ROUTER_SINGLETON is None:
+        skills_dir = Path(__file__).parent / "skills"
+        _ROUTER_SINGLETON = load_router(skills_dir=skills_dir)
+    return _ROUTER_SINGLETON
+
+
 def _run_single_task(
     *,
     cfg: AgentConfig,
@@ -130,6 +149,7 @@ def _run_single_task(
     cancel_event: threading.Event,
     inflight_semaphore: threading.Semaphore | None = None,
     metrics: RunMetrics | None = None,
+    router: Router | None = None,
 ) -> TaskExecutionResult:
     started: StartedTask | None = None
     # In leaderboard flow the real task_id is only known after
@@ -176,6 +196,7 @@ def _run_single_task(
             backend_backoff_ms=cfg.rate_limit_backoff_ms,
             inflight_semaphore=inflight_semaphore,
             metrics=metrics,
+            router=router,
         )
         result: AgentLoopResult = loop.run(
             task_id=effective_task_id,
@@ -243,6 +264,7 @@ def _cmd_run_task(args: argparse.Namespace) -> int:
         run_id=run_id,
         run_index=0,
         cancel_event=threading.Event(),
+        router=_get_router(),
     )
     print(json.dumps(dataclasses.asdict(result), indent=2))
     return 0 if result.terminated_by == "report_completion" else 1
@@ -281,6 +303,8 @@ def _run_tasks_and_summarize(
     def run_iteration(run_index: int) -> list[TaskExecutionResult]:
         iter_tasks = tasks_for_iteration(run_index)
 
+        shared_router = _get_router()
+
         def runner(task: TaskSpec, cancel_event: threading.Event, _ri=run_index):
             return _run_single_task(
                 cfg=cfg,
@@ -292,6 +316,7 @@ def _run_tasks_and_summarize(
                 cancel_event=cancel_event,
                 inflight_semaphore=inflight_semaphore,
                 metrics=metrics,
+                router=shared_router,
             )
 
         orch = Orchestrator(
