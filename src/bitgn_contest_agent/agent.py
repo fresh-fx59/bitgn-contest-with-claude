@@ -23,6 +23,7 @@ from pydantic import ValidationError
 
 from bitgn_contest_agent.adapter.pcm import PcmAdapter, ToolResult
 from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, TransientBackendError
+from bitgn_contest_agent.bench.run_metrics import RunMetrics
 from bitgn_contest_agent.enforcer import Verdict, check_terminal
 from bitgn_contest_agent.prompts import critique_injection, loop_nudge, system_prompt
 from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
@@ -67,6 +68,7 @@ class AgentLoop:
         cancel_event: Optional[threading.Event] = None,
         backend_backoff_ms: tuple[int, ...] = _DEFAULT_BACKOFF_MS,
         inflight_semaphore: Optional[threading.Semaphore] = None,
+        metrics: Optional[RunMetrics] = None,
     ) -> None:
         self._backend = backend
         self._adapter = adapter
@@ -76,6 +78,7 @@ class AgentLoop:
         self._cancel_event = cancel_event
         self._backoff_ms = backend_backoff_ms
         self._inflight_semaphore = inflight_semaphore
+        self._metrics = metrics
 
     def run(self, *, task_id: str, task_text: str) -> AgentLoopResult:
         session = Session()
@@ -345,15 +348,24 @@ class AgentLoop:
                     return result
                 except TransientBackendError as exc:
                     last_exc = exc
+                    if self._metrics is not None:
+                        self._metrics.on_rate_limit_error()
                     continue
             if last_exc is not None:
                 return None
             return None
 
-        if self._inflight_semaphore is not None:
-            with self._inflight_semaphore:
-                return _do_retry_loop()
-        return _do_retry_loop()
+        # Metrics observe the full call cycle (queue wait + semaphore + retries)
+        if self._metrics is not None:
+            self._metrics.on_call_start()
+        try:
+            if self._inflight_semaphore is not None:
+                with self._inflight_semaphore:
+                    return _do_retry_loop()
+            return _do_retry_loop()
+        finally:
+            if self._metrics is not None:
+                self._metrics.on_call_end()
 
     def _log_step(
         self,

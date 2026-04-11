@@ -22,6 +22,7 @@ from bitgn_contest_agent import __version__
 from bitgn_contest_agent.adapter.pcm import PcmAdapter
 from bitgn_contest_agent.agent import AgentLoop, AgentLoopResult
 from bitgn_contest_agent.backend.openai_compat import OpenAIChatBackend
+from bitgn_contest_agent.bench.run_metrics import RunMetrics
 from bitgn_contest_agent.config import AgentConfig, ConfigError, load_from_env
 from bitgn_contest_agent.harness import BitgnHarness, StartedTask
 from bitgn_contest_agent.orchestrator import (
@@ -122,6 +123,7 @@ def _run_single_task(
     run_index: int,
     cancel_event: threading.Event,
     inflight_semaphore: threading.Semaphore | None = None,
+    metrics: RunMetrics | None = None,
 ) -> TaskExecutionResult:
     started: StartedTask | None = None
     try:
@@ -158,6 +160,7 @@ def _run_single_task(
             cancel_event=cancel_event,
             backend_backoff_ms=cfg.rate_limit_backoff_ms,
             inflight_semaphore=inflight_semaphore,
+            metrics=metrics,
         )
         result: AgentLoopResult = loop.run(
             task_id=task.task_id,
@@ -236,6 +239,7 @@ def _run_tasks_and_summarize(
     runs: int,
     output: str | None,
     inflight_semaphore: threading.Semaphore | None = None,
+    metrics: RunMetrics | None = None,
 ) -> list[TaskExecutionResult]:
     """Execute `tasks` across `runs` repetitions and optionally write a
     bench_summary JSON. Returns the flat list of TaskExecutionResult."""
@@ -251,6 +255,7 @@ def _run_tasks_and_summarize(
                 run_index=_ri,
                 cancel_event=cancel_event,
                 inflight_semaphore=inflight_semaphore,
+                metrics=metrics,
             )
 
         orch = Orchestrator(
@@ -276,6 +281,16 @@ def _run_tasks_and_summarize(
         Path(output).parent.mkdir(parents=True, exist_ok=True)
         Path(output).write_text(json.dumps(summary, indent=2), encoding="utf-8")
         print(f"bench summary → {output}")
+
+        if metrics is not None:
+            metrics_path = Path(output).with_name(
+                Path(output).stem + ".run_metrics.json"
+            )
+            metrics_path.write_text(
+                json.dumps(metrics.snapshot(), indent=2),
+                encoding="utf-8",
+            )
+            print(f"run metrics → {metrics_path}")
 
     return all_results
 
@@ -317,6 +332,7 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
 
     # One semaphore shared across all parallel agents in this run
     inflight_semaphore = threading.Semaphore(cfg.max_inflight_llm)
+    metrics = RunMetrics(max_inflight_llm=cfg.max_inflight_llm)
 
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     all_results = _run_tasks_and_summarize(
@@ -328,6 +344,7 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
         runs=args.runs,
         output=args.output,
         inflight_semaphore=inflight_semaphore,
+        metrics=metrics,
     )
 
     total = len(all_results)
