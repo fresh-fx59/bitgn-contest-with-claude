@@ -28,6 +28,7 @@ from bitgn_contest_agent.enforcer import Verdict, check_terminal
 from bitgn_contest_agent.prompts import critique_injection, loop_nudge, system_prompt
 from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
 from bitgn_contest_agent.session import Session
+from bitgn_contest_agent.task_hints import hint_for_task
 from bitgn_contest_agent.trace_schema import (
     StepLLMStats,
     StepSessionAfter,
@@ -86,6 +87,16 @@ class AgentLoop:
             Message(role="system", content=system_prompt()),
             Message(role="user", content=task_text),
         ]
+
+        # Task-local hints — pattern-gated hardcode fixes for known PROD
+        # failure modes. Injected as a third user message so the system
+        # prompt and task-text messages stay bit-identical (provider-side
+        # cache remains hot). hint_for_task() returns None for tasks
+        # that don't match any pattern; in that case no message is
+        # added and the loop behaves exactly as before.
+        task_hint = hint_for_task(task_text)
+        if task_hint is not None:
+            messages.append(Message(role="user", content=task_hint))
 
         # Pre-pass (best effort).
         self._adapter.run_prepass(session=session, trace_writer=self._writer)
