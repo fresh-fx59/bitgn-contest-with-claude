@@ -121,6 +121,7 @@ def _run_single_task(
     run_id: str,
     run_index: int,
     cancel_event: threading.Event,
+    inflight_semaphore: threading.Semaphore | None = None,
 ) -> TaskExecutionResult:
     started: StartedTask | None = None
     try:
@@ -156,6 +157,7 @@ def _run_single_task(
             llm_http_timeout_sec=float(cfg.llm_http_timeout_sec),
             cancel_event=cancel_event,
             backend_backoff_ms=cfg.rate_limit_backoff_ms,
+            inflight_semaphore=inflight_semaphore,
         )
         result: AgentLoopResult = loop.run(
             task_id=task.task_id,
@@ -233,6 +235,7 @@ def _run_tasks_and_summarize(
     run_id: str,
     runs: int,
     output: str | None,
+    inflight_semaphore: threading.Semaphore | None = None,
 ) -> list[TaskExecutionResult]:
     """Execute `tasks` across `runs` repetitions and optionally write a
     bench_summary JSON. Returns the flat list of TaskExecutionResult."""
@@ -247,6 +250,7 @@ def _run_tasks_and_summarize(
                 run_id=run_id,
                 run_index=_ri,
                 cancel_event=cancel_event,
+                inflight_semaphore=inflight_semaphore,
             )
 
         orch = Orchestrator(
@@ -311,6 +315,9 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
             for i, tid in enumerate(task_ids)
         ]
 
+    # One semaphore shared across all parallel agents in this run
+    inflight_semaphore = threading.Semaphore(cfg.max_inflight_llm)
+
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     all_results = _run_tasks_and_summarize(
         cfg,
@@ -320,6 +327,7 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
         run_id=run_id,
         runs=args.runs,
         output=args.output,
+        inflight_semaphore=inflight_semaphore,
     )
 
     total = len(all_results)

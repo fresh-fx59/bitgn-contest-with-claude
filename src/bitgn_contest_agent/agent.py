@@ -66,6 +66,7 @@ class AgentLoop:
         llm_http_timeout_sec: float,
         cancel_event: Optional[threading.Event] = None,
         backend_backoff_ms: tuple[int, ...] = _DEFAULT_BACKOFF_MS,
+        inflight_semaphore: Optional[threading.Semaphore] = None,
     ) -> None:
         self._backend = backend
         self._adapter = adapter
@@ -74,6 +75,7 @@ class AgentLoop:
         self._llm_http_timeout_sec = llm_http_timeout_sec
         self._cancel_event = cancel_event
         self._backoff_ms = backend_backoff_ms
+        self._inflight_semaphore = inflight_semaphore
 
     def run(self, *, task_id: str, task_text: str) -> AgentLoopResult:
         session = Session()
@@ -318,31 +320,40 @@ class AgentLoop:
 
         Returns NextStepResult on success, or None if all attempts exhausted
         (caller should then finish with BACKEND_ERROR). ValidationError
-        propagates to the caller's P3 handler.
+        propagates to the caller's P3 handler. When an inflight_semaphore is
+        configured, the entire retry loop runs inside an acquire — a rate-
+        limited request keeps its slot across backoffs so the remote has a
+        chance to cool down before another caller tries.
         """
-        last_exc: Optional[Exception] = None
-        for attempt, wait_ms in enumerate([0, *self._backoff_ms], start=0):
-            if wait_ms > 0:
-                self._writer.append_event(
-                    at_step=at_step,
-                    event_kind="rate_limit_backoff",
-                    wait_ms=wait_ms,
-                    attempt=attempt,
-                )
-                time.sleep(wait_ms / 1000.0)
-            try:
-                result = self._backend.next_step(
-                    messages=messages,
-                    response_schema=NextStep,
-                    timeout_sec=self._llm_http_timeout_sec,
-                )
-                return result
-            except TransientBackendError as exc:
-                last_exc = exc
-                continue
-        if last_exc is not None:
+        def _do_retry_loop() -> Optional[NextStepResult]:
+            last_exc: Optional[Exception] = None
+            for attempt, wait_ms in enumerate([0, *self._backoff_ms], start=0):
+                if wait_ms > 0:
+                    self._writer.append_event(
+                        at_step=at_step,
+                        event_kind="rate_limit_backoff",
+                        wait_ms=wait_ms,
+                        attempt=attempt,
+                    )
+                    time.sleep(wait_ms / 1000.0)
+                try:
+                    result = self._backend.next_step(
+                        messages=messages,
+                        response_schema=NextStep,
+                        timeout_sec=self._llm_http_timeout_sec,
+                    )
+                    return result
+                except TransientBackendError as exc:
+                    last_exc = exc
+                    continue
+            if last_exc is not None:
+                return None
             return None
-        return None
+
+        if self._inflight_semaphore is not None:
+            with self._inflight_semaphore:
+                return _do_retry_loop()
+        return _do_retry_loop()
 
     def _log_step(
         self,
