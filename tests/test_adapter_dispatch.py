@@ -134,6 +134,66 @@ def test_dispatch_search() -> None:
     assert sent.limit == 25
 
 
+def test_dispatch_search_preamble_carries_total_matches() -> None:
+    """t30-class counting tasks fail because the JSON matches[] array is
+    truncated at max_tool_result_bytes before the agent can count it. The
+    adapter must stamp an explicit `total_matches` field at the TOP of the
+    search response so the exact count survives truncation. The count is
+    the length of the server-returned matches list — exact when the result
+    isn't limit-capped; treated as a lower bound when it is."""
+    runtime = MagicMock()
+    resp = pcm_pb2.SearchResponse()
+    # 5 fake matches, well under any limit.
+    for i in range(5):
+        m = resp.matches.add()
+        m.path = f"docs/file{i}.txt"
+        m.line = i + 1
+        m.line_text = f"line content {i}"
+    runtime.search.return_value = resp
+
+    adapter = _mk_adapter(runtime)
+    result = adapter.dispatch(
+        Req_Search(tool="search", root="/", pattern="line", limit=1000)
+    )
+    assert result.ok
+    # total_matches must be present in the response body.
+    assert '"total_matches": 5' in result.content or '"total_matches":5' in result.content, (
+        f"total_matches not in response: {result.content[:200]}"
+    )
+    # It must appear BEFORE the matches array so truncation can't hide it.
+    idx_total = result.content.index("total_matches")
+    idx_matches = result.content.index('"matches"')
+    assert idx_total < idx_matches, (
+        "total_matches must come before matches[] so it survives truncation"
+    )
+
+
+def test_dispatch_search_total_matches_survives_truncation() -> None:
+    """Even when the matches array is aggressively truncated, the agent
+    must still see the exact total in the response preamble."""
+    runtime = MagicMock()
+    resp = pcm_pb2.SearchResponse()
+    # 400 matches, each with a long enough line_text that the JSON will
+    # blow past 2 KB easily — forcing truncation under max_tool_result_bytes=2048.
+    big_line = "x" * 100
+    for i in range(400):
+        m = resp.matches.add()
+        m.path = f"d/f{i}.txt"
+        m.line = i + 1
+        m.line_text = big_line
+    runtime.search.return_value = resp
+
+    adapter = PcmAdapter(runtime=runtime, max_tool_result_bytes=2048)
+    result = adapter.dispatch(
+        Req_Search(tool="search", root="/", pattern="x", limit=10000)
+    )
+    assert result.ok
+    assert result.truncated is True
+    assert '"total_matches": 400' in result.content or '"total_matches":400' in result.content, (
+        f"truncation hid total_matches, got: {result.content[:300]}"
+    )
+
+
 def test_dispatch_context_sends_empty_request() -> None:
     runtime = MagicMock()
     adapter = _mk_adapter(runtime)

@@ -108,6 +108,13 @@ Tool workflow:
     already read.
   - `find` and `search` take a `limit`; start small (10) and grow only
     if necessary.
+  - For "how many"/counting questions, use `search` with a wide
+    `limit` (e.g. 100000) and read the `total_matches` field at the
+    top of the response — it is the exact count of matches the server
+    returned, and it survives response truncation. Do NOT hand-count
+    lines from the `matches` array; if `total_matches` equals your
+    `limit`, the true count may be higher — raise `limit` or subdivide
+    the pattern and sum exact subset totals.
   - Write operations mutate state. Re-read after writing if your next
     decision depends on the new state.
 

@@ -54,13 +54,42 @@ def _response_to_text(resp: Any) -> str:
 
     Generated proto messages are not JSON-serializable out of the box, so
     we use the protobuf MessageToJson helper + a plain string fallback.
+
+    Special case: `SearchResponse` gets a `total_matches` field stamped
+    at the very top of the JSON body — ahead of the `matches` array —
+    so counting tasks survive response truncation. `_finish` may still
+    cut the tail of the matches list, but the count is written in the
+    first ~30 bytes and cannot be lost.
     """
     try:
+        if isinstance(resp, pcm_pb2.SearchResponse):
+            return _search_response_to_text(resp)
         from google.protobuf.json_format import MessageToJson
 
         return MessageToJson(resp, preserving_proto_field_name=True, indent=None)
     except Exception:
         return str(resp)
+
+
+def _search_response_to_text(resp: "pcm_pb2.SearchResponse") -> str:
+    """Serialize a SearchResponse with a truncation-proof total_matches header.
+
+    The canonical `MessageToJson` shape is `{"matches": [...]}` which
+    buries the count behind an arbitrarily long array. We invert it:
+    `{"total_matches": N, "matches": [...]}`. The count is an exact
+    lower-bound (equal to `len(resp.matches)` at the moment the adapter
+    received the response) — it is exact when the caller's `limit` was
+    not reached and a lower bound when it was. Client code should treat
+    `total_matches == limit` as "possibly more; raise limit or subdivide".
+    """
+    import json as _json
+
+    matches_obj = [
+        {"path": m.path, "line": m.line, "line_text": m.line_text}
+        for m in resp.matches
+    ]
+    payload = {"total_matches": len(matches_obj), "matches": matches_obj}
+    return _json.dumps(payload, separators=(", ", ": "))
 
 
 _FIND_TYPE_MAP: Dict[str, int] = {
