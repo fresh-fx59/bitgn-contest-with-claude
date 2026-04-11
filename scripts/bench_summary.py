@@ -33,10 +33,12 @@ def _iter_jsonl_files(logs_dir: Path) -> Iterable[Path]:
     return sorted(Path(logs_dir).rglob("*.jsonl"))
 
 
-def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, list[int]] | None:
+def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, list[int], list[str], int] | None:
     meta: TraceMeta | None = None
     outcome: TraceOutcome | None = None
     divergence_steps: list[int] = []
+    step_texts: list[str] = []
+    step_wall_ms_sum: int = 0
     try:
         for rec in load_jsonl(path):
             if isinstance(rec, TraceMeta):
@@ -48,6 +50,9 @@ def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, 
                 text = current_state + " " + " ".join(str(p) for p in plan_brief)
                 if is_divergent_step(text):
                     divergence_steps.append(rec.step)
+                if current_state:
+                    step_texts.append(current_state)
+                step_wall_ms_sum += rec.wall_ms
             elif isinstance(rec, TraceOutcome):
                 outcome = rec
     except (ValueError, json.JSONDecodeError):
@@ -57,12 +62,12 @@ def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, 
     score = float(outcome.score) if outcome.score is not None else (
         1.0 if (outcome.reported == "OUTCOME_OK" and outcome.terminated_by == "report_completion") else 0.0
     )
-    return meta.task_id, score, outcome.total_steps, meta, outcome, divergence_steps
+    return meta.task_id, score, outcome.total_steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum
 
 
 def summarize(*, logs_dir: Path) -> Dict[str, Any]:
-    # by_task maps task_id -> list of (score, steps, meta, outcome, divergence_steps) per run
-    by_task: dict[str, list[tuple[float, int, TraceMeta, TraceOutcome, list[int]]]] = defaultdict(list)
+    # by_task maps task_id -> list of (score, steps, meta, outcome, divergence_steps, step_texts, wall_ms_sum) per run
+    by_task: dict[str, list[tuple[float, int, TraceMeta, TraceOutcome, list[int], list[str], int]]] = defaultdict(list)
     total_runs = 0
     total_passes = 0
 
@@ -70,8 +75,8 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
         run = _extract_run(path)
         if run is None:
             continue
-        task_id, score, steps, meta, outcome, divergence_steps = run
-        by_task[task_id].append((score, steps, meta, outcome, divergence_steps))
+        task_id, score, steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum = run
+        by_task[task_id].append((score, steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum))
         total_runs += 1
         if score >= 1.0:
             total_passes += 1
@@ -101,6 +106,30 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
         # Divergence: union of step indices across all runs, sorted and deduped
         divergence_all = sorted(set().union(*[set(e[4]) for e in entries]))
 
+        # step_texts: union across runs (de-duped, order-preserving via dict)
+        seen_texts: dict[str, None] = {}
+        for e in entries:
+            for txt in e[5]:  # step_texts
+                if txt and txt not in seen_texts:
+                    seen_texts[txt] = None
+        step_texts_all = list(seen_texts.keys())
+
+        # last_outcome: from the final entry's outcome.reported
+        last_entry_outcome = entries[-1][3] if entries else None
+        last_outcome = (last_entry_outcome.reported if last_entry_outcome and last_entry_outcome.reported else "OUTCOME_OK")
+
+        # last_latency_ms: wall_ms sum of the final entry
+        last_latency_ms = entries[-1][6] if entries else 0
+
+        # timed_out: True if ANY run was cancelled/timed out
+        timed_out = any(
+            (e[3].terminated_by == "cancel") or (e[3].error_kind == "CANCELLED")
+            for e in entries
+        )
+
+        # category: no source yet — default to "other"
+        category = "other"
+
         tasks_out[task_id] = {
             "runs": runs,
             "passes": passes,
@@ -112,6 +141,12 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
             "reasoning_tokens": task_reasoning,
             "harness_url": harness_url,
             "divergence_steps": divergence_all,
+            # v1.1 additive (T1.10 evidence for triage)
+            "step_texts": step_texts_all,
+            "last_outcome": last_outcome,
+            "last_latency_ms": last_latency_ms,
+            "timed_out": timed_out,
+            "category": category,
         }
 
     # aggregate_runs expects a list of per-run summary dicts. In Phase 1 every
@@ -182,6 +217,11 @@ def load_summary(raw: Dict[str, Any]) -> Dict[str, Any]:
         t.setdefault("reasoning_tokens", 0)
         t.setdefault("harness_url", "")
         t.setdefault("divergence_steps", [])
+        t.setdefault("step_texts", [])
+        t.setdefault("last_outcome", "OUTCOME_OK")
+        t.setdefault("last_latency_ms", 0)
+        t.setdefault("timed_out", False)
+        t.setdefault("category", "other")
         tasks[task_id] = t
 
     return {

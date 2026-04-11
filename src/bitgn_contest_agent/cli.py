@@ -50,6 +50,12 @@ def build_parser() -> argparse.ArgumentParser:
     run_bench.add_argument("--output", default=None, help="bench_summary.json path")
     run_bench.add_argument("--log-dir", default=None)
 
+    tri = subs.add_parser("triage", help="classify bench failures")
+    tri.add_argument("summary", nargs="?", default=None,
+                     help="path to a v1.1 bench_summary JSON (single-mode)")
+    tri.add_argument("--before", help="baseline summary for diff mode")
+    tri.add_argument("--after", help="candidate summary for diff mode")
+
     return parser
 
 
@@ -269,6 +275,53 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
     return 0 if passed == total else 1
 
 
+def _cmd_triage(args: argparse.Namespace) -> int:
+    # sys.path injection for scripts.bench_summary (same pattern as run-benchmark)
+    _repo_root = Path(__file__).resolve().parents[2]
+    if str(_repo_root) not in sys.path:
+        sys.path.insert(0, str(_repo_root))
+    from scripts.bench_summary import load_summary  # type: ignore[attr-defined]
+    from bitgn_contest_agent.bench.triage import classify_failure, TRIAGE_ORDER
+
+    def cluster(path: Path) -> dict[str, list[str]]:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        summary = load_summary(raw)
+        buckets: dict[str, list[str]] = {c: [] for c in TRIAGE_ORDER}
+        for tid, t in summary.get("tasks", {}).items():
+            if t.get("passes", 0) >= t.get("runs", 1):
+                continue  # all runs passed — not a failure
+            evidence = {
+                "task_id": tid,
+                "outcome": t.get("last_outcome", "OUTCOME_OK"),
+                "grader_failed": True,
+                "step_texts": t.get("step_texts", []),
+                "latency_ms": t.get("last_latency_ms", 0),
+                "timed_out": t.get("timed_out", False),
+                "task_category": t.get("category", "other"),
+            }
+            buckets[classify_failure(evidence)].append(tid)
+        return buckets
+
+    if args.before and args.after:
+        b = cluster(Path(args.before))
+        a = cluster(Path(args.after))
+        for c in TRIAGE_ORDER:
+            cleared = sorted(set(b[c]) - set(a[c]))
+            added = sorted(set(a[c]) - set(b[c]))
+            if cleared or added:
+                parts = [f"-{t}" for t in cleared] + [f"+{t}" for t in added]
+                print(f"{c}: {' '.join(parts)}")
+    else:
+        if not args.summary:
+            print("error: triage requires a summary path or --before/--after", file=sys.stderr)
+            return 2
+        b = cluster(Path(args.summary))
+        for c in TRIAGE_ORDER:
+            if b[c]:
+                print(f"{c}: {' '.join(sorted(b[c]))}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     parser = build_parser()
@@ -279,6 +332,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_run_task(args)
         if args.command == "run-benchmark":
             return _cmd_run_benchmark(args)
+        if args.command == "triage":
+            return _cmd_triage(args)
     except ConfigError as exc:
         print(f"config error: {exc}", file=sys.stderr)
         return 2
