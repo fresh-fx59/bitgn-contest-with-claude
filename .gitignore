@@ -14,3 +14,8 @@ build/
 dist/
 logs/
 artifacts/bench/*_scratch.json
+
+# Secrets — BITGN profile key, cliproxyapi token, etc.
+.env
+.env.*
+!.env.example

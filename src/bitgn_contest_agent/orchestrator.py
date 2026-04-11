@@ -24,6 +24,12 @@ class TaskSpec:
     task_id: str
     task_index: int
     task_text: str
+    # Leaderboard flow: when set, the runner resolves the task via
+    # `harness.start_trial(trial_id)` instead of `start_playground`.
+    # In this mode `task_id` starts as a placeholder (the trial_id or
+    # an ordinal label) and is replaced with the real task_id from the
+    # server's StartTrial response inside the runner.
+    trial_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

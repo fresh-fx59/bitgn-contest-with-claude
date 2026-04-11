@@ -16,7 +16,7 @@ import time
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import Callable, List
 
 from bitgn_contest_agent import __version__
 from bitgn_contest_agent.adapter.pcm import PcmAdapter
@@ -126,14 +126,23 @@ def _run_single_task(
     metrics: RunMetrics | None = None,
 ) -> TaskExecutionResult:
     started: StartedTask | None = None
+    # In leaderboard flow the real task_id is only known after
+    # start_trial; fall back to whatever the orchestrator gave us for
+    # crash reporting before the trial is provisioned.
+    effective_task_id = task.task_id
     try:
-        started = harness.start_task(task.task_id)
+        if task.trial_id is not None:
+            started = harness.start_trial(task.trial_id)
+        else:
+            started = harness.start_task(task.task_id)
+        effective_task_id = started.task_id
+
         adapter = PcmAdapter(
             runtime=started.runtime_client,
             max_tool_result_bytes=cfg.max_tool_result_bytes,
         )
 
-        trace_path = _trace_path(cfg, run_id, task.task_id, run_index)
+        trace_path = _trace_path(cfg, run_id, effective_task_id, run_index)
         writer = TraceWriter(path=trace_path)
         writer.write_meta(
             TraceMeta(
@@ -143,7 +152,7 @@ def _run_single_task(
                 backend="openai_compat",
                 reasoning_effort=cfg.reasoning_effort,
                 benchmark=cfg.benchmark,
-                task_id=task.task_id,
+                task_id=effective_task_id,
                 task_index=task.task_index,
                 started_at=datetime.now(timezone.utc).isoformat(),
                 trace_schema_version=TRACE_SCHEMA_VERSION,
@@ -163,7 +172,7 @@ def _run_single_task(
             metrics=metrics,
         )
         result: AgentLoopResult = loop.run(
-            task_id=task.task_id,
+            task_id=effective_task_id,
             task_text=started.instruction,
         )
         writer.close()
@@ -178,7 +187,7 @@ def _run_single_task(
         except Exception:
             pass
         return TaskExecutionResult(
-            task_id=task.task_id,
+            task_id=effective_task_id,
             score=float(score),
             terminated_by=result.terminated_by,
             error_kind=result.error_kind,
@@ -194,7 +203,7 @@ def _run_single_task(
             except Exception:
                 pass
         return TaskExecutionResult(
-            task_id=task.task_id,
+            task_id=effective_task_id,
             score=0.0,
             terminated_by="error",
             error_kind="INTERNAL_CRASH",
@@ -231,20 +240,29 @@ def _cmd_run_task(args: argparse.Namespace) -> int:
 
 def _run_tasks_and_summarize(
     cfg: AgentConfig,
-    tasks: List[TaskSpec],
     *,
     harness: BitgnHarness,
     backend: OpenAIChatBackend,
     run_id: str,
     runs: int,
     output: str | None,
+    tasks_for_iteration: Callable[[int], List[TaskSpec]],
+    finalize_iteration: Callable[[int, List[TaskExecutionResult]], None] = lambda _i, _r: None,
     inflight_semaphore: threading.Semaphore | None = None,
     metrics: RunMetrics | None = None,
 ) -> list[TaskExecutionResult]:
-    """Execute `tasks` across `runs` repetitions and optionally write a
-    bench_summary JSON. Returns the flat list of TaskExecutionResult."""
+    """Execute `runs` iterations and optionally write a bench_summary JSON.
+
+    `tasks_for_iteration(i)` returns the TaskSpec list for iteration i.
+    For the leaderboard flow each iteration calls `start_run` here and
+    the resulting TaskSpecs carry trial_ids. `finalize_iteration(i, results)`
+    runs after each iteration — leaderboard flow uses it to call
+    `submit_run(run_id)`. Smoke/playground flows pass a no-op.
+    """
     all_results: list[TaskExecutionResult] = []
     for run_index in range(runs):
+        iter_tasks = tasks_for_iteration(run_index)
+
         def runner(task: TaskSpec, cancel_event: threading.Event, _ri=run_index):
             return _run_single_task(
                 cfg=cfg,
@@ -264,7 +282,9 @@ def _run_tasks_and_summarize(
             task_timeout_sec=cfg.task_timeout_sec,
             task_timeout_grace_sec=cfg.task_timeout_grace_sec,
         )
-        all_results.extend(orch.run(tasks))
+        iter_results = orch.run(iter_tasks)
+        finalize_iteration(run_index, iter_results)
+        all_results.extend(iter_results)
 
     if output:
         # scripts/ is a sibling of src/, not part of the installed package
@@ -301,6 +321,7 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
     # --smoke overrides task list and parallelism BEFORE harness/backend creation.
     # dataclasses.replace hits max_parallel_tasks a SECOND time (after _resolve_config
     # already set it from --max-parallel) — intentional: smoke beats user args.
+    smoke_task_ids: List[str] | None = None
     if args.smoke:
         from bitgn_contest_agent.bench.smoke import (
             SMOKE_TASKS,
@@ -312,10 +333,7 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
             max_parallel_tasks=SMOKE_MAX_PARALLEL,
             max_inflight_llm=SMOKE_MAX_INFLIGHT_LLM,
         )
-        tasks: List[TaskSpec] = [
-            TaskSpec(task_id=tid, task_index=i, task_text="")
-            for i, tid in enumerate(SMOKE_TASKS)
-        ]
+        smoke_task_ids = list(SMOKE_TASKS)
     else:
         if args.max_inflight_llm is not None:
             cfg = dataclasses.replace(cfg, max_inflight_llm=args.max_inflight_llm)
@@ -323,26 +341,79 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
     harness = _make_harness(cfg)
     backend = _make_backend(cfg)
 
-    if not args.smoke:
-        task_ids = harness.list_task_ids()
-        tasks = [
-            TaskSpec(task_id=tid, task_index=i, task_text="")
-            for i, tid in enumerate(task_ids)
-        ]
-
     # One semaphore shared across all parallel agents in this run
     inflight_semaphore = threading.Semaphore(cfg.max_inflight_llm)
     metrics = RunMetrics(max_inflight_llm=cfg.max_inflight_llm)
 
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+    # Per-iteration run_id map for leaderboard flow — populated by
+    # tasks_for_iteration, consumed by finalize_iteration.
+    leaderboard_run_ids: dict[int, str] = {}
+
+    if args.smoke:
+        # Smoke uses the playground flow: a small fixed subset of tasks
+        # exercised against StartPlayground. Kept invisible to the
+        # leaderboard intentionally (cheap local-only smoke).
+        assert smoke_task_ids is not None
+
+        def tasks_for_iteration(_i: int) -> List[TaskSpec]:
+            return [
+                TaskSpec(task_id=tid, task_index=i, task_text="")
+                for i, tid in enumerate(smoke_task_ids)
+            ]
+
+        finalize_iteration: Callable[[int, List[TaskExecutionResult]], None] = (
+            lambda _i, _r: None
+        )
+    else:
+        # Full benchmark uses the leaderboard flow: each --runs iteration
+        # calls StartRun, executes every trial the server hands back,
+        # then SubmitRun's the leaderboard entry so it appears in the
+        # dashboard. The run name is the canonical owner/agent handle
+        # fixed by the user (2026-04-11) — the server disambiguates
+        # iterations by run_id, not by name.
+        LEADERBOARD_RUN_NAME = "aleksei_aksenov-ai_engineer_helper-bitgn-agent"
+
+        def tasks_for_iteration(run_index: int) -> List[TaskSpec]:
+            rid, trial_ids = harness.start_run(name=LEADERBOARD_RUN_NAME)
+            leaderboard_run_ids[run_index] = rid
+            return [
+                TaskSpec(
+                    task_id=tid,  # placeholder until start_trial resolves the real id
+                    task_index=i,
+                    task_text="",
+                    trial_id=tid,
+                )
+                for i, tid in enumerate(trial_ids)
+            ]
+
+        def finalize_iteration(run_index: int, _results: List[TaskExecutionResult]) -> None:
+            rid = leaderboard_run_ids.get(run_index)
+            if rid is None:
+                return
+            try:
+                state = harness.submit_run(rid)
+                logging.getLogger(__name__).info(
+                    "submitted run run_id=%s state=%s", rid, state,
+                )
+            except Exception as exc:
+                # SubmitRun failure must not lose the results we already
+                # collected. Log and continue — the results artifact
+                # stays on disk for offline analysis.
+                logging.getLogger(__name__).warning(
+                    "submit_run failed for run_id=%s: %s", rid, exc,
+                )
+
     all_results = _run_tasks_and_summarize(
         cfg,
-        tasks,
         harness=harness,
         backend=backend,
         run_id=run_id,
         runs=args.runs,
         output=args.output,
+        tasks_for_iteration=tasks_for_iteration,
+        finalize_iteration=finalize_iteration,
         inflight_semaphore=inflight_semaphore,
         metrics=metrics,
     )

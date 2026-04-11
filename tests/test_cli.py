@@ -184,10 +184,11 @@ def test_smoke_flag_forces_parameters(monkeypatch, tmp_path):
 
     captured: dict = {}
 
-    def fake_runner(cfg, tasks, **kw):
+    def fake_runner(cfg, **kw):
         captured["cfg"] = cfg
-        captured["tasks"] = tasks
         captured["kw"] = kw
+        # Invoke the provider once to capture the smoke TaskSpec list.
+        captured["tasks"] = kw["tasks_for_iteration"](0)
         return []  # empty results; no summarize() path
 
     monkeypatch.setattr(
@@ -217,5 +218,6 @@ def test_smoke_flag_forces_parameters(monkeypatch, tmp_path):
     assert captured["cfg"].max_parallel_tasks == SMOKE_MAX_PARALLEL
     assert captured["cfg"].max_inflight_llm == SMOKE_MAX_INFLIGHT_LLM
     # --smoke must force the task list to SMOKE_TASKS (TaskSpec objects ordered)
-    # tasks is list[TaskSpec] — compare the task_id sequence
     assert [t.task_id for t in captured["tasks"]] == SMOKE_TASKS
+    # Smoke stays on the playground flow — no trial_id set.
+    assert all(t.trial_id is None for t in captured["tasks"])
