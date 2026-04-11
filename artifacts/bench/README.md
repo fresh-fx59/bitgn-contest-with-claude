@@ -11,11 +11,42 @@ this directory. PRs that regress the floor are blocked.
 
 ## Current floor
 
-As of 2026-04-11 the floor is `941d0da_20260411T072002Z_runs3.json` —
-the Plan B v0.1.0 variance-aware baseline against `bitgn/pac1-dev`,
-produced by the `plan-b/trunk` agent at commit `941d0da` using
-`gpt-5.3-codex` at `reasoning_effort=medium` via `cliproxyapi`,
-tuned operating point `max_parallel_tasks=8`, `max_inflight_llm=48`.
+As of 2026-04-11 (post-launch-day) the floor is
+`fb4c39e_20260411T100728Z_codex53_newprompt_totalmatch_dev_runs3.json`
+— codex5.3 + Task classification prompt + `total_matches` search
+adapter fix. Supersedes the Plan B v0.1.0 baseline at `941d0da`.
+
+```
+per-iteration pass rates (3 independent StartRun iterations):
+  iter0: 26/43 (60.5%)
+  iter1: 28/43 (65.1%)
+  iter2: 27/43 (62.8%)
+
+  median: 27/43 (62.8%)    ← new ratchet floor (+3 tasks vs v0.1.0)
+  min:    26/43 (60.5%)    ← new worst-case floor (+6 tasks vs v0.1.0)
+```
+
+Always-pass set grew from 17 → 23 tasks. Delta from trunk:
+- **+6 new always-pass:** `t05`, `t07`, `t12`, `t19`, `t24`, `t27`, `t30`
+- **−0 lost** (no regressions among trunk always-passers — critical)
+- `t30` (telegram blacklist counting) was fixed by the adapter change
+  that stamps `total_matches` at the top of search responses, making
+  the exact count survive response truncation.
+
+Full-stack cross-check at `fb4c39e` with `gpt-5.4` via the same
+cliproxy backend, `--runs 1`: **29/43 (67.4%)** —
+`fb4c39e_20260411T101126Z_gpt54_fullstack_dev_runs1.json`. Stronger at
+n=1 than codex at n=1 (dev task set is noisy at `--runs 1`) but the
+model is not the scored backend by default; codex5.3 + new prompt is
+the ratcheted baseline for PROD launch.
+
+### Previous Plan B baseline (superseded)
+
+`941d0da_20260411T072002Z_runs3.json` — pre-classification-prompt,
+pre-adapter-fix baseline against `bitgn/pac1-dev`, produced by the
+`plan-b/trunk` agent at commit `941d0da` using `gpt-5.3-codex` at
+`reasoning_effort=medium` via `cliproxyapi`, tuned operating point
+`max_parallel_tasks=8`, `max_inflight_llm=48`.
 
 ```
 per-iteration pass rates (3 independent StartRun iterations):
@@ -23,8 +54,8 @@ per-iteration pass rates (3 independent StartRun iterations):
   iter1: 24/43 (55.8%)
   iter2: 25/43 (58.1%)
 
-  median: 24/43 (55.8%)     ← ratchet floor
-  min:    20/43 (46.5%)     ← worst-case floor
+  median: 24/43 (55.8%)     ← previous ratchet floor
+  min:    20/43 (46.5%)     ← previous worst-case floor
   max:    25/43 (58.1%)
 ```
 
