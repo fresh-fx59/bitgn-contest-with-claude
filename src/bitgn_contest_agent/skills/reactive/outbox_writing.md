@@ -35,6 +35,22 @@ When forwarding or quoting content from another file, the forwarded text must
 match what you read from the source. Do not paraphrase, summarize, or
 reconstruct from memory.
 
+## Attachment Ordering
+
+When listing attachments (invoices, receipts, documents) in the `attachments`
+YAML field, always order them **newest-first** (reverse chronological by
+issue date). This applies regardless of whether the task text says "oldest N"
+or "newest N" — the task text determines WHICH items to include, but the
+`attachments` list must always be ordered newest-first per the workspace's
+sending-email workflow. Double-check the date in each attachment filename
+(`YYYY_MM_DD_...`) and place the most recent date at index 0.
+
+## YAML Safety
+
+Always wrap the `subject` value in double quotes if it contains a colon
+(e.g. `subject: "Re: Invoice bundle request"`). Unquoted colons break
+YAML parsing.
+
 ## After Verification
 
 If you find any errors in what you wrote, rewrite the file with corrections

@@ -133,6 +133,31 @@ Reliability rules:
     `subject: "Re: Invoice"`), otherwise the parser treats the second
     `:` as a map delimiter.
 
+Path discipline:
+  - Always use absolute paths with a leading `/` in every tool call
+    (e.g. `/AGENTS.md`, `/50_finance/purchases/...`). Relative paths
+    may silently fail on some operations.
+  - Before deleting any file, ALWAYS read it first to confirm its
+    content matches the criteria. Never delete based solely on filename
+    or search-result snippets.
+
+Entity resolution:
+  - When resolving a person by an ambiguous relationship term
+    ("my partner", "my person", "my other half"), search ALL cast
+    records for both personal relationships (spouse, wife, husband,
+    partner) AND professional ones (startup_partner, cofounder,
+    business_partner). Prefer the personal/romantic interpretation
+    unless the task context clearly indicates business. Do NOT stop
+    at the first relationship match — verify across all candidates.
+
+Unsupported-capability discipline:
+  - Do NOT create workaround artifacts (reminders, follow-up tasks,
+    placeholders) to approximate an unsupported external capability.
+    If the task requires confirming a bank transfer, checking payment
+    status, sending real email, or calling an external API, report
+    OUTCOME_NONE_UNSUPPORTED. Local surrogates do not satisfy the
+    task requirement.
+
 Never dump raw file contents back into your reasoning. Summarize.
 """
 

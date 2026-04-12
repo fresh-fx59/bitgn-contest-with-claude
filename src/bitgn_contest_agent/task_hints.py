@@ -109,14 +109,13 @@ def _hint_last_recorded_message(task_text: str) -> Optional[str]:
         "forms (first name, nickname). Read each channel file fully "
         "rather than grepping for just the canonical name. "
         "Commitment rule: once you've checked every channel file and "
-        "have a defensible answer (even a negative one), emit "
-        "OUTCOME_OK with the exact message body as "
-        "`report_completion.message` — or, if no channel attributes a "
-        "message to this entity under any of its aliases, emit "
-        "OUTCOME_OK with message `(no recorded message from this "
-        "entity)` and list every channel file you read in "
-        "`grounding_refs`. Do NOT emit NONE_CLARIFICATION unless the "
-        "channel lane itself is missing from the workspace."
+        "have a defensible answer, emit OUTCOME_OK with the exact "
+        "message body as `report_completion.message`. If you searched "
+        "every channel file exhaustively and no channel attributes a "
+        "message to this entity under any of its known names or "
+        "aliases, emit OUTCOME_NONE_CLARIFICATION explaining that no "
+        "recorded message from this entity was found in any channel, "
+        "and list every channel file you read in `grounding_refs`."
     )
 
 
