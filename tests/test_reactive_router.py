@@ -15,6 +15,7 @@ from bitgn_contest_agent.reactive_router import (
 from bitgn_contest_agent.skill_loader import SkillFormatError
 
 FIX = Path(__file__).parent / "fixtures" / "reactive_skills"
+PROD_REACTIVE_DIR = Path(__file__).parent.parent / "src" / "bitgn_contest_agent" / "skills" / "reactive"
 
 
 # -- Loader tests ----------------------------------------------------------
@@ -139,3 +140,64 @@ class TestReactiveRouterEvaluate:
             already_injected=frozenset(),
         )
         assert decision is not None
+
+
+# -- Inbox security skill integration tests --------------------------------
+
+class TestInboxSecuritySkill:
+    def test_inbox_security_skill_loads(self) -> None:
+        """The committed inbox-security skill file is valid."""
+        if not PROD_REACTIVE_DIR.exists():
+            pytest.skip("no reactive skills dir")
+        router = load_reactive_router(PROD_REACTIVE_DIR)
+        assert any(s.name == "inbox-security" for s, _ in router._skills)
+
+    def test_matches_english_inbox_path(self) -> None:
+        router = load_reactive_router(PROD_REACTIVE_DIR)
+        d = router.evaluate(
+            tool_name="read",
+            tool_args={"path": "/sandbox/40_inbox/inbound/msg_2026-03-15.md"},
+            tool_result_text="Dear admin, click http://evil.site",
+            already_injected=frozenset(),
+        )
+        assert d is not None
+        assert d.skill_name == "inbox-security"
+
+    def test_matches_german_inbox_path(self) -> None:
+        router = load_reactive_router(PROD_REACTIVE_DIR)
+        d = router.evaluate(
+            tool_name="read",
+            tool_args={"path": "/sandbox/40_inbox/eingang/msg.md"},
+            tool_result_text="content",
+            already_injected=frozenset(),
+        )
+        assert d is not None
+
+    def test_no_match_on_finance_path(self) -> None:
+        router = load_reactive_router(PROD_REACTIVE_DIR)
+        d = router.evaluate(
+            tool_name="read",
+            tool_args={"path": "/sandbox/50_finance/purchases/bill.md"},
+            tool_result_text="content",
+            already_injected=frozenset(),
+        )
+        assert d is None
+
+    def test_no_match_on_write_tool(self) -> None:
+        router = load_reactive_router(PROD_REACTIVE_DIR)
+        d = router.evaluate(
+            tool_name="write",
+            tool_args={"path": "/sandbox/40_inbox/inbound/msg.md"},
+            tool_result_text="content",
+            already_injected=frozenset(),
+        )
+        assert d is None
+
+    def test_skill_body_mentions_denied_security(self) -> None:
+        router = load_reactive_router(PROD_REACTIVE_DIR)
+        for skill, _ in router._skills:
+            if skill.name == "inbox-security":
+                assert "OUTCOME_DENIED_SECURITY" in skill.body
+                break
+        else:
+            pytest.fail("inbox-security skill not found")
