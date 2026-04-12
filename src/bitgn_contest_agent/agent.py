@@ -41,6 +41,7 @@ from bitgn_contest_agent.trace_schema import (
     StepToolResult,
     TraceOutcome,
 )
+from bitgn_contest_agent.format_validator import validate_yaml_frontmatter
 from bitgn_contest_agent.trace_writer import TraceWriter
 
 
@@ -379,6 +380,34 @@ class AgentLoop:
                     content=f"Tool result:\n{tool_body}",
                 )
             )
+
+            # Format validation hook — catch YAML errors after writes.
+            if getattr(fn, "tool", "") == "write" and tool_result.ok:
+                write_content = ""
+                if hasattr(fn, "content"):
+                    write_content = fn.content
+                elif hasattr(fn, "model_dump"):
+                    write_content = fn.model_dump().get("content", "")
+                if write_content:
+                    val_result = validate_yaml_frontmatter(write_content)
+                    if not val_result.ok:
+                        write_path = getattr(fn, "path", "<unknown>")
+                        error_msg = (
+                            f"FORMAT VALIDATION ERROR in your last write:\n"
+                            f"  File: {write_path}\n"
+                            f"  Error: {val_result.error}\n"
+                        )
+                        if val_result.line is not None:
+                            error_msg += f"  Line: {val_result.line}\n"
+                        error_msg += "\nFix the error and rewrite the file."
+                        messages.append(
+                            Message(role="user", content=error_msg)
+                        )
+                        self._writer.append_event(
+                            at_step=step_idx,
+                            event_kind="format_validation_error",
+                            details=error_msg[:500],
+                        )
 
             # Reactive routing hook — inject skill body mid-conversation
             # when a tool dispatch matches a reactive skill trigger.
