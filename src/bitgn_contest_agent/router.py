@@ -12,9 +12,9 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from bitgn_contest_agent import router_config
+from bitgn_contest_agent import classifier, router_config
 from bitgn_contest_agent.skill_loader import BitgnSkill, SkillFormatError, load_skill
 
 _LOG = logging.getLogger(__name__)
@@ -81,40 +81,27 @@ class Router:
                     skill_name=c.skill.name,
                 )
 
-        # Tier 2 — classifier LLM.
+        # Tier 2 — classifier LLM (shared module).
         if not self._compiled:
             return _UNKNOWN
+        categories = [c.skill.category for c in self._compiled]
         try:
-            parsed = _call_classifier(
-                task_text=task_text,
-                categories=[c.skill.category for c in self._compiled],
+            raw = classifier.classify(
+                system=_classifier_system_prompt(categories),
+                user=task_text,
             )
         except Exception as exc:  # noqa: BLE001 — router never breaks the main path
             _LOG.warning("classifier failed, degrading to UNKNOWN: %s", exc)
             return _UNKNOWN
 
-        if not isinstance(parsed, dict):
-            return _UNKNOWN
-        category = parsed.get("category")
-        confidence = parsed.get("confidence", 0.0)
-        try:
-            confidence = float(confidence)
-        except (TypeError, ValueError):
-            confidence = 0.0
-        extracted = parsed.get("extracted") or {}
+        category, confidence = classifier.parse_response(
+            raw, valid_categories=set(self._by_category),
+        )
+        extracted = (raw.get("extracted") or {}) if isinstance(raw, dict) else {}
         if not isinstance(extracted, dict):
             extracted = {}
 
-        if not isinstance(category, str) or category not in self._by_category:
-            return RoutingDecision(
-                category="UNKNOWN",
-                source="classifier",
-                confidence=confidence,
-                extracted={},
-                skill_name=None,
-            )
-
-        if confidence < router_config.confidence_threshold():
+        if category is None or confidence < router_config.confidence_threshold():
             return RoutingDecision(
                 category="UNKNOWN",
                 source="classifier",
@@ -170,42 +157,15 @@ def route(task_text: str) -> RoutingDecision:
     return _get_default_router().route(task_text)
 
 
-def _call_classifier(*, task_text: str, categories: List[str]) -> Any:
-    """Tier 2 — single call to a small GPT model via cliproxyapi.
-
-    Returns the parsed dict on success. Any failure raises; the caller
-    (`Router.route`) degrades to UNKNOWN on raised exceptions.
-    """
-    import json as _json
-    client = _get_openai_client()
-    category_list = "\n".join(f"- {c}" for c in categories) + "\n- UNKNOWN (none of the above apply confidently)"
-    system = (
+def _classifier_system_prompt(categories: List[str]) -> str:
+    """Build the system prompt for the pre-task tier-2 classifier."""
+    category_list = classifier.build_category_list(categories, fallback="UNKNOWN")
+    return (
         "You classify bitgn benchmark tasks into one of these categories:\n"
         f"{category_list}\n"
         "\n"
         "Return ONLY a JSON object of the form:\n"
-        "  {\"category\": \"<one of above>\", \"confidence\": <0.0-1.0>, "
-        "\"extracted\": {\"target_name\": \"<optional>\"}}\n"
+        '  {"category": "<one of above>", "confidence": <0.0-1.0>, '
+        '"extracted": {"target_name": "<optional>"}}\n'
         "No prose. No markdown fences."
-    )
-    resp = client.chat.completions.create(
-        model=router_config.classifier_model(),
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": task_text},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.0,
-        timeout=10.0,
-    )
-    content = resp.choices[0].message.content
-    return _json.loads(content)
-
-
-def _get_openai_client():  # pragma: no cover — thin factory, tested via patching
-    import os
-    from openai import OpenAI
-    return OpenAI(
-        base_url=os.environ.get("OPENAI_BASE_URL"),
-        api_key=os.environ.get("OPENAI_API_KEY", "sk-proxy"),
     )

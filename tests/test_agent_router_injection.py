@@ -56,7 +56,7 @@ def test_agent_loop_no_injection_on_unknown() -> None:
     task_text = "Totally unrelated task"
     # Patch classifier to raise — router degrades to UNKNOWN.
     with patch(
-        "bitgn_contest_agent.router._call_classifier",
+        "bitgn_contest_agent.classifier.classify",
         side_effect=RuntimeError("network"),
     ):
         messages = _build_initial_messages(task_text=task_text, router=r)

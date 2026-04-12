@@ -16,9 +16,9 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from bitgn_contest_agent import router_config
+from bitgn_contest_agent import classifier, router_config
 from bitgn_contest_agent.skill_loader import (
     SkillFormatError,
     _parse_frontmatter,
@@ -162,7 +162,7 @@ class ReactiveRouter:
                 body=skill.body,
             )
 
-        # Tier 2 — LLM classifier on tool result content.
+        # Tier 2 — LLM classifier on tool result content (shared module).
         # Only called when tier 1 misses but the tool type matches.
         if not self._skills:
             return None
@@ -176,30 +176,23 @@ class ReactiveRouter:
             return None
 
         try:
-            parsed = _call_reactive_classifier(
-                tool_name=tool_name,
-                tool_path=path,
-                tool_content=tool_result_text,
-                categories=[s.category for s in eligible],
+            raw = classifier.classify(
+                system=_reactive_classifier_system_prompt(
+                    [s.category for s in eligible],
+                ),
+                user=_reactive_classifier_user_msg(
+                    tool_name, path, tool_result_text,
+                ),
             )
         except Exception as exc:  # noqa: BLE001 — reactive router never breaks the main path
             _LOG.warning("reactive classifier failed, skipping: %s", exc)
             return None
 
-        if not isinstance(parsed, dict):
-            return None
+        category, confidence = classifier.parse_response(
+            raw, valid_categories=set(self._by_category),
+        )
 
-        category = parsed.get("category")
-        confidence = parsed.get("confidence", 0.0)
-        try:
-            confidence = float(confidence)
-        except (TypeError, ValueError):
-            confidence = 0.0
-
-        if not isinstance(category, str) or category not in self._by_category:
-            return None
-
-        if confidence < router_config.confidence_threshold():
+        if category is None or confidence < router_config.confidence_threshold():
             return None
 
         skill = self._by_category[category]
@@ -229,27 +222,10 @@ def load_reactive_router(skills_dir: Path | str) -> ReactiveRouter:
     return ReactiveRouter(skills=skills)
 
 
-def _call_reactive_classifier(
-    *,
-    tool_name: str,
-    tool_path: str,
-    tool_content: str,
-    categories: List[str],
-) -> Any:
-    """Tier 2 — classify tool result content via a small GPT model.
-
-    Same pattern as the pre-task router's ``_call_classifier``. Returns
-    the parsed dict on success.  Any failure raises; the caller
-    degrades to no-injection on raised exceptions.
-    """
-    import json as _json
-
-    client = _get_openai_client()
-    category_list = (
-        "\n".join(f"- {c}" for c in categories)
-        + "\n- NONE (content does not match any category)"
-    )
-    system = (
+def _reactive_classifier_system_prompt(categories: List[str]) -> str:
+    """Build the system prompt for the reactive tier-2 classifier."""
+    category_list = classifier.build_category_list(categories, fallback="NONE")
+    return (
         "You classify the content of a tool result from a sandbox agent.\n"
         "The agent just executed a tool call and received a result.\n"
         "Based on the tool name, file path, and content, classify it into "
@@ -260,35 +236,17 @@ def _call_reactive_classifier(
         '  {"category": "<one of above>", "confidence": <0.0-1.0>}\n'
         "No prose. No markdown fences."
     )
-    # Truncate content to keep token cost bounded.
+
+
+def _reactive_classifier_user_msg(
+    tool_name: str, tool_path: str, tool_content: str,
+) -> str:
+    """Build the user message for the reactive tier-2 classifier."""
     content_preview = tool_content[:_CLASSIFIER_CONTENT_LIMIT]
     if len(tool_content) > _CLASSIFIER_CONTENT_LIMIT:
         content_preview += "\n[... truncated ...]"
-
-    user_msg = (
+    return (
         f"Tool: {tool_name}\n"
         f"Path: {tool_path}\n"
         f"Content:\n{content_preview}"
-    )
-
-    resp = client.chat.completions.create(
-        model=router_config.classifier_model(),
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_msg},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.0,
-        timeout=10.0,
-    )
-    content = resp.choices[0].message.content
-    return _json.loads(content)
-
-
-def _get_openai_client():  # pragma: no cover — thin factory, tested via patching
-    import os
-    from openai import OpenAI
-    return OpenAI(
-        base_url=os.environ.get("OPENAI_BASE_URL"),
-        api_key=os.environ.get("OPENAI_API_KEY", "sk-proxy"),
     )

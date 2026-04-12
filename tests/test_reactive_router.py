@@ -149,7 +149,7 @@ class TestReactiveRouterTier2:
         router = self._make_router()
         mock_response = {"category": "TEST_INBOX", "confidence": 0.9}
         with patch(
-            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            "bitgn_contest_agent.classifier.classify",
             return_value=mock_response,
         ) as mock_cls:
             decision = router.evaluate(
@@ -169,7 +169,7 @@ class TestReactiveRouterTier2:
         router = self._make_router()
         mock_response = {"category": "TEST_INBOX", "confidence": 0.3}
         with patch(
-            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            "bitgn_contest_agent.classifier.classify",
             return_value=mock_response,
         ):
             decision = router.evaluate(
@@ -185,7 +185,7 @@ class TestReactiveRouterTier2:
         router = self._make_router()
         mock_response = {"category": "NONE", "confidence": 0.95}
         with patch(
-            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            "bitgn_contest_agent.classifier.classify",
             return_value=mock_response,
         ):
             decision = router.evaluate(
@@ -200,7 +200,7 @@ class TestReactiveRouterTier2:
         """Classifier failure never breaks the agent loop."""
         router = self._make_router()
         with patch(
-            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            "bitgn_contest_agent.classifier.classify",
             side_effect=RuntimeError("network timeout"),
         ):
             decision = router.evaluate(
@@ -215,7 +215,7 @@ class TestReactiveRouterTier2:
         """Tier 1 hit means tier 2 is never called."""
         router = self._make_router()
         with patch(
-            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            "bitgn_contest_agent.classifier.classify",
         ) as mock_cls:
             decision = router.evaluate(
                 tool_name="read",
@@ -231,7 +231,7 @@ class TestReactiveRouterTier2:
         """Tool name mismatch skips both tiers entirely."""
         router = self._make_router()
         with patch(
-            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            "bitgn_contest_agent.classifier.classify",
         ) as mock_cls:
             decision = router.evaluate(
                 tool_name="write",
@@ -246,7 +246,7 @@ class TestReactiveRouterTier2:
         """Even if classifier would match, already-injected skills are skipped."""
         router = self._make_router()
         with patch(
-            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            "bitgn_contest_agent.classifier.classify",
         ) as mock_cls:
             decision = router.evaluate(
                 tool_name="read",
@@ -296,7 +296,7 @@ class TestInboxSecuritySkill:
         Tier 2 classifier is mocked to return NONE."""
         router = load_reactive_router(PROD_REACTIVE_DIR)
         with patch(
-            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            "bitgn_contest_agent.classifier.classify",
             return_value={"category": "NONE", "confidence": 0.9},
         ):
             d = router.evaluate(

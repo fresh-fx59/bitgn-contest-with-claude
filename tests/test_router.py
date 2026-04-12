@@ -55,7 +55,7 @@ def test_classifier_tier2_hit_when_no_regex_matches(monkeypatch: pytest.MonkeyPa
         "extracted": {"target_name": "DORA"},
     }
     with patch(
-        "bitgn_contest_agent.router._call_classifier",
+        "bitgn_contest_agent.classifier.classify",
         return_value=stub_response,
     ):
         decision = r.route("unrelated task that classifier thinks is test-category")
@@ -74,7 +74,7 @@ def test_classifier_low_confidence_falls_back_to_unknown() -> None:
         "extracted": {},
     }
     with patch(
-        "bitgn_contest_agent.router._call_classifier",
+        "bitgn_contest_agent.classifier.classify",
         return_value=stub_response,
     ):
         decision = r.route("some task")
@@ -85,7 +85,7 @@ def test_classifier_low_confidence_falls_back_to_unknown() -> None:
 def test_classifier_network_error_returns_unknown() -> None:
     r = load_router(skills_dir=FIX)
     with patch(
-        "bitgn_contest_agent.router._call_classifier",
+        "bitgn_contest_agent.classifier.classify",
         side_effect=RuntimeError("network down"),
     ):
         decision = r.route("some task")
@@ -96,7 +96,7 @@ def test_classifier_network_error_returns_unknown() -> None:
 def test_classifier_malformed_json_returns_unknown() -> None:
     r = load_router(skills_dir=FIX)
     with patch(
-        "bitgn_contest_agent.router._call_classifier",
+        "bitgn_contest_agent.classifier.classify",
         return_value="not a dict",
     ):
         decision = r.route("some task")
@@ -111,9 +111,9 @@ def test_router_disabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_classifier_prompt_format_and_parse(monkeypatch: pytest.MonkeyPatch) -> None:
-    """_call_classifier should POST a classification prompt and parse the
+    """classifier.classify should POST a classification prompt and parse the
     JSON response."""
-    from bitgn_contest_agent import router
+    from bitgn_contest_agent import classifier as cls_mod
 
     captured_messages: list = []
 
@@ -137,20 +137,12 @@ def test_classifier_prompt_format_and_parse(monkeypatch: pytest.MonkeyPatch) -> 
 
         chat = _Chat()
 
-    monkeypatch.setattr(router, "_get_openai_client", lambda: _FakeClient())
-    result = router._call_classifier(
-        task_text="Some task text",
-        categories=["TEST_CATEGORY", "OTHER"],
+    monkeypatch.setattr(cls_mod, "_get_openai_client", lambda: _FakeClient())
+    result = cls_mod.classify(
+        system="Classify into: TEST_CATEGORY, OTHER, UNKNOWN",
+        user="Some task text",
     )
     assert isinstance(result, dict)
     assert result["category"] == "TEST_CATEGORY"
     assert result["confidence"] == 0.88
     assert result["extracted"] == {"target_name": "FOO"}
-    # The system message must list the valid categories.
-    sys_msg = captured_messages[0][0]["content"]
-    assert "TEST_CATEGORY" in sys_msg
-    assert "OTHER" in sys_msg
-    assert "UNKNOWN" in sys_msg
-    # Task text must appear in the user message.
-    user_msg = captured_messages[0][1]["content"]
-    assert "Some task text" in user_msg
