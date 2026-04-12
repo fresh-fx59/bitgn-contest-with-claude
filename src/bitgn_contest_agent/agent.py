@@ -30,6 +30,7 @@ from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, T
 from bitgn_contest_agent.bench.run_metrics import RunMetrics
 from bitgn_contest_agent.enforcer import Verdict, check_terminal
 from bitgn_contest_agent.prompts import critique_injection, loop_nudge, system_prompt
+from bitgn_contest_agent.reactive_router import ReactiveRouter
 from bitgn_contest_agent.router import Router, RoutingDecision
 from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
 from bitgn_contest_agent.session import Session
@@ -152,6 +153,7 @@ class AgentLoop:
         inflight_semaphore: Optional[threading.Semaphore] = None,
         metrics: Optional[RunMetrics] = None,
         router: Optional[Router] = None,
+        reactive_router: Optional[ReactiveRouter] = None,
     ) -> None:
         self._backend = backend
         self._adapter = adapter
@@ -163,6 +165,7 @@ class AgentLoop:
         self._inflight_semaphore = inflight_semaphore
         self._metrics = metrics
         self._router = router
+        self._reactive_router = reactive_router
 
     def run(self, *, task_id: str, task_text: str) -> AgentLoopResult:
         session = Session()
@@ -179,6 +182,7 @@ class AgentLoop:
         totals = _Totals()
         pending_critique: Optional[str] = None
         pending_nudge: Optional[str] = None
+        reactive_injected: set[str] = set()
 
         for step_idx in range(1, self._max_steps + 1):
             if self._cancel_event is not None and self._cancel_event.is_set():
@@ -375,6 +379,27 @@ class AgentLoop:
                     content=f"Tool result:\n{tool_body}",
                 )
             )
+
+            # Reactive routing hook — inject skill body mid-conversation
+            # when a tool dispatch matches a reactive skill trigger.
+            if self._reactive_router is not None and tool_result.ok:
+                fn_dump = fn.model_dump() if hasattr(fn, "model_dump") else {}
+                reactive_decision = self._reactive_router.evaluate(
+                    tool_name=getattr(fn, "tool", ""),
+                    tool_args=fn_dump,
+                    tool_result_text=tool_result.content,
+                    already_injected=frozenset(reactive_injected),
+                )
+                if reactive_decision is not None:
+                    reactive_injected.add(reactive_decision.skill_name)
+                    trigger_path = fn_dump.get("path") or fn_dump.get("root") or ""
+                    prefix = (
+                        f"REACTIVE SKILL CONTEXT (mid-task): {reactive_decision.skill_name}\n"
+                        f"Triggered by: {getattr(fn, 'tool', '')}({trigger_path})\n\n"
+                    )
+                    messages.append(
+                        Message(role="user", content=prefix + reactive_decision.body)
+                    )
 
             self._log_step(
                 step_idx,
