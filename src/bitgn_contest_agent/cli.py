@@ -30,6 +30,7 @@ from bitgn_contest_agent.orchestrator import (
     TaskExecutionResult,
     TaskSpec,
 )
+from bitgn_contest_agent.reactive_router import ReactiveRouter, load_reactive_router
 from bitgn_contest_agent.router import Router, load_router
 from bitgn_contest_agent.trace_schema import TRACE_SCHEMA_VERSION, TraceMeta
 from bitgn_contest_agent.trace_writer import TraceWriter
@@ -138,6 +139,23 @@ def _get_router() -> Router:
     return _ROUTER_SINGLETON
 
 
+_REACTIVE_ROUTER_SINGLETON: ReactiveRouter | None = None
+
+
+def _get_reactive_router() -> ReactiveRouter:
+    """Load reactive skills from skills/reactive/ on first call.
+
+    Reactive skills use path-based triggers for mid-task injection.
+    An empty reactive router (no skills in the directory) is valid at
+    any milestone — it evaluates to no-op.
+    """
+    global _REACTIVE_ROUTER_SINGLETON
+    if _REACTIVE_ROUTER_SINGLETON is None:
+        reactive_dir = Path(__file__).parent / "skills" / "reactive"
+        _REACTIVE_ROUTER_SINGLETON = load_reactive_router(reactive_dir)
+    return _REACTIVE_ROUTER_SINGLETON
+
+
 def _run_single_task(
     *,
     cfg: AgentConfig,
@@ -150,6 +168,7 @@ def _run_single_task(
     inflight_semaphore: threading.Semaphore | None = None,
     metrics: RunMetrics | None = None,
     router: Router | None = None,
+    reactive_router: ReactiveRouter | None = None,
 ) -> TaskExecutionResult:
     started: StartedTask | None = None
     # In leaderboard flow the real task_id is only known after
@@ -197,6 +216,7 @@ def _run_single_task(
             inflight_semaphore=inflight_semaphore,
             metrics=metrics,
             router=router,
+            reactive_router=reactive_router,
         )
         result: AgentLoopResult = loop.run(
             task_id=effective_task_id,
@@ -265,6 +285,7 @@ def _cmd_run_task(args: argparse.Namespace) -> int:
         run_index=0,
         cancel_event=threading.Event(),
         router=_get_router(),
+        reactive_router=_get_reactive_router(),
     )
     print(json.dumps(dataclasses.asdict(result), indent=2))
     return 0 if result.terminated_by == "report_completion" else 1
@@ -304,6 +325,7 @@ def _run_tasks_and_summarize(
         iter_tasks = tasks_for_iteration(run_index)
 
         shared_router = _get_router()
+        shared_reactive_router = _get_reactive_router()
 
         def runner(task: TaskSpec, cancel_event: threading.Event, _ri=run_index):
             return _run_single_task(
@@ -317,6 +339,7 @@ def _run_tasks_and_summarize(
                 inflight_semaphore=inflight_semaphore,
                 metrics=metrics,
                 router=shared_router,
+                reactive_router=shared_reactive_router,
             )
 
         orch = Orchestrator(
