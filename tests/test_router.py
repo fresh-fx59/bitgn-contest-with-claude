@@ -121,7 +121,7 @@ def test_classifier_prompt_format_and_parse(monkeypatch: pytest.MonkeyPatch) -> 
         class _Chat:
             class _Completions:
                 @staticmethod
-                def create(*, model, messages, response_format, temperature, timeout):
+                def create(*, model, messages, temperature, timeout, **kwargs):
                     captured_messages.append(messages)
 
                     class _Resp:

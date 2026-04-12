@@ -1,7 +1,7 @@
 """Shared lightweight LLM classifier for tier-2 routing decisions.
 
 Both the pre-task router and reactive router use the same classifier
-model (gpt-5.4-mini via cliproxyapi) with the same confidence
+model (claude-haiku-4-5 via cliproxyapi) with the same confidence
 threshold and JSON response format.  This module provides the shared
 plumbing so neither router duplicates the OpenAI client factory,
 prompt construction, or response parsing.
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json as _json
 import os
+import re as _re
 from typing import Any, List
 
 from bitgn_contest_agent import router_config
@@ -41,12 +42,13 @@ def classify(*, system: str, user: str) -> Any:
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        response_format={"type": "json_object"},
         temperature=0.0,
         timeout=10.0,
     )
     content = resp.choices[0].message.content
-    return _json.loads(content)
+    if content is None:
+        raise ValueError("classifier returned empty content (None)")
+    return _json.loads(_strip_markdown_fences(content))
 
 
 def build_category_list(categories: List[str], *, fallback: str = "UNKNOWN") -> str:
@@ -83,6 +85,15 @@ def parse_response(
         return None, confidence
 
     return category, confidence
+
+
+_FENCE_RE = _re.compile(r"```(?:json)?\s*\n?(.*?)\n?\s*```", _re.DOTALL)
+
+
+def _strip_markdown_fences(text: str) -> str:
+    """Remove markdown code fences wrapping JSON (e.g. from Claude models)."""
+    m = _FENCE_RE.search(text)
+    return m.group(1).strip() if m else text.strip()
 
 
 def _get_openai_client():  # pragma: no cover — thin factory, tested via patching

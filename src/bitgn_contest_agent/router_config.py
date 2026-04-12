@@ -5,25 +5,22 @@ Resolved in M0 task 3 after probing the cliproxyapi model catalog on
 
 Available classifier-sized models in the local cliproxyapi catalog:
 
-    gpt-5.4-mini            (OpenAI, newest — DEFAULT)
-    gpt-5.1-codex-mini      (OpenAI)
+    gpt-5.4-mini            (OpenAI — content=null bug via proxy)
+    gpt-5.1-codex-mini      (OpenAI — content=null bug via proxy)
     gpt-5-codex-mini        (OpenAI)
-    claude-haiku-4-5        (Anthropic)
+    claude-haiku-4-5        (Anthropic — DEFAULT, reliable via proxy)
     claude-3-5-haiku        (Anthropic)
 
-`gpt-5.4-mini` is picked as the default because it's (a) the newest
-OpenAI mini, (b) provider-consistent with the main-agent model
-family (`gpt-5.3-codex`), and (c) cheap enough to run once per task
-without meaningfully adding to the per-task latency budget. The
-confidence threshold and router-enabled flag are both env-tunable.
+`claude-haiku-4-5-20251001` is picked as the default because the
+OpenAI mini models return content=null through the cliproxyapi proxy
+(the proxy strips completion content from reasoning-capable minis).
+Haiku is cheap, fast, and reliably returns JSON content.
 """
 from __future__ import annotations
 
 import os
 
-# Filled in from the M0 task 3 probe result. Update this constant when
-# the cliproxyapi catalog changes.
-DEFAULT_CLASSIFIER_MODEL = "gpt-5.4-mini"
+DEFAULT_CLASSIFIER_MODEL = "claude-haiku-4-5-20251001"
 
 # Confidence threshold below which a classifier response is treated as
 # UNKNOWN. Set to 0.6 in the spec §5.3.
