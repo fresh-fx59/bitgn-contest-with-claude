@@ -160,6 +160,6 @@ def _strip_markdown_fences(text: str) -> str:
 def _get_openai_client():  # pragma: no cover — thin factory, tested via patching
     from openai import OpenAI
     return OpenAI(
-        base_url=os.environ.get("OPENAI_BASE_URL"),
-        api_key=os.environ.get("OPENAI_API_KEY", "sk-proxy"),
+        base_url=os.environ.get("CLIPROXY_BASE_URL") or os.environ.get("OPENAI_BASE_URL"),
+        api_key=os.environ.get("CLIPROXY_API_KEY") or os.environ.get("OPENAI_API_KEY", "sk-proxy"),
     )

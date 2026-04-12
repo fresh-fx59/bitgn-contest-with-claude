@@ -139,6 +139,18 @@ Deletion discipline:
     on filename or search-result snippets. Include every file you
     read-then-deleted in `grounding_refs`.
 
+Outbox writing discipline:
+  - When writing an outbound email to the outbox, you get ONE write
+    only — the sandbox does not allow overwriting the same file.
+    Get every field right on the first write.
+  - Attachments in the `attachments` YAML list MUST be ordered
+    newest-first (reverse chronological by issue date). The task text
+    determines WHICH items to include; the `attachments` list always
+    uses newest-first ordering. Check the date in each filename
+    (`YYYY_MM_DD_...`) and place the most recent at index 0.
+  - Always wrap `subject` values in double quotes if they contain a
+    colon (e.g. `subject: "Re: Invoice"`).
+
 Entity resolution:
   - When resolving a person by an ambiguous relationship term
     ("my partner", "my person", "my other half"), search ALL cast
