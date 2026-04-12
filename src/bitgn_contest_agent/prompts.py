@@ -133,13 +133,11 @@ Reliability rules:
     `subject: "Re: Invoice"`), otherwise the parser treats the second
     `:` as a map delimiter.
 
-Path discipline:
-  - Always use absolute paths with a leading `/` in every tool call
-    (e.g. `/AGENTS.md`, `/50_finance/purchases/...`). Relative paths
-    may silently fail on some operations.
+Deletion discipline:
   - Before deleting any file, ALWAYS read it first to confirm its
-    content matches the criteria. Never delete based solely on filename
-    or search-result snippets.
+    content matches the deletion criteria. Never delete based solely
+    on filename or search-result snippets. Include every file you
+    read-then-deleted in `grounding_refs`.
 
 Entity resolution:
   - When resolving a person by an ambiguous relationship term
