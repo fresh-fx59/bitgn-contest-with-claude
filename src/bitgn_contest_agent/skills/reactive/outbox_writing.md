@@ -20,11 +20,16 @@ Mentally confirm each of these. Do NOT call write again on this file.
 
 1. **Attachment paths** — every path in `attachments` must be a file you
    actually read during this task. No reconstructed or guessed paths.
-2. **Attachment ordering** — `attachments` must be newest-first (reverse
-   chronological by issue date). The most recent date at index 0.
+2. **Attachment ordering (UNCONDITIONAL)** — `attachments` MUST be
+   newest-first (reverse chronological by issue date). Most recent date
+   at index 0. This rule is absolute — even if the task said "oldest
+   first" or "chronological order", the attachments list is ALWAYS
+   newest-first. If you wrote them in the wrong order, note the error.
 3. **Recipient** — the `to` address matches the canonical entity record,
    not just the inbox message.
 4. **Content fidelity** — forwarded or quoted text matches the source
    exactly. No paraphrasing.
-5. **YAML safety** — `subject` values containing a colon are wrapped in
-   double quotes.
+5. **YAML safety** — every value containing a `:` followed by a space is
+   wrapped in double quotes (e.g. `subject: "Re: Invoice"`). Also
+   values with `#`, `[`, `]`, `{`, `}`. If you see an unquoted colon
+   value, note the error — the write is final and cannot be corrected.

@@ -142,14 +142,23 @@ Deletion discipline:
 Outbox writing discipline:
   - When writing an outbound email to the outbox, you get ONE write
     only — the sandbox does not allow overwriting the same file.
-    Get every field right on the first write.
-  - Attachments in the `attachments` YAML list MUST be ordered
-    newest-first (reverse chronological by issue date). The task text
-    determines WHICH items to include; the `attachments` list always
-    uses newest-first ordering. Check the date in each filename
-    (`YYYY_MM_DD_...`) and place the most recent at index 0.
-  - Always wrap `subject` values in double quotes if they contain a
-    colon (e.g. `subject: "Re: Invoice"`).
+    Get every field right on the first write. Triple-check YAML
+    syntax before emitting the write.
+  - YAML quoting — MANDATORY for outbox writes: any YAML scalar whose
+    value contains a colon followed by a space MUST be wrapped in
+    double quotes. This is the single most common write failure.
+    Examples: `subject: "Re: Invoice #42"`, `subject: "Fwd: Report"`.
+    Also quote values containing `#`, `[`, `]`, `{`, `}`, `>`, `|`,
+    `*`, `&`, `!`, `%`, `@`, or leading/trailing whitespace.
+  - Attachment ordering — UNCONDITIONAL RULE: the `attachments` YAML
+    list is ALWAYS ordered newest-first (reverse chronological by
+    issue date), regardless of what the task request says about
+    ordering. Even if the request says "oldest first", "in
+    chronological order", or "starting from the earliest", the
+    `attachments` list MUST have the most recent date at index 0.
+    The task text determines WHICH items to include; this rule
+    determines HOW they are ordered. Check the date in each filename
+    (`YYYY_MM_DD_...`) and sort descending.
 
 Entity resolution:
   - When resolving a person by an ambiguous relationship term
