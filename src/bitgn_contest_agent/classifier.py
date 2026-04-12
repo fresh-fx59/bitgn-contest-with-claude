@@ -10,45 +10,106 @@ Callers build a system prompt and user message specific to their
 routing context, then call ``classify()`` which returns the parsed
 JSON dict.  Any failure raises; callers are expected to catch and
 degrade gracefully (UNKNOWN / no-injection).
+
+Retry logic: on JSON parse failure, the classifier first asks the
+model to fix the broken JSON (cheap).  If that also fails, it retries
+the full classification from scratch.  Max attempts controlled via
+``BITGN_CLASSIFIER_MAX_ATTEMPTS`` (default 3).
 """
 from __future__ import annotations
 
 import json as _json
+import logging
 import os
 import re as _re
 from typing import Any, List
 
 from bitgn_contest_agent import router_config
 
+_LOG = logging.getLogger(__name__)
+
 
 def classify(*, system: str, user: str) -> Any:
     """Call the classifier model and return the parsed JSON response.
 
-    Args:
-        system: the system prompt (describes categories + output format).
-        user: the user message (task text, tool result, etc.).
+    Retry strategy per attempt:
+    1. Send classification request → strip fences → parse JSON.
+    2. If JSON parse fails, ask the model to fix the broken output.
+    3. If the fix also fails, retry from step 1 (fresh classification).
 
-    Returns:
-        Parsed JSON dict on success.
+    Max attempts controlled by ``router_config.classifier_max_attempts()``.
 
     Raises:
-        Any exception from the OpenAI client or JSON parsing — the
-        caller is responsible for catching and degrading gracefully.
+        The last exception encountered if all attempts are exhausted.
     """
+    max_attempts = router_config.classifier_max_attempts()
     client = _get_openai_client()
-    resp = client.chat.completions.create(
-        model=router_config.classifier_model(),
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        temperature=0.0,
-        timeout=10.0,
+    model = router_config.classifier_model()
+    last_error: Exception | None = None
+
+    for attempt in range(max_attempts):
+        # --- Phase 1: fresh classification ---
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                temperature=0.0,
+                timeout=10.0,
+            )
+            content = resp.choices[0].message.content
+            if content is None:
+                last_error = ValueError("classifier returned empty content (None)")
+                _LOG.warning("classify attempt %d: empty content, retrying", attempt + 1)
+                continue
+
+            cleaned = _strip_markdown_fences(content)
+            return _json.loads(cleaned)
+
+        except _json.JSONDecodeError as exc:
+            _LOG.warning(
+                "classify attempt %d: JSON parse failed at char %d: %s",
+                attempt + 1, exc.pos, exc.msg,
+            )
+            last_error = exc
+
+            # --- Phase 2: ask model to fix the broken JSON ---
+            fixed = _try_fix_json(client, model, content, exc)
+            if fixed is not None:
+                return fixed
+
+    raise last_error  # type: ignore[misc]
+
+
+def _try_fix_json(
+    client: Any,
+    model: str,
+    broken_output: str,
+    error: _json.JSONDecodeError,
+) -> Any | None:
+    """Ask the model to fix broken JSON. Returns parsed dict or None."""
+    fix_prompt = (
+        f"Your previous response was not valid JSON. "
+        f"Parse error at line {error.lineno}, column {error.colno}: {error.msg}\n\n"
+        f"Your broken output was:\n{broken_output}\n\n"
+        f"Return ONLY the corrected JSON object, no markdown fences, no explanation."
     )
-    content = resp.choices[0].message.content
-    if content is None:
-        raise ValueError("classifier returned empty content (None)")
-    return _json.loads(_strip_markdown_fences(content))
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": fix_prompt}],
+            temperature=0.0,
+            timeout=10.0,
+        )
+        fix_content = resp.choices[0].message.content
+        if fix_content is None:
+            return None
+        return _json.loads(_strip_markdown_fences(fix_content))
+    except Exception as exc:  # noqa: BLE001
+        _LOG.warning("JSON fix attempt failed: %s", exc)
+        return None
 
 
 def build_category_list(categories: List[str], *, fallback: str = "UNKNOWN") -> str:

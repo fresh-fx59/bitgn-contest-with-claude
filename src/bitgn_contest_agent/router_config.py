@@ -43,3 +43,18 @@ def confidence_threshold() -> float:
 
 def router_enabled() -> bool:
     return os.environ.get("BITGN_ROUTER_ENABLED", "1") not in ("0", "false", "False")
+
+
+# Maximum number of classify attempts before giving up. Each attempt
+# includes one classify call + at most one "fix" call if JSON is broken.
+DEFAULT_CLASSIFIER_MAX_ATTEMPTS = 3
+
+
+def classifier_max_attempts() -> int:
+    raw = os.environ.get("BITGN_CLASSIFIER_MAX_ATTEMPTS")
+    if raw is None:
+        return DEFAULT_CLASSIFIER_MAX_ATTEMPTS
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return DEFAULT_CLASSIFIER_MAX_ATTEMPTS
