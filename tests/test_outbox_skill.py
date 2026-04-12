@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from bitgn_contest_agent.reactive_router import load_reactive_router
 
 PROD_REACTIVE_DIR = (
@@ -28,6 +30,8 @@ class TestOutboxWritingSkillLoads:
                 assert "60_outbox" not in skill.body
                 assert "eml_" not in skill.body
                 break
+        else:
+            pytest.fail("outbox-writing skill not found")
 
     def test_skill_mentions_attachment_verification(self) -> None:
         router = load_reactive_router(PROD_REACTIVE_DIR)
@@ -37,6 +41,8 @@ class TestOutboxWritingSkillLoads:
                 assert "attachment" in body
                 assert "verif" in body  # verify/verification
                 break
+        else:
+            pytest.fail("outbox-writing skill not found")
 
 
 class TestOutboxWritingRouting:

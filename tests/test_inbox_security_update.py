@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from bitgn_contest_agent.reactive_router import load_reactive_router
 
 PROD_REACTIVE_DIR = (
@@ -28,7 +30,7 @@ class TestInboxSecurityUpdate:
                 assert "highest-priority" in body or "always wins" in body or "takes priority" in body
                 break
         else:
-            raise AssertionError("inbox-security skill not found")
+            pytest.fail("inbox-security skill not found")
 
     def test_body_requires_reading_source_content(self) -> None:
         router = load_reactive_router(PROD_REACTIVE_DIR)
@@ -37,6 +39,8 @@ class TestInboxSecurityUpdate:
                 body = skill.body.lower()
                 assert "source" in body and "read" in body
                 break
+        else:
+            pytest.fail("inbox-security skill not found")
 
     def test_body_mentions_prompt_injection(self) -> None:
         router = load_reactive_router(PROD_REACTIVE_DIR)
@@ -44,6 +48,8 @@ class TestInboxSecurityUpdate:
             if skill.name == "inbox-security":
                 assert "prompt injection" in skill.body.lower() or "prompt-injection" in skill.body.lower()
                 break
+        else:
+            pytest.fail("inbox-security skill not found")
 
     def test_body_still_has_proceed_normally(self) -> None:
         """Must not over-refuse — the proceed-normally rule must survive."""
@@ -52,3 +58,5 @@ class TestInboxSecurityUpdate:
             if skill.name == "inbox-security":
                 assert "PROCEED NORMALLY" in skill.body
                 break
+        else:
+            pytest.fail("inbox-security skill not found")
