@@ -1,9 +1,10 @@
 """Reactive routing — mid-task skill injection based on tool dispatch.
 
 Complements the pre-task Router (spec §5.3) with a second routing
-stage that fires after each non-terminal tool call.  When a tool
-dispatch matches a reactive skill's trigger (tool name + path regex),
-the skill body is injected as a user message before the next LLM call.
+stage that fires after each non-terminal tool call.  Tier 1 is a
+regex match on tool name + file path (fast, deterministic).  Tier 2
+is a lightweight LLM classifier that evaluates the tool result content
+when tier 1 misses — same pattern as the pre-task router.
 
 Reactive skills live in ``skills/reactive/`` and use flat frontmatter
 keys ``reactive_tool`` and ``reactive_path`` instead of
@@ -15,8 +16,9 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
+from bitgn_contest_agent import router_config
 from bitgn_contest_agent.skill_loader import (
     SkillFormatError,
     _parse_frontmatter,
@@ -30,6 +32,11 @@ _REACTIVE_REQUIRED_KEYS = (
     "reactive_tool", "reactive_path",
 )
 _VALID_TYPES = ("rigid", "flexible")
+
+# Truncate tool result content sent to the classifier to keep
+# token cost bounded.  2000 chars ≈ 500 tokens — enough for the
+# classifier to identify the content shape.
+_CLASSIFIER_CONTENT_LIMIT = 2000
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +54,8 @@ class ReactiveSkill:
 class ReactiveDecision:
     skill_name: str
     category: str
+    source: str  # "regex" | "classifier"
+    confidence: float
     body: str
 
 
@@ -85,6 +94,15 @@ def _validate_reactive(parsed: dict, path: Path) -> None:
 class ReactiveRouter:
     """Evaluates tool dispatch results against reactive skill triggers.
 
+    Two-tier evaluation (mirrors the pre-task Router):
+
+    - **Tier 1 — regex:** instant match on tool name + file path.
+      Returns immediately with ``confidence=1.0``.
+    - **Tier 2 — LLM classifier:** when tier 1 misses but the tool
+      name matches a reactive skill's trigger, sends the tool result
+      content to ``gpt-5.4-mini`` for classification.  Returns with
+      the classifier's confidence; below threshold → no injection.
+
     Stateless — injection tracking is owned by the caller via the
     ``already_injected`` parameter.  Safe to share across concurrent
     tasks.
@@ -92,6 +110,8 @@ class ReactiveRouter:
 
     def __init__(self, skills: List[ReactiveSkill]) -> None:
         self._skills: List[tuple[ReactiveSkill, re.Pattern]] = []
+        self._by_category: Dict[str, ReactiveSkill] = {}
+        self._trigger_tools: set[str] = set()
         for s in skills:
             try:
                 compiled = re.compile(s.reactive_path)
@@ -100,6 +120,8 @@ class ReactiveRouter:
                     f"reactive skill {s.name}: invalid regex in reactive_path: {exc}"
                 ) from exc
             self._skills.append((s, compiled))
+            self._by_category[s.category] = s
+            self._trigger_tools.add(s.reactive_tool)
 
     def evaluate(
         self,
@@ -110,25 +132,87 @@ class ReactiveRouter:
     ) -> Optional[ReactiveDecision]:
         """Check if a tool dispatch triggers a reactive skill injection.
 
+        Tier 1 (regex) is tried first.  On miss, tier 2 (LLM) is
+        called if the tool name matches any reactive skill's trigger.
         Returns a ReactiveDecision if a skill matches, None otherwise.
+
         The caller should add the returned ``skill_name`` to its
         tracking set to prevent duplicate injection (inject-once
         semantics).
         """
+        # Fast exit: tool doesn't match any reactive trigger.
+        if tool_name not in self._trigger_tools:
+            return None
+
+        path = tool_args.get("path") or tool_args.get("root") or ""
+
+        # Tier 1 — regex on tool name + path.
         for skill, pattern in self._skills:
             if skill.reactive_tool != tool_name:
                 continue
             if skill.name in already_injected:
                 continue
-            path = tool_args.get("path") or tool_args.get("root") or ""
             if not pattern.search(path):
                 continue
             return ReactiveDecision(
                 skill_name=skill.name,
                 category=skill.category,
+                source="regex",
+                confidence=1.0,
                 body=skill.body,
             )
-        return None
+
+        # Tier 2 — LLM classifier on tool result content.
+        # Only called when tier 1 misses but the tool type matches.
+        if not self._skills:
+            return None
+
+        # Collect eligible categories (not already injected).
+        eligible = [
+            s for s, _ in self._skills
+            if s.reactive_tool == tool_name and s.name not in already_injected
+        ]
+        if not eligible:
+            return None
+
+        try:
+            parsed = _call_reactive_classifier(
+                tool_name=tool_name,
+                tool_path=path,
+                tool_content=tool_result_text,
+                categories=[s.category for s in eligible],
+            )
+        except Exception as exc:  # noqa: BLE001 — reactive router never breaks the main path
+            _LOG.warning("reactive classifier failed, skipping: %s", exc)
+            return None
+
+        if not isinstance(parsed, dict):
+            return None
+
+        category = parsed.get("category")
+        confidence = parsed.get("confidence", 0.0)
+        try:
+            confidence = float(confidence)
+        except (TypeError, ValueError):
+            confidence = 0.0
+
+        if not isinstance(category, str) or category not in self._by_category:
+            return None
+
+        if confidence < router_config.confidence_threshold():
+            return None
+
+        skill = self._by_category[category]
+        if skill.name in already_injected:
+            return None
+
+        return ReactiveDecision(
+            skill_name=skill.name,
+            category=category,
+            source="classifier",
+            confidence=confidence,
+            body=skill.body,
+        )
 
 
 def load_reactive_router(skills_dir: Path | str) -> ReactiveRouter:
@@ -143,3 +227,68 @@ def load_reactive_router(skills_dir: Path | str) -> ReactiveRouter:
                 _LOG.error("reactive skill %s failed to load: %s", md, exc)
                 raise
     return ReactiveRouter(skills=skills)
+
+
+def _call_reactive_classifier(
+    *,
+    tool_name: str,
+    tool_path: str,
+    tool_content: str,
+    categories: List[str],
+) -> Any:
+    """Tier 2 — classify tool result content via a small GPT model.
+
+    Same pattern as the pre-task router's ``_call_classifier``. Returns
+    the parsed dict on success.  Any failure raises; the caller
+    degrades to no-injection on raised exceptions.
+    """
+    import json as _json
+
+    client = _get_openai_client()
+    category_list = (
+        "\n".join(f"- {c}" for c in categories)
+        + "\n- NONE (content does not match any category)"
+    )
+    system = (
+        "You classify the content of a tool result from a sandbox agent.\n"
+        "The agent just executed a tool call and received a result.\n"
+        "Based on the tool name, file path, and content, classify it into "
+        "one of these categories:\n"
+        f"{category_list}\n"
+        "\n"
+        "Return ONLY a JSON object of the form:\n"
+        '  {"category": "<one of above>", "confidence": <0.0-1.0>}\n'
+        "No prose. No markdown fences."
+    )
+    # Truncate content to keep token cost bounded.
+    content_preview = tool_content[:_CLASSIFIER_CONTENT_LIMIT]
+    if len(tool_content) > _CLASSIFIER_CONTENT_LIMIT:
+        content_preview += "\n[... truncated ...]"
+
+    user_msg = (
+        f"Tool: {tool_name}\n"
+        f"Path: {tool_path}\n"
+        f"Content:\n{content_preview}"
+    )
+
+    resp = client.chat.completions.create(
+        model=router_config.classifier_model(),
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_msg},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.0,
+        timeout=10.0,
+    )
+    content = resp.choices[0].message.content
+    return _json.loads(content)
+
+
+def _get_openai_client():  # pragma: no cover — thin factory, tested via patching
+    import os
+    from openai import OpenAI
+    return OpenAI(
+        base_url=os.environ.get("OPENAI_BASE_URL"),
+        api_key=os.environ.get("OPENAI_API_KEY", "sk-proxy"),
+    )

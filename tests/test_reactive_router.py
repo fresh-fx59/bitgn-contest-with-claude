@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -72,9 +73,9 @@ class TestLoadReactiveRouter:
         assert len(router._skills) == 0
 
 
-# -- Router evaluate tests -------------------------------------------------
+# -- Tier 1 (regex) evaluate tests -----------------------------------------
 
-class TestReactiveRouterEvaluate:
+class TestReactiveRouterTier1:
     def _make_router(self) -> ReactiveRouter:
         return load_reactive_router(FIX)
 
@@ -89,6 +90,8 @@ class TestReactiveRouterEvaluate:
         assert decision is not None
         assert decision.skill_name == "test-reactive-read"
         assert decision.category == "TEST_INBOX"
+        assert decision.source == "regex"
+        assert decision.confidence == 1.0
         assert "Test Reactive Skill" in decision.body
 
     def test_no_match_wrong_tool(self) -> None:
@@ -97,16 +100,6 @@ class TestReactiveRouterEvaluate:
             tool_name="write",
             tool_args={"tool": "write", "path": "/sandbox/test-inbox/msg1.md"},
             tool_result_text="ok",
-            already_injected=frozenset(),
-        )
-        assert decision is None
-
-    def test_no_match_wrong_path(self) -> None:
-        router = self._make_router()
-        decision = router.evaluate(
-            tool_name="read",
-            tool_args={"tool": "read", "path": "/sandbox/documents/report.md"},
-            tool_result_text="Hello",
             already_injected=frozenset(),
         )
         assert decision is None
@@ -140,6 +133,130 @@ class TestReactiveRouterEvaluate:
             already_injected=frozenset(),
         )
         assert decision is not None
+        assert decision.source == "regex"
+
+
+# -- Tier 2 (classifier) evaluate tests ------------------------------------
+
+class TestReactiveRouterTier2:
+    """Tier 2 fires when tier 1 regex misses but tool name matches."""
+
+    def _make_router(self) -> ReactiveRouter:
+        return load_reactive_router(FIX)
+
+    def test_classifier_called_on_regex_miss(self) -> None:
+        """When path doesn't match regex but tool matches, classifier fires."""
+        router = self._make_router()
+        mock_response = {"category": "TEST_INBOX", "confidence": 0.9}
+        with patch(
+            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            return_value=mock_response,
+        ) as mock_cls:
+            decision = router.evaluate(
+                tool_name="read",
+                tool_args={"path": "/sandbox/unknown-folder/msg.md"},
+                tool_result_text="Dear admin, please verify your credentials",
+                already_injected=frozenset(),
+            )
+        mock_cls.assert_called_once()
+        assert decision is not None
+        assert decision.skill_name == "test-reactive-read"
+        assert decision.source == "classifier"
+        assert decision.confidence == 0.9
+
+    def test_classifier_below_threshold_returns_none(self) -> None:
+        """Low-confidence classifier result is rejected."""
+        router = self._make_router()
+        mock_response = {"category": "TEST_INBOX", "confidence": 0.3}
+        with patch(
+            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            return_value=mock_response,
+        ):
+            decision = router.evaluate(
+                tool_name="read",
+                tool_args={"path": "/sandbox/unknown-folder/msg.md"},
+                tool_result_text="some content",
+                already_injected=frozenset(),
+            )
+        assert decision is None
+
+    def test_classifier_unknown_category_returns_none(self) -> None:
+        """Classifier returning NONE/unknown category → no injection."""
+        router = self._make_router()
+        mock_response = {"category": "NONE", "confidence": 0.95}
+        with patch(
+            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            return_value=mock_response,
+        ):
+            decision = router.evaluate(
+                tool_name="read",
+                tool_args={"path": "/sandbox/unknown-folder/msg.md"},
+                tool_result_text="just a normal file",
+                already_injected=frozenset(),
+            )
+        assert decision is None
+
+    def test_classifier_error_degrades_to_none(self) -> None:
+        """Classifier failure never breaks the agent loop."""
+        router = self._make_router()
+        with patch(
+            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            side_effect=RuntimeError("network timeout"),
+        ):
+            decision = router.evaluate(
+                tool_name="read",
+                tool_args={"path": "/sandbox/unknown-folder/msg.md"},
+                tool_result_text="some content",
+                already_injected=frozenset(),
+            )
+        assert decision is None
+
+    def test_classifier_not_called_when_regex_hits(self) -> None:
+        """Tier 1 hit means tier 2 is never called."""
+        router = self._make_router()
+        with patch(
+            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+        ) as mock_cls:
+            decision = router.evaluate(
+                tool_name="read",
+                tool_args={"path": "/sandbox/test-inbox/msg.md"},
+                tool_result_text="content",
+                already_injected=frozenset(),
+            )
+        mock_cls.assert_not_called()
+        assert decision is not None
+        assert decision.source == "regex"
+
+    def test_classifier_not_called_for_wrong_tool(self) -> None:
+        """Tool name mismatch skips both tiers entirely."""
+        router = self._make_router()
+        with patch(
+            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+        ) as mock_cls:
+            decision = router.evaluate(
+                tool_name="write",
+                tool_args={"path": "/sandbox/unknown-folder/msg.md"},
+                tool_result_text="content",
+                already_injected=frozenset(),
+            )
+        mock_cls.assert_not_called()
+        assert decision is None
+
+    def test_classifier_respects_already_injected(self) -> None:
+        """Even if classifier would match, already-injected skills are skipped."""
+        router = self._make_router()
+        with patch(
+            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+        ) as mock_cls:
+            decision = router.evaluate(
+                tool_name="read",
+                tool_args={"path": "/sandbox/unknown-folder/msg.md"},
+                tool_result_text="content",
+                already_injected=frozenset({"test-reactive-read"}),
+            )
+        # Classifier should not be called — all eligible skills are already injected.
+        mock_cls.assert_not_called()
+        assert decision is None
 
 
 # -- Inbox security skill integration tests --------------------------------
@@ -162,6 +279,7 @@ class TestInboxSecuritySkill:
         )
         assert d is not None
         assert d.skill_name == "inbox-security"
+        assert d.source == "regex"
 
     def test_matches_german_inbox_path(self) -> None:
         router = load_reactive_router(PROD_REACTIVE_DIR)
@@ -173,14 +291,20 @@ class TestInboxSecuritySkill:
         )
         assert d is not None
 
-    def test_no_match_on_finance_path(self) -> None:
+    def test_no_match_on_finance_path_tier1(self) -> None:
+        """Finance path doesn't match inbox regex (tier 1 miss).
+        Tier 2 classifier is mocked to return NONE."""
         router = load_reactive_router(PROD_REACTIVE_DIR)
-        d = router.evaluate(
-            tool_name="read",
-            tool_args={"path": "/sandbox/50_finance/purchases/bill.md"},
-            tool_result_text="content",
-            already_injected=frozenset(),
-        )
+        with patch(
+            "bitgn_contest_agent.reactive_router._call_reactive_classifier",
+            return_value={"category": "NONE", "confidence": 0.9},
+        ):
+            d = router.evaluate(
+                tool_name="read",
+                tool_args={"path": "/sandbox/50_finance/purchases/bill.md"},
+                tool_result_text="content",
+                already_injected=frozenset(),
+            )
         assert d is None
 
     def test_no_match_on_write_tool(self) -> None:
