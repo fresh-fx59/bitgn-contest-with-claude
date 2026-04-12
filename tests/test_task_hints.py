@@ -81,39 +81,6 @@ def test_last_recorded_message_does_not_fire_on_generic_message_tasks() -> None:
     assert hint_for_task("What was the last email from Lorenz Fabian?") is None
 
 
-# --- N days ago lookup matcher ----------------------------------------------
-
-
-def test_n_days_ago_fires_on_prod_purchase_lookup() -> None:
-    text = (
-        "How much did Filamenthütte Wien charge me in total for the "
-        "line item 0.6 mm hardened nozzle 50 days ago? Answer with a number only"
-    )
-    hint = hint_for_task(text)
-    assert hint is not None
-    # The anchor-date discipline is the central correction.
-    assert "anchor" in hint.lower()
-    # Widen-window guidance — the exact-date-miss failure mode.
-    assert "±3" in hint or "3-day" in hint
-
-
-def test_n_days_ago_does_not_fire_on_article_lookup() -> None:
-    # Dev t42: 'I captured an article 4 days ago. Which one was it?'
-    # Dev t43: 'Find the article I captured 32 days ago.'
-    # The matcher is money-scoped because the correct answer for t43
-    # is NONE_CLARIFICATION when no exact-date match exists — the
-    # ±3-day widening rule in the hint would cause t43 to regress.
-    assert hint_for_task("I captured an article 4 days ago. Which one was it?") is None
-    assert hint_for_task("Find the article I captured 32 days ago.") is None
-
-
-def test_n_days_ago_needs_numeric_days() -> None:
-    # Bare "days ago" without a number should not trigger — the hint is
-    # about computing an anchor offset, which only makes sense with N.
-    assert hint_for_task("A few days ago I captured an article.") is None
-    assert hint_for_task("Some days ago this happened.") is None
-
-
 # --- project start date matcher ---------------------------------------------
 
 

@@ -120,51 +120,6 @@ def _hint_last_recorded_message(task_text: str) -> Optional[str]:
     )
 
 
-def _hint_n_days_ago_money(task_text: str) -> Optional[str]:
-    """PROD t030, t055: 'How much did X charge me ... N days ago'.
-
-    Scoped strictly to financial questions. Earlier iterations also
-    matched capture-article lookups (dev t42/t43), but the correct
-    answer for those is different: t43 expects NONE_CLARIFICATION
-    when no exact match exists, so the ±3-day widening rule here
-    would REGRESS it. The matcher requires both 'N days ago' AND a
-    money keyword, so article lookups fall through.
-    """
-    if not re.search(r"\b\d+\s+days?\s+ago\b", task_text, re.IGNORECASE):
-        return None
-    # Require a money signal: the PROD failures were 'how much did X
-    # charge me' / 'in total for the line item'. Capture-article lookups
-    # like 'I captured an article 4 days ago' do not match these.
-    if not re.search(
-        r"how\s+much|charge[ds]?\b|total\b|paid\b|cost\b|bill\b|invoic\w*",
-        task_text,
-        re.IGNORECASE,
-    ):
-        return None
-    return (
-        "HINT (task-local): 'How much did X charge me N days ago' is a "
-        "purchase-lookup task. Anchor discipline: the 'today' anchor is "
-        "the SANDBOX's current date, not yours — read it from the "
-        "`context` tool's `current_date` / `now` field. Compute "
-        "anchor = current_date - N calendar days. "
-        "(1) Purchase records live in `50_finance/purchases/` and are "
-        "named `YYYY_MM_DD_<eur_amount>_<slug>.md` where the prefix IS "
-        "the `purchased_on` date. Search for the exact anchor prefix "
-        "first. "
-        "(2) Real workflows have a small filing lag: if there is no "
-        "exact-date match on the named counterparty, WIDEN to a ±3-day "
-        "window on that counterparty before giving up. "
-        "(3) Open the matching bill record, find the specific line "
-        "item named in the question, and return ONLY the numeric "
-        "total (in the units the question asks — usually EUR) as the "
-        "`report_completion.message`. Show the anchor date, the match "
-        "path, and the raw line-item value in "
-        "`outcome_justification` so the grader can verify. "
-        "(4) Only emit NONE_CLARIFICATION after exhausting the ±3-day "
-        "window on the exact counterparty AND line item."
-    )
-
-
 def _hint_start_date_of_project(task_text: str) -> Optional[str]:
     """PROD t001 (day-job exception project), t076 (morning launch kit),
     and similar project-lookup-by-informal-name tasks.
@@ -208,7 +163,6 @@ _Matcher = Callable[[str], Optional[str]]
 _MATCHERS: Tuple[_Matcher, ...] = (
     _hint_nora_doc_queue,
     _hint_last_recorded_message,
-    _hint_n_days_ago_money,
     _hint_start_date_of_project,
 )
 
