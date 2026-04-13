@@ -35,6 +35,8 @@ def test_backend_protocol_is_runtime_checkable() -> None:
                     current_state="x",
                     plan_remaining_steps_brief=["done"],
                     identity_verified=True,
+                    observation="context loaded",
+                    outcome_leaning="GATHERING_INFORMATION",
                     function={"tool": "context"},
                 ),
                 prompt_tokens=0,

@@ -17,11 +17,18 @@ from bitgn_contest_agent.trace_schema import TRACE_SCHEMA_VERSION, TraceMeta
 from bitgn_contest_agent.trace_writer import TraceWriter
 
 
-def _mk_step(function: dict) -> NextStep:
+def _mk_step(
+    function: dict,
+    *,
+    observation: str = "step observation",
+    outcome_leaning: str = "GATHERING_INFORMATION",
+) -> NextStep:
     return NextStep(
         current_state="x",
         plan_remaining_steps_brief=["do", "report"],
         identity_verified=True,
+        observation=observation,
+        outcome_leaning=outcome_leaning,
         function=function,
     )
 
@@ -96,7 +103,9 @@ def test_agent_loop_happy_path_read_then_report(tmp_path: Path) -> None:
                     "outcome_justification": "AGENTS.md was read",
                     "completed_steps_laconic": ["read AGENTS.md"],
                     "outcome": "OUTCOME_OK",
-                }
+                },
+                observation="task complete",
+                outcome_leaning="OUTCOME_OK",
             )),
         ]
     )
@@ -132,7 +141,9 @@ def test_agent_loop_enforcer_rejects_fabricated_ref_then_retries(tmp_path: Path)
                     "outcome_justification": "j",
                     "completed_steps_laconic": ["thought about it"],
                     "outcome": "OUTCOME_OK",
-                }
+                },
+                observation="task complete",
+                outcome_leaning="OUTCOME_OK",
             )),
             _wrap(_mk_step(
                 {
@@ -143,7 +154,9 @@ def test_agent_loop_enforcer_rejects_fabricated_ref_then_retries(tmp_path: Path)
                     "outcome_justification": "read AGENTS.md",
                     "completed_steps_laconic": ["read AGENTS.md"],
                     "outcome": "OUTCOME_OK",
-                }
+                },
+                observation="task complete",
+                outcome_leaning="OUTCOME_OK",
             )),
         ]
     )
@@ -179,7 +192,9 @@ def test_agent_loop_submits_anyway_after_exhausted_enforcer_retry(tmp_path: Path
             "outcome_justification": "j",
             "completed_steps_laconic": ["-"],
             "outcome": "OUTCOME_OK",
-        }
+        },
+        observation="task complete",
+        outcome_leaning="OUTCOME_OK",
     ))
     backend = _ScriptedBackend([bad_terminal, bad_terminal])
     adapter = _mk_adapter_mock()
@@ -245,7 +260,9 @@ def test_agent_loop_retries_on_transient_backend_error(tmp_path: Path, monkeypat
                 "outcome_justification": "read",
                 "completed_steps_laconic": ["read AGENTS.md"],
                 "outcome": "OUTCOME_OK",
-            }
+            },
+            observation="task complete",
+            outcome_leaning="OUTCOME_OK",
         ),
         raise_times=2,
     )
@@ -305,7 +322,9 @@ def test_agent_loop_writes_real_tokens_into_trace_and_totals(tmp_path: Path, mon
             "outcome_justification": "AGENTS.md was read",
             "completed_steps_laconic": ["read AGENTS.md"],
             "outcome": "OUTCOME_OK",
-        }
+        },
+        observation="task complete",
+        outcome_leaning="OUTCOME_OK",
     )
     backend = _ScriptedBackend([
         NextStepResult(parsed=report_step, prompt_tokens=137, completion_tokens=42, reasoning_tokens=9),

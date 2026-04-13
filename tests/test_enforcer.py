@@ -11,6 +11,8 @@ def _mk_terminal(outcome: str, refs: list[str]) -> NextStep:
         current_state="done",
         plan_remaining_steps_brief=["report"],
         identity_verified=True,
+        observation="completed analysis",
+        outcome_leaning=outcome if outcome != "OUTCOME_ERR_INTERNAL" else "OUTCOME_OK",
         function=ReportTaskCompletion(
             tool="report_completion",
             message="all good",
@@ -28,6 +30,8 @@ def test_non_terminal_always_passes() -> None:
         current_state="reading",
         plan_remaining_steps_brief=["read", "report"],
         identity_verified=True,
+        observation="reading workspace files",
+        outcome_leaning="GATHERING_INFORMATION",
         function={"tool": "read", "path": "AGENTS.md"},
     )
     v = check_terminal(Session(), step)

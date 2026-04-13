@@ -65,6 +65,8 @@ def test_next_step_round_trip_every_variant(payload: dict[str, Any]) -> None:
         current_state="exploring",
         plan_remaining_steps_brief=["verify", "report"],
         identity_verified=True,
+        observation="read AGENTS.md, found workspace rules",
+        outcome_leaning="GATHERING_INFORMATION",
         function=payload,
     )
     dumped = step.model_dump_json()
