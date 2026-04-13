@@ -171,6 +171,7 @@ def _run_single_task(
     reactive_router: ReactiveRouter | None = None,
 ) -> TaskExecutionResult:
     started: StartedTask | None = None
+    writer: TraceWriter | None = None
     # In leaderboard flow the real task_id is only known after
     # start_trial; fall back to whatever the orchestrator gave us for
     # crash reporting before the trial is provisioned.
@@ -248,6 +249,36 @@ def _run_single_task(
         import traceback as tb
 
         msg = f"{type(exc).__name__}: {exc}"
+        logging.getLogger(__name__).exception(
+            "task %s crashed: %s", effective_task_id, msg,
+        )
+        # Write crash outcome to trace so bench_summary counts it as a
+        # failure instead of silently dropping the task.
+        if writer is not None:
+            try:
+                from bitgn_contest_agent.trace_schema import TraceOutcome
+
+                writer.append_outcome(
+                    TraceOutcome(
+                        terminated_by="error",
+                        reported=None,
+                        enforcer_bypassed=False,
+                        error_kind="INTERNAL_CRASH",
+                        error_msg=msg,
+                        total_steps=0,
+                        total_llm_calls=0,
+                        total_prompt_tokens=0,
+                        total_completion_tokens=0,
+                        total_cached_tokens=0,
+                        total_reasoning_tokens=0,
+                    )
+                )
+                writer.close()
+                writer.write_crash_sidecar(
+                    msg, traceback_text=tb.format_exc()
+                )
+            except Exception:
+                pass
         if started is not None:
             try:
                 harness.end_task(started)

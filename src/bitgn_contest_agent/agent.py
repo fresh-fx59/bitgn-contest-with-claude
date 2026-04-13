@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json as _json
+import logging
 import os
 import threading
 import time
@@ -45,6 +46,7 @@ from bitgn_contest_agent.format_validator import validate_yaml_frontmatter
 from bitgn_contest_agent.trace_writer import TraceWriter
 
 
+_LOG = logging.getLogger(__name__)
 _MAX_NUDGES = 2
 _DEFAULT_BACKOFF_MS: tuple[int, ...] = (500, 1500, 4000, 10000)
 
@@ -204,7 +206,9 @@ class AgentLoop:
         reactive_injected: set[str] = set()
         read_cache: dict[str, str] = {}  # path → content at read time
 
-        for step_idx in range(1, self._max_steps + 1):
+        step_idx = 0  # visible in except block before first iteration
+        try:
+          for step_idx in range(1, self._max_steps + 1):
             if self._cancel_event is not None and self._cancel_event.is_set():
                 return self._finish_cancelled(totals, step_idx - 1)
 
@@ -511,6 +515,17 @@ class AgentLoop:
                 reasoning_tokens=step_result.reasoning_tokens,
             )
             totals.steps += 1
+        except Exception as exc:
+            _LOG.exception(
+                "unhandled crash at step %d of task %s: %s",
+                step_idx, task_id, exc,
+            )
+            return self._finish_error(
+                totals,
+                step_idx,
+                error_kind="INTERNAL_CRASH",
+                error_msg=f"{type(exc).__name__}: {exc}",
+            )
 
         # Exhausted max_steps.
         return self._finish_error(
