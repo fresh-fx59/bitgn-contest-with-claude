@@ -271,3 +271,67 @@ def test_no_correction_returns_none() -> None:
     correction = v.check_step(step, Session(), step_idx=3, max_steps=40)
     assert correction is None
     assert v.corrections_emitted == 0
+
+
+# === Tier 2 trigger structure tests ===
+
+def test_trigger_first_transition_fires_once(monkeypatch) -> None:
+    """First transition from GATHERING fires at most once."""
+    import bitgn_contest_agent.classifier as cls_mod
+
+    calls = []
+    def fake_classify(*, system, user):
+        calls.append(1)
+        return {"category": "PREMATURE", "confidence": 0.8}
+
+    monkeypatch.setattr(cls_mod, "classify", fake_classify)
+
+    v = StepValidator()
+    # Step 1: still gathering
+    s1 = _mk_step({"tool": "read", "path": "x"}, observation="exploring", outcome_leaning="GATHERING_INFORMATION")
+    v.check_step(s1, Session(), step_idx=3, max_steps=40)
+
+    # Step 2: transitions to OK — should trigger
+    s2 = _mk_step({"tool": "read", "path": "x"}, observation="found it", outcome_leaning="OUTCOME_OK")
+    corr = v.check_step(s2, Session(), step_idx=4, max_steps=40)
+    assert corr is not None
+    assert "committed" in corr.lower()
+    assert len(calls) == 1
+
+    # Step 3: another transition — should NOT trigger again
+    s3 = _mk_step({"tool": "read", "path": "x"}, observation="re-exploring", outcome_leaning="GATHERING_INFORMATION")
+    v.check_step(s3, Session(), step_idx=5, max_steps=40)
+    s4 = _mk_step({"tool": "read", "path": "x"}, observation="found again", outcome_leaning="OUTCOME_OK")
+    v.check_step(s4, Session(), step_idx=6, max_steps=40)
+    assert len(calls) == 1  # no second call
+
+
+def test_trigger_classifier_failure_is_swallowed(monkeypatch) -> None:
+    """Classifier errors don't crash the validator."""
+    import bitgn_contest_agent.classifier as cls_mod
+
+    def fail_classify(*, system, user):
+        raise RuntimeError("classifier down")
+
+    monkeypatch.setattr(cls_mod, "classify", fail_classify)
+
+    v = StepValidator()
+    s1 = _mk_step({"tool": "read", "path": "x"}, observation="exploring", outcome_leaning="GATHERING_INFORMATION")
+    v.check_step(s1, Session(), step_idx=3, max_steps=40)
+    s2 = _mk_step({"tool": "read", "path": "x"}, observation="found", outcome_leaning="OUTCOME_OK")
+    corr = v.check_step(s2, Session(), step_idx=4, max_steps=40)
+    assert corr is None  # error swallowed, no correction
+
+
+def test_observation_window_limited_to_5() -> None:
+    """Observations window stays at most 5 entries."""
+    v = StepValidator()
+    for i in range(10):
+        step = _mk_step(
+            {"tool": "read", "path": "x"},
+            observation=f"obs {i}",
+            outcome_leaning="GATHERING_INFORMATION",
+        )
+        v.check_step(step, Session(), step_idx=i + 1, max_steps=40)
+    assert len(v._observations) == 5
+    assert v._observations[0] == "obs 5"
