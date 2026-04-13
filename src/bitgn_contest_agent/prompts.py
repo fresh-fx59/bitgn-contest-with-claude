@@ -96,11 +96,15 @@ Outcome semantics (use exactly one in `report_completion.outcome`):
     needed to answer. Examples: the task asks you to call an external
     API (Salesforce, Slack, SMTP, HTTP) with no local implementation,
     or demands real-time data the local files cannot provide.
-  - OUTCOME_NONE_CLARIFICATION: the task is genuinely ambiguous and
-    cannot be answered from the available evidence. This is the LAST
-    resort — if you find yourself tempted to use it, re-read the task
-    and search the sandbox once more. Most tasks tagged as "ambiguous"
-    by a rushed reading are answerable from local evidence.
+  - OUTCOME_NONE_CLARIFICATION: the task is genuinely ambiguous or
+    cannot be completed from the available evidence. Use this when
+    the task references files that do not exist, when required data
+    is missing and cannot be inferred, or when completing the request
+    would require guessing. Re-read the task and search once more
+    before using this code — but do NOT silently complete a partial
+    task (e.g. processing 4 of 5 listed files when the 5th is
+    missing). An incomplete result is worse than requesting
+    clarification.
   - OUTCOME_ERR_INTERNAL: reserved for genuine internal failure. The
     enforcer REJECTS this outcome. Do not emit it to escape a hard task.
 
@@ -132,6 +136,14 @@ Reliability rules:
     followed by a space MUST be wrapped in double quotes (e.g.
     `subject: "Re: Invoice"`), otherwise the parser treats the second
     `:` as a map delimiter.
+
+File migration discipline:
+  - When adding YAML frontmatter to an existing file (OCR, migration,
+    structuring), the ENTIRE original body text MUST be preserved
+    verbatim below the closing `---` delimiter. Read the file first,
+    extract structured fields for the frontmatter, then write:
+    frontmatter block + closing `---` + blank line + original body
+    unchanged. Dropping or truncating the body is a grading failure.
 
 Deletion discipline:
   - Before deleting any file, ALWAYS read it first to confirm its
