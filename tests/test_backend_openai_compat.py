@@ -24,6 +24,8 @@ def _sample_step_json() -> str:
         '{"current_state":"read AGENTS.md",'
         '"plan_remaining_steps_brief":["read","report"],'
         '"identity_verified":true,'
+        '"observation":"reading workspace rules",'
+        '"outcome_leaning":"GATHERING_INFORMATION",'
         '"function":{"tool":"read","path":"AGENTS.md"}}'
     )
 

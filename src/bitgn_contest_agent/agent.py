@@ -29,7 +29,7 @@ from pydantic import ValidationError
 from bitgn_contest_agent.adapter.pcm import PcmAdapter, ToolResult
 from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, TransientBackendError
 from bitgn_contest_agent.bench.run_metrics import RunMetrics
-from bitgn_contest_agent.enforcer import Verdict, check_terminal
+from bitgn_contest_agent.validator import StepValidator, Verdict
 from bitgn_contest_agent.prompts import critique_injection, loop_nudge, system_prompt
 from bitgn_contest_agent.reactive_router import ReactiveRouter
 from bitgn_contest_agent.router import Router, RoutingDecision
@@ -187,6 +187,7 @@ class AgentLoop:
         self._metrics = metrics
         self._router = router
         self._reactive_router = reactive_router
+        self._validator = StepValidator(max_corrections=8)
 
     def run(self, *, task_id: str, task_text: str) -> AgentLoopResult:
         session = Session()
@@ -203,6 +204,7 @@ class AgentLoop:
         totals = _Totals()
         pending_critique: Optional[str] = None
         pending_nudge: Optional[str] = None
+        pending_validation: Optional[str] = None
         reactive_injected: set[str] = set()
         read_cache: dict[str, str] = {}  # path → content at read time
 
@@ -220,6 +222,9 @@ class AgentLoop:
             if pending_nudge is not None:
                 messages.append(Message(role="user", content=pending_nudge))
                 pending_nudge = None
+            if pending_validation is not None:
+                messages.append(Message(role="user", content=pending_validation))
+                pending_validation = None
 
             # Backend call + P2 transient retry + P3 validation retry.
             step_result: NextStepResult
@@ -283,7 +288,7 @@ class AgentLoop:
             enforcer_action: str | None = None
 
             if isinstance(fn, ReportTaskCompletion):
-                verdict = check_terminal(session, step_obj)
+                verdict = self._validator.check_terminal(session, step_obj)
                 if verdict.ok:
                     tool_result = self._adapter.submit_terminal(fn)
                     enforcer_action = "accept"
@@ -317,7 +322,7 @@ class AgentLoop:
                         retry_step = step_obj  # fall through to submit_anyway
                     retry_fn = retry_step.function
                     if isinstance(retry_fn, ReportTaskCompletion):
-                        retry_verdict = check_terminal(session, retry_step)
+                        retry_verdict = self._validator.check_terminal(session, retry_step)
                         if retry_verdict.ok:
                             tool_result = self._adapter.submit_terminal(retry_fn)
                             enforcer_action = "accept_after_retry"
@@ -485,6 +490,7 @@ class AgentLoop:
 
             # Reactive routing hook — inject skill body mid-conversation
             # when a tool dispatch matches a reactive skill trigger.
+            reactive_injected_this_step = False
             if self._reactive_router is not None and tool_result.ok:
                 fn_dump = fn.model_dump() if hasattr(fn, "model_dump") else {}
                 reactive_decision = self._reactive_router.evaluate(
@@ -494,6 +500,7 @@ class AgentLoop:
                     already_injected=frozenset(reactive_injected),
                 )
                 if reactive_decision is not None:
+                    reactive_injected_this_step = True
                     reactive_injected.add(reactive_decision.skill_name)
                     trigger_path = fn_dump.get("path") or fn_dump.get("root") or ""
                     prefix = (
@@ -502,6 +509,23 @@ class AgentLoop:
                     )
                     messages.append(
                         Message(role="user", content=prefix + reactive_decision.body)
+                    )
+
+            # Step validator — deferred injection for next step.
+            if tool_result.ok:
+                correction = self._validator.check_step(
+                    step_obj=step_obj,
+                    session=session,
+                    step_idx=step_idx,
+                    max_steps=self._max_steps,
+                    reactive_injected_this_step=reactive_injected_this_step,
+                )
+                if correction is not None:
+                    pending_validation = correction
+                    self._writer.append_event(
+                        at_step=step_idx,
+                        event_kind="validator_correction",
+                        details=correction[:500],
                     )
 
             self._log_step(
