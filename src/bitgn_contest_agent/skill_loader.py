@@ -34,6 +34,7 @@ class BitgnSkill:
     matcher_patterns: List[str]
     body: str
     variables: List[str] = field(default_factory=list)
+    classifier_hint: Optional[str] = None
 
 
 _REQUIRED_KEYS = ("name", "description", "type", "category", "matcher_patterns")
@@ -56,6 +57,7 @@ def load_skill(path: Path) -> BitgnSkill:
         category=parsed["category"],
         matcher_patterns=list(parsed["matcher_patterns"]),
         variables=list(parsed.get("variables", [])),
+        classifier_hint=parsed.get("classifier_hint"),
         body=body.strip() + "\n",
     )
 
@@ -129,7 +131,13 @@ def _validate(parsed: dict, path: Path) -> None:
         raise SkillFormatError(
             f"{path}: type must be one of rigid|flexible, got {parsed['type']!r}"
         )
-    if not isinstance(parsed["matcher_patterns"], list) or not parsed["matcher_patterns"]:
+    patterns = parsed["matcher_patterns"]
+    has_hint = bool(parsed.get("classifier_hint"))
+    if not isinstance(patterns, list):
         raise SkillFormatError(
-            f"{path}: matcher_patterns must be a non-empty list"
+            f"{path}: matcher_patterns must be a list"
+        )
+    if not patterns and not has_hint:
+        raise SkillFormatError(
+            f"{path}: skill must have matcher_patterns or classifier_hint"
         )

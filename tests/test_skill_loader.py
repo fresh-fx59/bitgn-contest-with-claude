@@ -73,9 +73,8 @@ def test_skill_type_must_be_rigid_or_flexible(tmp_path: Path) -> None:
         load_skill(path)
 
 
-def test_empty_matcher_patterns_raises(tmp_path: Path) -> None:
-    """An empty matcher_patterns list is a violation — a skill with
-    no patterns cannot be routed to via tier-1 regex."""
+def test_empty_matcher_patterns_raises_without_classifier_hint(tmp_path: Path) -> None:
+    """Empty patterns without classifier_hint should still error."""
     path = tmp_path / "empty_patterns.md"
     path.write_text(
         "---\n"
@@ -88,8 +87,29 @@ def test_empty_matcher_patterns_raises(tmp_path: Path) -> None:
         "body\n",
         encoding="utf-8",
     )
-    with pytest.raises(SkillFormatError, match="matcher_patterns"):
+    with pytest.raises(SkillFormatError, match="matcher_patterns or classifier_hint"):
         load_skill(path)
+
+
+def test_empty_matcher_patterns_allowed_with_classifier_hint(tmp_path: Path) -> None:
+    """Empty patterns are fine when classifier_hint provides routing."""
+    path = tmp_path / "good.md"
+    path.write_text(
+        "---\n"
+        "name: hint-only\n"
+        "description: a classifier-routed skill\n"
+        "type: rigid\n"
+        "category: test_hint\n"
+        "matcher_patterns:\n"
+        "classifier_hint: Tasks that need hint-only routing\n"
+        "---\n"
+        "Skill body here.\n",
+        encoding="utf-8",
+    )
+    skill = load_skill(path)
+    assert skill.name == "hint-only"
+    assert skill.matcher_patterns == []
+    assert skill.classifier_hint == "Tasks that need hint-only routing"
 
 
 def test_body_preserves_markdown_structure() -> None:
