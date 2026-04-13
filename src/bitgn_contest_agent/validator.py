@@ -61,6 +61,7 @@ class StepValidator:
         self._previous_leaning: str = "GATHERING_INFORMATION"
         self._triggers_fired: set[str] = set()
         self._observations: list[str] = []
+        self._stale_gathering_fired: bool = False
 
     @property
     def corrections_emitted(self) -> int:
@@ -176,12 +177,14 @@ class StepValidator:
                 "before making changes."
             )
 
-        # Stale gathering
+        # Stale gathering (fire once)
         if (
-            leaning == "GATHERING_INFORMATION"
+            not self._stale_gathering_fired
+            and leaning == "GATHERING_INFORMATION"
             and max_steps > 0
             and step_idx > max_steps * 0.4
         ):
+            self._stale_gathering_fired = True
             return (
                 "VALIDATOR: You've used 40% of your step budget without "
                 "committing to a direction. Commit to an outcome or "
