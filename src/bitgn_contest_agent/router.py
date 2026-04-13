@@ -84,10 +84,13 @@ class Router:
         # Tier 2 — classifier LLM (shared module).
         if not self._compiled:
             return _UNKNOWN
-        categories = [c.skill.category for c in self._compiled]
+        skill_meta = [
+            (c.skill.category, c.skill.classifier_hint or c.skill.description)
+            for c in self._compiled
+        ]
         try:
             raw = classifier.classify(
-                system=_classifier_system_prompt(categories),
+                system=_classifier_system_prompt(skill_meta),
                 user=task_text,
             )
         except Exception as exc:  # noqa: BLE001 — router never breaks the main path
@@ -157,12 +160,17 @@ def route(task_text: str) -> RoutingDecision:
     return _get_default_router().route(task_text)
 
 
-def _classifier_system_prompt(categories: List[str]) -> str:
-    """Build the system prompt for the pre-task tier-2 classifier."""
-    category_list = classifier.build_category_list(categories, fallback="UNKNOWN")
+def _classifier_system_prompt(skill_meta: list[tuple[str, str]]) -> str:
+    """Build the system prompt for the pre-task tier-2 classifier.
+
+    skill_meta: [(category, hint_or_description), ...]
+    """
+    lines = [f"  - {cat}: {hint}" for cat, hint in skill_meta]
+    lines.append("  - UNKNOWN: task does not match any known category")
+    category_block = "\n".join(lines)
     return (
         "You classify bitgn benchmark tasks into one of these categories:\n"
-        f"{category_list}\n"
+        f"{category_block}\n"
         "\n"
         "Return ONLY a JSON object of the form:\n"
         '  {"category": "<one of above>", "confidence": <0.0-1.0>, '
