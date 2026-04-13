@@ -141,9 +141,10 @@ File migration discipline:
   - When adding YAML frontmatter to an existing file (OCR, migration,
     structuring), the ENTIRE original body text MUST be preserved
     verbatim below the closing `---` delimiter. Read the file first,
-    extract structured fields for the frontmatter, then write:
-    frontmatter block + closing `---` + blank line + original body
-    unchanged. Dropping or truncating the body is a grading failure.
+    note its EXACT content. Then write: `---\n` + frontmatter fields
+    + `\n---\n` + original body EXACTLY as read (same whitespace,
+    same newlines, no extra blank lines inserted). Dropping,
+    truncating, or reformatting the body is a grading failure.
 
 Deletion discipline:
   - Before deleting any file, ALWAYS read it first to confirm its
