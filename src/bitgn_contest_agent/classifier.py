@@ -22,11 +22,25 @@ import json as _json
 import logging
 import os
 import re as _re
+import threading
 from typing import Any, List
 
 from bitgn_contest_agent import router_config
 
 _LOG = logging.getLogger(__name__)
+
+_inflight_semaphore: threading.Semaphore | None = None
+
+
+def set_inflight_semaphore(sem: threading.Semaphore | None) -> None:
+    """Set the shared inflight semaphore for classifier LLM calls.
+
+    Called once by the CLI before launching parallel agents so that
+    classifier calls (router, validator triggers) respect the same
+    concurrency cap as the main agent LLM calls.
+    """
+    global _inflight_semaphore
+    _inflight_semaphore = sem
 
 
 def classify(*, system: str, user: str) -> Any:
@@ -50,7 +64,8 @@ def classify(*, system: str, user: str) -> Any:
     for attempt in range(max_attempts):
         # --- Phase 1: fresh classification ---
         try:
-            resp = client.chat.completions.create(
+            resp = _llm_call(
+                client,
                 model=model,
                 messages=[
                     {"role": "system", "content": system},
@@ -97,7 +112,8 @@ def _try_fix_json(
         f"Return ONLY the corrected JSON object, no markdown fences, no explanation."
     )
     try:
-        resp = client.chat.completions.create(
+        resp = _llm_call(
+            client,
             model=model,
             messages=[{"role": "user", "content": fix_prompt}],
             temperature=0.0,
@@ -146,6 +162,15 @@ def parse_response(
         return None, confidence
 
     return category, confidence
+
+
+def _llm_call(client: Any, **kwargs: Any) -> Any:
+    """Make an OpenAI chat completion call, respecting the inflight semaphore."""
+    sem = _inflight_semaphore
+    if sem is not None:
+        with sem:
+            return client.chat.completions.create(**kwargs)
+    return client.chat.completions.create(**kwargs)
 
 
 _FENCE_RE = _re.compile(r"```(?:json)?\s*\n?(.*?)\n?\s*```", _re.DOTALL)

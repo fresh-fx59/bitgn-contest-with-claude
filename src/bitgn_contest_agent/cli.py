@@ -462,6 +462,11 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
     inflight_semaphore = threading.Semaphore(cfg.max_inflight_llm)
     metrics = RunMetrics(max_inflight_llm=cfg.max_inflight_llm)
 
+    # Share the semaphore with the classifier so router/validator LLM
+    # calls respect the same concurrency cap as the main agent calls.
+    from bitgn_contest_agent import classifier as _cls_mod
+    _cls_mod.set_inflight_semaphore(inflight_semaphore)
+
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
     # Per-iteration run_id map for leaderboard flow — populated by
