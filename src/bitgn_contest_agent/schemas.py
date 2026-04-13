@@ -105,6 +105,14 @@ class NextStep(BaseModel):
     current_state: NonEmptyStr
     plan_remaining_steps_brief: Annotated[List[str], Field(min_length=1, max_length=5)]
     identity_verified: bool
+    observation: NonEmptyStr
+    outcome_leaning: Literal[
+        "GATHERING_INFORMATION",
+        "OUTCOME_OK",
+        "OUTCOME_DENIED_SECURITY",
+        "OUTCOME_NONE_CLARIFICATION",
+        "OUTCOME_NONE_UNSUPPORTED",
+    ]
     function: FunctionUnion = Field(..., discriminator="tool")
 
 
