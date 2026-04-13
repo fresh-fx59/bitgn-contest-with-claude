@@ -177,19 +177,9 @@ class StepValidator:
                 "before making changes."
             )
 
-        # Stale gathering (fire once)
-        if (
-            not self._stale_gathering_fired
-            and leaning == "GATHERING_INFORMATION"
-            and max_steps > 0
-            and step_idx > max_steps * 0.4
-        ):
-            self._stale_gathering_fired = True
-            return (
-                "VALIDATOR: You've used 40% of your step budget without "
-                "committing to a direction. Commit to an outcome or "
-                "explain what's blocking."
-            )
+        # Stale gathering — DISABLED. The Tier 2 progress check at 60%
+        # covers this with LLM judgment. The 40% threshold fired on 29%
+        # of prod tasks and added noise without improving accuracy.
 
         return None
 

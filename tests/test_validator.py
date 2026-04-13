@@ -221,41 +221,17 @@ def test_mutation_allowed_when_leaning_ok() -> None:
     assert correction is None
 
 
-def test_stale_gathering_fires_past_threshold() -> None:
+def test_stale_gathering_disabled() -> None:
+    """Stale gathering rule was disabled — Tier 2 progress check at 60%
+    covers this with LLM judgment instead of a dumb threshold."""
     v = StepValidator()
     step = _mk_step(
         {"tool": "read", "path": "x"},
         observation="still looking",
         outcome_leaning="GATHERING_INFORMATION",
     )
-    # step 17 of 40 = 42.5% > 40% threshold
+    # Even past 40% threshold, no correction fires
     correction = v.check_step(step, Session(), step_idx=17, max_steps=40)
-    assert correction is not None
-    assert "40%" in correction
-
-
-def test_stale_gathering_fires_only_once() -> None:
-    v = StepValidator()
-    step = _mk_step(
-        {"tool": "read", "path": "x"},
-        observation="still looking",
-        outcome_leaning="GATHERING_INFORMATION",
-    )
-    # First call past 40% — fires
-    assert v.check_step(step, Session(), step_idx=17, max_steps=40) is not None
-    # Second call — should NOT fire again
-    assert v.check_step(step, Session(), step_idx=18, max_steps=40) is None
-
-
-def test_stale_gathering_does_not_fire_early() -> None:
-    v = StepValidator()
-    step = _mk_step(
-        {"tool": "read", "path": "x"},
-        observation="exploring workspace",
-        outcome_leaning="GATHERING_INFORMATION",
-    )
-    # step 10 of 40 = 25% < 40%
-    correction = v.check_step(step, Session(), step_idx=10, max_steps=40)
     assert correction is None
 
 
