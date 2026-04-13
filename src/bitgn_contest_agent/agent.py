@@ -94,6 +94,24 @@ def _write_routing_log(task_id: str, decision: RoutingDecision) -> None:
         return
 
 
+def _extract_body(content: str) -> str:
+    """Extract body text after YAML frontmatter (``---...---``).
+
+    Returns the body if frontmatter is present, empty string otherwise.
+    """
+    if not content.startswith("---"):
+        return ""
+    # Find closing --- delimiter (skip the opening one).
+    close = content.find("\n---", 3)
+    if close < 0:
+        return ""
+    # Body starts right after the closing delimiter line.
+    body_start = content.find("\n", close + 1)
+    if body_start < 0:
+        return ""
+    return content[body_start + 1:]
+
+
 def _build_initial_messages(
     *,
     task_text: str,
@@ -184,6 +202,7 @@ class AgentLoop:
         pending_critique: Optional[str] = None
         pending_nudge: Optional[str] = None
         reactive_injected: set[str] = set()
+        read_cache: dict[str, str] = {}  # path → content at read time
 
         for step_idx in range(1, self._max_steps + 1):
             if self._cancel_event is not None and self._cancel_event.is_set():
@@ -351,6 +370,17 @@ class AgentLoop:
             if tool_result.ok:
                 for ref in tool_result.refs:
                     session.seen_refs.add(ref)
+                # Cache file content on successful read for body validation.
+                if getattr(fn, "tool", "") == "read":
+                    read_path = getattr(fn, "path", "")
+                    if read_path and tool_result.content:
+                        try:
+                            parsed = _json.loads(tool_result.content)
+                            file_text = parsed.get("content", "")
+                        except (ValueError, AttributeError):
+                            file_text = ""
+                        if file_text:
+                            read_cache[read_path] = file_text
 
             # Feed the tool result back to the planner.
             #
@@ -407,6 +437,46 @@ class AgentLoop:
                             at_step=step_idx,
                             event_kind="format_validation_error",
                             details=error_msg[:500],
+                        )
+
+            # Body preservation hook — after writing to a previously-read
+            # non-outbox file, verify the body text wasn't altered.
+            if getattr(fn, "tool", "") == "write" and tool_result.ok:
+                write_path = getattr(fn, "path", "")
+                if (
+                    write_path
+                    and write_path in read_cache
+                    and "outbox" not in write_path.lower()
+                ):
+                    new_content = ""
+                    if hasattr(fn, "content"):
+                        new_content = fn.content
+                    elif hasattr(fn, "model_dump"):
+                        new_content = fn.model_dump().get("content", "")
+                    cached = read_cache[write_path]
+                    old_body = _extract_body(cached)
+                    # If original had no frontmatter, entire content is body.
+                    if not old_body and not cached.startswith("---"):
+                        old_body = cached
+                    new_body = _extract_body(new_content)
+                    if old_body and new_body and old_body != new_body:
+                        body_msg = (
+                            f"BODY PRESERVATION ERROR in your last write:\n"
+                            f"  File: {write_path}\n"
+                            f"  The original body text was altered during migration.\n"
+                            f"  Expected body length: {len(old_body)} chars\n"
+                            f"  Actual body length:   {len(new_body)} chars\n"
+                            f"\nRe-read the file and rewrite it, preserving the EXACT "
+                            f"original body below the closing `---` delimiter. "
+                            f"No extra blank lines, no reformatting."
+                        )
+                        messages.append(
+                            Message(role="user", content=body_msg)
+                        )
+                        self._writer.append_event(
+                            at_step=step_idx,
+                            event_kind="body_preservation_error",
+                            details=body_msg[:500],
                         )
 
             # Reactive routing hook — inject skill body mid-conversation
