@@ -8,6 +8,7 @@ to be fixed.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Sequence, Tuple
@@ -180,14 +181,21 @@ class PcmAdapter:
                 wall_ms=wall_ms,
             )
 
+    @staticmethod
+    def _strip_leading_slashes(text: str) -> str:
+        """Strip leading '/' from file paths in answer text."""
+        return re.sub(r'(?m)^/', '', text)
+
     def submit_terminal(self, completion: ReportTaskCompletion) -> ToolResult:
         start = time.monotonic()
         try:
+            message = self._strip_leading_slashes(completion.message)
+            refs = [r.lstrip("/") for r in completion.grounding_refs]
             resp = self._runtime.answer(
                 pcm_pb2.AnswerRequest(
-                    message=completion.message,
+                    message=message,
                     outcome=_OUTCOME_MAP[completion.outcome],
-                    refs=list(completion.grounding_refs),
+                    refs=refs,
                 )
             )
             return self._finish(start, resp, refs=tuple(completion.grounding_refs))

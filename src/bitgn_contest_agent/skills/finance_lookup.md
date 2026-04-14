@@ -30,18 +30,20 @@ Start with the most specific artifact mentioned in the task and progressively br
 
 Do NOT constrain your search to a narrow date range. Filing dates in filenames often differ from the transaction date the task references.
 
-## Step 3: Cross-Validate
+## Step 3: Cross-Validate and Select
 
 When you find candidate files through any search path:
 
 - Read each candidate fully
-- Verify it matches ALL criteria from the task: vendor, item, approximate date, amount
-- If multiple candidates match the vendor but only one contains the specific line item, that is your answer
+- **Primary match criteria: vendor name + item/line-item description.** These are the definitive identifiers.
+- **Date is contextual, NOT a strict filter.** The "N days ago" in the task is an approximate hint. The actual record's filing date or transaction date may differ significantly from the computed anchor date. Do NOT reject a record just because the date doesn't align — if vendor and item match, it IS the right record.
+- **Multiple matches for the same vendor + item:** When two or more records match on vendor and item description, select the **most recent** record (latest date). The task is asking about the most recent transaction.
 
 ## Step 4: Extract and Answer
 
-- Extract the exact numeric total for the requested line item
+- Extract the exact numeric total for the requested line item from the selected record
 - Return the number only as your answer
-- Use OUTCOME_OK
+- **Use OUTCOME_OK whenever you find a record matching vendor + item**, regardless of date alignment
+- Do NOT use OUTCOME_NONE_CLARIFICATION when you have a matching record — a date mismatch is not grounds for clarification
 
-Only use OUTCOME_NONE_CLARIFICATION if you have exhausted all progressive search strategies and genuinely found no matching record anywhere in the workspace.
+Only use OUTCOME_NONE_CLARIFICATION if you have exhausted all progressive search strategies and genuinely found no matching vendor + item anywhere in the workspace.

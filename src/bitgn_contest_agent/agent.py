@@ -188,6 +188,7 @@ class AgentLoop:
         self._router = router
         self._reactive_router = reactive_router
         self._validator = StepValidator(max_corrections=8)
+        self._last_backend_error: Optional[str] = None
 
     def run(self, *, task_id: str, task_text: str) -> AgentLoopResult:
         session = Session()
@@ -237,7 +238,7 @@ class AgentLoop:
                         totals,
                         step_idx,
                         error_kind="BACKEND_ERROR",
-                        error_msg="transient backend exhausted",
+                        error_msg=f"transient backend exhausted: {self._last_backend_error}",
                     )
                 step_result = maybe_step
                 totals.prompt_tokens += maybe_step.prompt_tokens
@@ -265,7 +266,7 @@ class AgentLoop:
                             totals,
                             step_idx,
                             error_kind="BACKEND_ERROR",
-                            error_msg="transient backend exhausted on validation retry",
+                            error_msg=f"transient backend exhausted on validation retry: {self._last_backend_error}",
                         )
                     step_result = maybe_retry
                     totals.prompt_tokens += maybe_retry.prompt_tokens
@@ -585,6 +586,7 @@ class AgentLoop:
                         event_kind="rate_limit_backoff",
                         wait_ms=wait_ms,
                         attempt=attempt,
+                        details=str(last_exc) if last_exc else None,
                     )
                     time.sleep(wait_ms / 1000.0)
                 try:
@@ -596,10 +598,15 @@ class AgentLoop:
                     return result
                 except TransientBackendError as exc:
                     last_exc = exc
+                    _LOG.warning(
+                        "transient backend error (attempt %d at step %d): %s",
+                        attempt, at_step, exc,
+                    )
                     if self._metrics is not None:
                         self._metrics.on_rate_limit_error()
                     continue
             if last_exc is not None:
+                self._last_backend_error = str(last_exc)
                 return None
             return None
 

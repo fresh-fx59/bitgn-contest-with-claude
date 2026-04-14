@@ -55,7 +55,7 @@ Suggested template:
     - `inbox_en`: t007, t011, t014–t016, t018–t023, t032, t036, t039–t041, t043–t048, t057, t061, t064–t066, t068–t073, t082, t086, t089–t091, t093–t098
     - `inbox_i18n`: t010, t013, t035, t038, t060, t063, t085, t088
   - To validate a specific intent without a full 104-task run, run only the positions for that intent via playground mode. The server randomizes content but the intent is guaranteed the same.
-  - Do not compare results by task ID across runs — compare by intent group pass rate.
+  - Do not compare results by task ID across runs — compare by intent group pass rate. Task content is randomized so t081 in one run is a different receipt_delete than t081 in another. When evaluating whether a fix helped, compare the intent's pass rate (e.g. receipt_delete 3/4 → 4/4) across runs, not individual task IDs. A single run cannot distinguish fix impact from variance; use `--runs 3` on the target intent positions to confirm.
   - Historical intent pass rates (5-run baseline): receipt_total_relative 30%, receipt_delete 60%, inbox_en 63%, project_involvement 65%, last_message 75%, finance_accounting 75%, birthday_lookup 85%, project_start_date 85%, nora_migration 90%, bill_query 92%, inbox_i18n 95%, next_birthday 95%, project_count 95%, service_revenue_en 100%, service_revenue_i18n 100%.
   - Always-failing inbox positions (0/5 runs): 16, 25, 29, 38, 42, 51 (inbox item sequence, not task IDs). These correspond to inherently hard inbox items: cross-lane requests, unsupported channels, trust boundary violations.
 - Tooling/delivery:
@@ -63,10 +63,21 @@ Suggested template:
   - Favor context-efficient tool usage and incremental inspection because bounded reads, targeted writes, and shallow tree exploration materially improve benchmark performance and reduce unnecessary context consumption.
   - For project development and benchmark hardening, prioritize better instructions/prompts/skills/tool orchestration over adding task-specific implementation methods; treat code-level expansion as a fallback, not a default.
   - Treat `https://github.com/bitgn/sample-agents/tree/main/pac1-py` and `https://github.com/bitgn/sample-agents/tree/main/proto/bitgn` as the primary public references for current PAC1-DEV tool usage and API shape.
-  - Commit every completed repository change before starting the next step, and use the Lore commit protocol for each such commit.
+  - Commit every completed repository change before starting the next step, and use the Lore commit protocol for each such commit. Never revert uncommitted work — commit first, then revert in a separate commit. This preserves history so any change can be inspected or cherry-picked later.
   - Bump the repository version on every completed change before committing it.
   - For code changes, run a BitGN PAC1 regression validation before moving to the next step; documentation-only or guidance-only changes may skip the benchmark run when no runtime behavior changed.
   - Unless the user explicitly overrides it, use `gpt-5.3-codex` with medium reasoning for BitGN regression validation runs.
+  - Standard benchmark launch line (PROD, full 104 tasks):
+    ```
+    source .worktrees/plan-b/.env && export BITGN_API_KEY CLIPROXY_BASE_URL CLIPROXY_API_KEY
+    uv run python -m bitgn_contest_agent.cli run-benchmark \
+      --benchmark bitgn/pac1-prod \
+      --max-parallel 16 --max-inflight-llm 24 \
+      --runs 1 \
+      --output artifacts/bench/<commit>_<label>_p16i24_gpt54_prod_runs1.json \
+      --log-dir logs
+    ```
+    `p16i24` in the filename encodes `--max-parallel 16 --max-inflight-llm 24`. Omitting `--max-inflight-llm` defaults to 6 which starves 16 parallel tasks and causes mass timeouts.
   - Do not advance to the next implementation step until the active regression or validation target is confirmed fixed by the required verification for that step.
 
 <lore_commit_protocol>
