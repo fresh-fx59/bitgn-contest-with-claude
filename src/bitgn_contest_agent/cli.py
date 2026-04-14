@@ -18,9 +18,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, List
 
+import threading as _threading
+
 from bitgn_contest_agent import __version__
 from bitgn_contest_agent.adapter.pcm import PcmAdapter
 from bitgn_contest_agent.agent import AgentLoop, AgentLoopResult
+from bitgn_contest_agent.arch_constants import ArchCategory
+from bitgn_contest_agent.arch_log import (
+    TaskContextFilter,
+    emit_arch,
+    reset_task_context,
+    set_task_context,
+)
 from bitgn_contest_agent.backend.openai_compat import OpenAIChatBackend
 from bitgn_contest_agent.bench.run_metrics import RunMetrics
 from bitgn_contest_agent.config import AgentConfig, ConfigError, load_from_env
@@ -172,6 +181,8 @@ def _run_single_task(
 ) -> TaskExecutionResult:
     started: StartedTask | None = None
     writer: TraceWriter | None = None
+    task_handler: logging.Handler | None = None
+    ctx_token = None
     # In leaderboard flow the real task_id is only known after
     # start_trial; fall back to whatever the orchestrator gave us for
     # crash reporting before the trial is provisioned.
@@ -190,6 +201,36 @@ def _run_single_task(
 
         trace_path = _trace_path(cfg, run_id, effective_task_id, run_index)
         writer = TraceWriter(path=trace_path)
+
+        # Per-task stderr log file + task-scoped ContextVar.
+        task_log_path = trace_path.with_suffix(".log")
+        task_log_path.parent.mkdir(parents=True, exist_ok=True)
+        task_handler = logging.FileHandler(
+            task_log_path, encoding="utf-8", delay=True,
+        )
+        task_handler.setFormatter(logging.Formatter(
+            "%(asctime)s %(levelname)s "
+            "task=%(task_id)s run=%(run_index)s "
+            "skill=%(skill)s category=%(category)s "
+            "trace=%(trace_name)s "
+            "%(name)s %(message)s"
+        ))
+        _worker_tid = _threading.get_ident()
+        task_handler.addFilter(lambda r: r.thread == _worker_tid)
+        task_handler.addFilter(TaskContextFilter())
+        logging.getLogger().addHandler(task_handler)
+
+        ctx_token = set_task_context(
+            task_id=effective_task_id,
+            run_index=run_index,
+            trace_name=trace_path.name,
+            writer=writer,
+        )
+
+        intent_head: str | None = None
+        if started is not None and started.instruction:
+            intent_head = started.instruction[:240]
+
         writer.write_meta(
             TraceMeta(
                 agent_version=__version__,
@@ -203,7 +244,12 @@ def _run_single_task(
                 started_at=datetime.now(timezone.utc).isoformat(),
                 trace_schema_version=TRACE_SCHEMA_VERSION,
                 harness_url=started.harness_url,
+                intent_head=intent_head,
             )
+        )
+        emit_arch(
+            category=ArchCategory.TASK_START,
+            details=intent_head or "",
         )
 
         loop = AgentLoop(
@@ -291,6 +337,12 @@ def _run_single_task(
             error_kind="INTERNAL_CRASH",
             error_msg=msg,
         )
+    finally:
+        if ctx_token is not None:
+            reset_task_context(ctx_token)
+        if task_handler is not None:
+            logging.getLogger().removeHandler(task_handler)
+            task_handler.close()
 
 
 def _cmd_run_task(args: argparse.Namespace) -> int:
@@ -607,7 +659,21 @@ def _cmd_triage(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format=(
+            "%(asctime)s %(levelname)s "
+            "task=%(task_id)s run=%(run_index)s "
+            "skill=%(skill)s category=%(category)s "
+            "trace=%(trace_name)s "
+            "%(name)s %(message)s"
+        ),
+    )
+    ctx_filter = TaskContextFilter()
+    root = logging.getLogger()
+    root.addFilter(ctx_filter)
+    for h in root.handlers:
+        h.addFilter(ctx_filter)
     parser = build_parser()
     args = parser.parse_args(argv)
 
