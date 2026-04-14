@@ -30,7 +30,7 @@ class AgentConfig:
 
     # Timeouts / steps (§4.1 calibrated defaults)
     max_steps: int = 40
-    task_timeout_sec: int = 300
+    task_timeout_sec: int = 600
     task_timeout_grace_sec: int = 20
     llm_http_timeout_sec: int = 30
     max_tool_result_bytes: int = 16384
