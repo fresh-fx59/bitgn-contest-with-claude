@@ -121,9 +121,18 @@ class StepValidator:
         reasons: List[str] = []
 
         # R1 — grounding-refs reachability.
+        # Case-insensitive match against seen_refs (successful reads) OR
+        # verified_absent (reads where the adapter returned file-not-found,
+        # a legitimate form of negative evidence).
+        seen_lower = {r.lower() for r in session.seen_refs}
+        absent_lower = {r.lower() for r in session.verified_absent}
         for ref in fn.grounding_refs:
-            if ref not in session.seen_refs:
-                reasons.append(f"grounding_ref {ref!r} never successfully read")
+            rl = ref.lower()
+            if rl in seen_lower:
+                continue
+            if rl in absent_lower:
+                continue
+            reasons.append(f"grounding_ref {ref!r} never successfully read")
 
         # R2 — OUTCOME_ERR_INTERNAL hard-gate.
         if fn.outcome == "OUTCOME_ERR_INTERNAL":

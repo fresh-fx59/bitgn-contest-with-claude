@@ -577,3 +577,66 @@ def test_validator_terminal_emits_arch_record(tmp_path) -> None:
         r.category == ArchCategory.TERMINAL and r.result == ArchResult.ACCEPT
         for r in arch
     )
+
+
+# === R1 correctness fixes: case-insensitive match + verified-absent ===
+
+def test_r1_is_case_insensitive_on_filename() -> None:
+    """AGENTS.MD in grounding_refs must match AGENTS.md in seen_refs.
+
+    Regression: 18 of 20 terminal REJECTs on trace
+    logs/20260414_184041 were this exact false positive.
+    """
+    session = Session()
+    session.seen_refs.add("AGENTS.md")
+    step = _mk_terminal("OUTCOME_OK", ["AGENTS.MD"])
+    v = StepValidator()
+    verdict = v.check_terminal(session, step)
+    assert verdict.ok, verdict.reasons
+
+
+def test_r1_is_case_insensitive_on_nested_path() -> None:
+    session = Session()
+    session.seen_refs.add("10_entities/cast/Renate.md")
+    step = _mk_terminal("OUTCOME_OK", ["10_entities/cast/renate.md"])
+    v = StepValidator()
+    verdict = v.check_terminal(session, step)
+    assert verdict.ok, verdict.reasons
+
+
+def test_r1_accepts_verified_absent_as_negative_evidence() -> None:
+    """Agent cites file-not-found result as grounding_ref. Legitimate."""
+    session = Session()
+    session.seen_refs.add("AGENTS.md")
+    session.attempted_reads.add("00_inbox/556_next-task.md")
+    session.verified_absent.add("00_inbox/556_next-task.md")
+    step = _mk_terminal(
+        "OUTCOME_OK", ["AGENTS.md", "00_inbox/556_next-task.md"],
+    )
+    v = StepValidator()
+    verdict = v.check_terminal(session, step)
+    assert verdict.ok, verdict.reasons
+
+
+def test_r1_rejects_ref_never_attempted_and_not_seen() -> None:
+    """Baseline stays: pure fabrication still rejected."""
+    session = Session()
+    session.seen_refs.add("AGENTS.md")
+    step = _mk_terminal("OUTCOME_OK", ["fabricated/never-touched.md"])
+    v = StepValidator()
+    verdict = v.check_terminal(session, step)
+    assert not verdict.ok
+    assert any("grounding_ref" in r for r in verdict.reasons)
+
+
+def test_r1_attempted_but_not_verified_absent_still_rejects() -> None:
+    """Attempt without file-not-found (e.g. permission denied) is NOT grounding."""
+    session = Session()
+    session.seen_refs.add("AGENTS.md")
+    session.attempted_reads.add("private/locked.md")
+    # Note: NOT in verified_absent (different error, e.g. permission)
+    step = _mk_terminal("OUTCOME_OK", ["AGENTS.md", "private/locked.md"])
+    v = StepValidator()
+    verdict = v.check_terminal(session, step)
+    assert not verdict.ok
+    assert any("grounding_ref" in r for r in verdict.reasons)
