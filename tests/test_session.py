@@ -58,3 +58,26 @@ def test_session_record_mutation() -> None:
     assert len(s.mutations) == 2
     assert s.mutations[0] == ("write", "outbox/reply.md")
     assert s.mutations[1] == ("delete", "50_finance/receipt_old.md")
+
+
+def test_session_tracks_attempted_reads() -> None:
+    s = Session()
+    assert s.attempted_reads == set()
+    s.attempted_reads.add("AGENTS.md")
+    s.attempted_reads.add("10_entities/cast/renate.md")
+    assert "AGENTS.md" in s.attempted_reads
+    assert len(s.attempted_reads) == 2
+
+
+def test_session_tracks_verified_absent() -> None:
+    s = Session()
+    assert s.verified_absent == set()
+    s.verified_absent.add("00_inbox/556_next-task.md")
+    assert "00_inbox/556_next-task.md" in s.verified_absent
+
+
+def test_session_new_fields_are_independent_of_seen_refs() -> None:
+    s = Session()
+    s.seen_refs.add("AGENTS.md")
+    assert s.attempted_reads == set()
+    assert s.verified_absent == set()

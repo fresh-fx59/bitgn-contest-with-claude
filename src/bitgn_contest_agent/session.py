@@ -17,6 +17,14 @@ _REPEAT_THRESHOLD = 3
 @dataclass(slots=True)
 class Session:
     seen_refs: set[str] = field(default_factory=set)
+    # Paths the agent attempted to read (regardless of success).
+    # Used by R1 to distinguish "never tried" (REJECT) from
+    # "tried but got not-found" (negative evidence, ACCEPT).
+    attempted_reads: set[str] = field(default_factory=set)
+    # Subset of attempted_reads where the adapter returned a
+    # not-found error. An agent may legitimately cite such a
+    # path in grounding_refs as negative evidence.
+    verified_absent: set[str] = field(default_factory=set)
     rulebook_loaded: bool = False
     identity_loaded: bool = False
     step: int = 0
