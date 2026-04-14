@@ -455,13 +455,15 @@ class StepValidator:
             )
             if cat == "MISMATCH" and conf >= 0.6:
                 detail = raw.get("detail", "") if isinstance(raw, dict) else ""
-                _LOG.info("[ARCH:TERMINAL_R4] mutation_mismatch actual=%d detail=%s",
-                         len(actual), detail)
+                _LOG.info("[ARCH:TERMINAL_R4] result=MISMATCH actual=%d conf=%.2f detail=%s",
+                         len(actual), conf, detail)
                 return (
                     f"mutation integrity: agent claims operations that don't match "
                     f"the {len(actual)} actual mutation(s). {detail}. "
                     f"Re-check which operations actually succeeded."
                 )
+            else:
+                _LOG.info("[ARCH:TERMINAL_R4] result=%s actual=%d conf=%.2f", cat, len(actual), conf)
         except Exception:
             _LOG.warning("R4 mutation integrity classifier failed", exc_info=True)
         return None

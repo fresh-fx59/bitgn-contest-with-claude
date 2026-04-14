@@ -145,7 +145,7 @@ def _build_initial_messages(
         if decision.skill_name is not None:
             body = router.skill_body_for(decision.skill_name)
             if body is not None:
-                _LOG.info("[ARCH:SKILL_ROUTER] task=%s skill=%s vars=%s", task_id, decision.skill_name, decision.extracted)
+                _LOG.info("[ARCH:SKILL_ROUTER] task=%s skill=%s source=%s conf=%.2f vars=%s", task_id, decision.skill_name, decision.source, decision.confidence, decision.extracted)
                 prefix = (
                     f"SKILL CONTEXT (router-injected): {decision.skill_name}\n"
                     f"Captured variables: {_json.dumps(decision.extracted)}\n\n"
