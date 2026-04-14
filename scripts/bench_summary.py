@@ -18,6 +18,7 @@ from typing import Any, Dict, Iterable
 from bitgn_contest_agent.bench.aggregate import aggregate_runs
 from bitgn_contest_agent.bench.divergence import is_divergent_step
 from bitgn_contest_agent.trace_schema import (
+    TraceArch,
     TraceMeta,
     TraceOutcome,
     TraceStep,
@@ -33,12 +34,13 @@ def _iter_jsonl_files(logs_dir: Path) -> Iterable[Path]:
     return sorted(Path(logs_dir).rglob("*.jsonl"))
 
 
-def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, list[int], list[str], int] | None:
+def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, list[int], list[str], int, bool] | None:
     meta: TraceMeta | None = None
     outcome: TraceOutcome | None = None
     divergence_steps: list[int] = []
     step_texts: list[str] = []
     step_wall_ms_sum: int = 0
+    arch_present: bool = False
     try:
         for rec in load_jsonl(path):
             if isinstance(rec, TraceMeta):
@@ -53,6 +55,8 @@ def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, 
                 if current_state:
                     step_texts.append(current_state)
                 step_wall_ms_sum += rec.wall_ms
+            elif isinstance(rec, TraceArch):
+                arch_present = True
             elif isinstance(rec, TraceOutcome):
                 outcome = rec
     except (ValueError, json.JSONDecodeError):
@@ -62,12 +66,12 @@ def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, 
     score = float(outcome.score) if outcome.score is not None else (
         1.0 if (outcome.reported == "OUTCOME_OK" and outcome.terminated_by == "report_completion") else 0.0
     )
-    return meta.task_id, score, outcome.total_steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum
+    return meta.task_id, score, outcome.total_steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum, arch_present
 
 
 def summarize(*, logs_dir: Path) -> Dict[str, Any]:
-    # by_task maps task_id -> list of (score, steps, meta, outcome, divergence_steps, step_texts, wall_ms_sum) per run
-    by_task: dict[str, list[tuple[float, int, TraceMeta, TraceOutcome, list[int], list[str], int]]] = defaultdict(list)
+    # by_task maps task_id -> list of (score, steps, meta, outcome, divergence_steps, step_texts, wall_ms_sum, arch_present) per run
+    by_task: dict[str, list[tuple[float, int, TraceMeta, TraceOutcome, list[int], list[str], int, bool]]] = defaultdict(list)
     total_runs = 0
     total_passes = 0
 
@@ -75,8 +79,8 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
         run = _extract_run(path)
         if run is None:
             continue
-        task_id, score, steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum = run
-        by_task[task_id].append((score, steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum))
+        task_id, score, steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum, arch_present = run
+        by_task[task_id].append((score, steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum, arch_present))
         total_runs += 1
         if score >= 1.0:
             total_passes += 1
@@ -147,6 +151,8 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
             "last_latency_ms": last_latency_ms,
             "timed_out": timed_out,
             "category": category,
+            # arch-logging additive field
+            "arch_present": any(e[7] for e in entries),
         }
 
     # aggregate_runs expects a list of per-run summary dicts. In Phase 1 every

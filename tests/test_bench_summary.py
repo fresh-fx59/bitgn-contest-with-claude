@@ -189,3 +189,54 @@ def test_summarize_populates_divergence_count_and_steps(tmp_path: Path) -> None:
     summary = summarize(logs_dir=tmp_path)
     assert summary["tasks"]["t1"]["divergence_steps"] == [1]
     assert summary["overall"]["divergence_count"] == 1
+
+
+def test_bench_summary_reports_arch_present(tmp_path) -> None:
+    from bitgn_contest_agent.trace_writer import TraceWriter
+    from bitgn_contest_agent.trace_schema import (
+        TraceMeta, TraceOutcome, TRACE_SCHEMA_VERSION,
+    )
+    from bitgn_contest_agent.arch_log import emit_arch
+    from bitgn_contest_agent.arch_constants import ArchCategory
+
+    run_dir = tmp_path / "run1"
+    run_dir.mkdir()
+
+    # Task A: has arch records
+    path_a = run_dir / "tA__run0.jsonl"
+    w = TraceWriter(path=path_a)
+    w.write_meta(TraceMeta(
+        agent_version="x", agent_commit="y", model="m", backend="b",
+        reasoning_effort="medium", benchmark="bench",
+        task_id="tA", task_index=0,
+        started_at="2026-04-14T00:00:00+00:00",
+        trace_schema_version=TRACE_SCHEMA_VERSION,
+    ))
+    emit_arch(w, category=ArchCategory.SKILL_ROUTER, skill="finance-lookup")
+    w.append_outcome(TraceOutcome(
+        terminated_by="report_completion", reported="OUTCOME_OK",
+        enforcer_bypassed=False, total_steps=1, total_llm_calls=1,
+        total_prompt_tokens=0, total_completion_tokens=0, score=1.0,
+    ))
+    w.close()
+
+    # Task B: no arch records
+    path_b = run_dir / "tB__run0.jsonl"
+    w = TraceWriter(path=path_b)
+    w.write_meta(TraceMeta(
+        agent_version="x", agent_commit="y", model="m", backend="b",
+        reasoning_effort="medium", benchmark="bench",
+        task_id="tB", task_index=1,
+        started_at="2026-04-14T00:00:00+00:00",
+        trace_schema_version=TRACE_SCHEMA_VERSION,
+    ))
+    w.append_outcome(TraceOutcome(
+        terminated_by="report_completion", reported="OUTCOME_OK",
+        enforcer_bypassed=False, total_steps=1, total_llm_calls=1,
+        total_prompt_tokens=0, total_completion_tokens=0, score=1.0,
+    ))
+    w.close()
+
+    summary = summarize(logs_dir=run_dir)
+    assert summary["tasks"]["tA"]["arch_present"] is True
+    assert summary["tasks"]["tB"]["arch_present"] is False
