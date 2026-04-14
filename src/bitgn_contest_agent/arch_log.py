@@ -28,6 +28,7 @@ _CONTEXT_DEFAULTS: dict[str, Any] = {
     "trace_name": "-",
     "skill": "-",
     "category": "-",
+    "writer": None,
 }
 
 _task_ctx: ContextVar[dict[str, Any]] = ContextVar(
@@ -38,6 +39,7 @@ _task_ctx: ContextVar[dict[str, Any]] = ContextVar(
 def set_task_context(
     *, task_id: str, run_index: int, trace_name: str,
     skill: str = "-", category: str = "-",
+    writer: Optional[TraceWriter] = None,
 ) -> Token:
     """Install task-scoped context for this worker. Returns a token
     that MUST be passed to reset_task_context() in a finally."""
@@ -47,6 +49,7 @@ def set_task_context(
         "trace_name": trace_name,
         "skill": skill,
         "category": category,
+        "writer": writer,
     }
     return _task_ctx.set(ctx)
 
@@ -65,13 +68,20 @@ def update_task_context(**fields: Any) -> None:
     ctx.update(fields)
 
 
+def current_writer() -> Optional[TraceWriter]:
+    ctx = _task_ctx.get()
+    return ctx.get("writer")
+
+
 class TaskContextFilter(logging.Filter):
     """Populates LogRecord with task context from _task_ctx."""
 
+    _LOG_ATTRS = ("task_id", "run_index", "trace_name", "skill", "category")
+
     def filter(self, record: logging.LogRecord) -> bool:
         ctx = _task_ctx.get()
-        for key, default in _CONTEXT_DEFAULTS.items():
-            setattr(record, key, ctx.get(key, default))
+        for key in self._LOG_ATTRS:
+            setattr(record, key, ctx.get(key, "-"))
         return True
 
 
@@ -101,7 +111,7 @@ def _format_arch_line(rec: TraceArch) -> str:
 
 
 def emit_arch(
-    writer: Optional[TraceWriter],
+    writer: Optional[TraceWriter] = None,
     *,
     category: ArchCategory,
     at_step: Optional[int] = None,
@@ -110,6 +120,8 @@ def emit_arch(
     """Emit an architecture event: writes to both JSONL (if writer)
     and stderr via the root logger. Single source of truth — the log
     line text is derived from the TraceArch record."""
+    if writer is None:
+        writer = current_writer()
     record = TraceArch(
         category=category,
         at_step=at_step,

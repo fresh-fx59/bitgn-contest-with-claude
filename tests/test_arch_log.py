@@ -140,6 +140,48 @@ def test_task_context_set_and_reset() -> None:
     assert rec2.task_id == "-"
 
 
+def test_emit_arch_uses_writer_from_context(tmp_path) -> None:
+    from bitgn_contest_agent.arch_log import (
+        emit_arch, set_task_context, reset_task_context,
+    )
+    from bitgn_contest_agent.trace_writer import TraceWriter
+    from bitgn_contest_agent.trace_schema import TraceArch, load_jsonl
+    p = tmp_path / "t.jsonl"
+    writer = TraceWriter(path=p)
+    token = set_task_context(
+        task_id="t1", run_index=0, trace_name="t.jsonl", writer=writer,
+    )
+    try:
+        emit_arch(category=ArchCategory.TASK_START, details="hi")
+    finally:
+        reset_task_context(token)
+        writer.close()
+    rec = next(iter(load_jsonl(p)))
+    assert isinstance(rec, TraceArch)
+    assert rec.details == "hi"
+
+
+def test_task_context_filter_does_not_inject_writer() -> None:
+    from bitgn_contest_agent.arch_log import (
+        TaskContextFilter, set_task_context, reset_task_context,
+    )
+    from bitgn_contest_agent.trace_writer import TraceWriter
+    token = set_task_context(
+        task_id="t1", run_index=0, trace_name="t.jsonl",
+        writer=TraceWriter(path=__import__("tempfile").mktemp(suffix=".jsonl")),
+    )
+    try:
+        f = TaskContextFilter()
+        rec = logging.LogRecord(
+            name="x", level=logging.INFO, pathname="", lineno=0,
+            msg="m", args=(), exc_info=None,
+        )
+        f.filter(rec)
+        assert not hasattr(rec, "writer")
+    finally:
+        reset_task_context(token)
+
+
 def test_update_task_context_merges_fields() -> None:
     from bitgn_contest_agent.arch_log import (
         TaskContextFilter, set_task_context, reset_task_context,

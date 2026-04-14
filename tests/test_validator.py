@@ -508,3 +508,72 @@ def test_trigger_entity_search_fires_only_once(monkeypatch) -> None:
     # Should be None (trigger already fired) — or if another rule fires, that's OK too
     # The key assertion is no second classifier call
     assert len(calls) == 1
+
+
+def test_validator_t1_rule_emits_arch_record(tmp_path) -> None:
+    """Tier 1 mutation_guard rule writes a TraceArch via context writer."""
+    from bitgn_contest_agent.arch_log import set_task_context, reset_task_context
+    from bitgn_contest_agent.trace_writer import TraceWriter
+    from bitgn_contest_agent.trace_schema import TraceArch, load_jsonl
+    from bitgn_contest_agent.arch_constants import (
+        ArchCategory, ValidatorT1Rule,
+    )
+    from bitgn_contest_agent.validator import StepValidator
+    from bitgn_contest_agent.schemas import NextStep
+    from bitgn_contest_agent.session import Session
+
+    p = tmp_path / "t.jsonl"
+    writer = TraceWriter(path=p)
+    token = set_task_context(
+        task_id="t1", run_index=0, trace_name="t.jsonl", writer=writer,
+    )
+    try:
+        v = StepValidator()
+        step = _mk_step(
+            {"tool": "write", "path": "outbox/foo.md", "content": "x"},
+            observation="about to write",
+            outcome_leaning="GATHERING_INFORMATION",
+        )
+        sess = Session()
+        v.check_step(step, sess, step_idx=2, max_steps=20,
+                     reactive_injected_this_step=False)
+    finally:
+        reset_task_context(token)
+        writer.close()
+
+    arch = [r for r in load_jsonl(p) if isinstance(r, TraceArch)]
+    assert any(
+        r.category == ArchCategory.VALIDATOR_T1
+        and r.rule == ValidatorT1Rule.MUTATION_GUARD
+        for r in arch
+    )
+
+
+def test_validator_terminal_emits_arch_record(tmp_path) -> None:
+    from bitgn_contest_agent.arch_log import set_task_context, reset_task_context
+    from bitgn_contest_agent.trace_writer import TraceWriter
+    from bitgn_contest_agent.trace_schema import TraceArch, load_jsonl
+    from bitgn_contest_agent.arch_constants import ArchCategory, ArchResult
+    from bitgn_contest_agent.validator import StepValidator
+    from bitgn_contest_agent.schemas import NextStep
+    from bitgn_contest_agent.session import Session
+
+    p = tmp_path / "t.jsonl"
+    writer = TraceWriter(path=p)
+    token = set_task_context(
+        task_id="t1", run_index=0, trace_name="t.jsonl", writer=writer,
+    )
+    try:
+        v = StepValidator()
+        step = _mk_terminal("OUTCOME_OK", [])
+        sess = Session()
+        v.check_terminal(sess, step)
+    finally:
+        reset_task_context(token)
+        writer.close()
+
+    arch = [r for r in load_jsonl(p) if isinstance(r, TraceArch)]
+    assert any(
+        r.category == ArchCategory.TERMINAL and r.result == ArchResult.ACCEPT
+        for r in arch
+    )
