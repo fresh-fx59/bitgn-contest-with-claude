@@ -385,6 +385,11 @@ class AgentLoop:
             if tool_result.ok:
                 for ref in tool_result.refs:
                     session.seen_refs.add(ref)
+                # Track successful mutations for terminal integrity check.
+                tool_name = getattr(fn, "tool", "")
+                if tool_name in ("write", "delete", "move"):
+                    mut_path = getattr(fn, "path", "") or getattr(fn, "from_name", "")
+                    session.mutations.append((tool_name, mut_path))
                 # Cache file content on successful read for body validation.
                 if getattr(fn, "tool", "") == "read":
                     read_path = getattr(fn, "path", "")
@@ -674,6 +679,7 @@ class AgentLoop:
                 seen_refs_count=len(session.seen_refs),
                 identity_loaded=session.identity_loaded,
                 rulebook_loaded=session.rulebook_loaded,
+                mutation_count=len(session.mutations),
             ),
             enforcer_verdict=enforcer_verdict,
             enforcer_action=enforcer_action,

@@ -111,6 +111,7 @@ class StepSessionAfter(_BaseRecord):
     seen_refs_count: int
     identity_loaded: bool
     rulebook_loaded: bool
+    mutation_count: int = 0
 
 
 class TraceStep(_BaseRecord):
