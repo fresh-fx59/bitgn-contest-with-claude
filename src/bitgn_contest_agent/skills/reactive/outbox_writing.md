@@ -33,10 +33,3 @@ Mentally confirm each of these. Do NOT call write again on this file.
    wrapped in double quotes (e.g. `subject: "Re: Invoice"`). Also
    values with `#`, `[`, `]`, `{`, `}`. If you see an unquoted colon
    value, note the error — the write is final and cannot be corrected.
-6. **Collection completeness** — if your attachments were selected from a
-   set (e.g. "oldest N invoices linked to entity X"), confirm you saw the
-   FULL population before picking. Did you list the source directory? Did
-   you read the `related_entity` or `issued_on` metadata of every
-   candidate — not just those whose filenames matched a keyword? A search
-   for "project_name" can miss invoices linked through the metadata field
-   under a different name.

@@ -29,12 +29,6 @@ _INBOX_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
-_COLLECTION_KEYWORDS = re.compile(
-    r"(invoic|attach|bundle|oldest\s+\d|newest\s+\d|"
-    r"linked.*invoic|send.*invoic|requesting.*invoic)",
-    re.IGNORECASE,
-)
-
 
 @dataclass(frozen=True, slots=True)
 class Verdict:
@@ -68,7 +62,6 @@ class StepValidator:
         self._triggers_fired: set[str] = set()
         self._observations: list[str] = []
         self._stale_gathering_fired: bool = False
-        self._collection_hint_fired: bool = False
 
     @property
     def corrections_emitted(self) -> int:
@@ -196,23 +189,6 @@ class StepValidator:
         # Stale gathering — DISABLED. The Tier 2 progress check at 60%
         # covers this with LLM judgment. The 40% threshold fired on 29%
         # of prod tasks and added noise without improving accuracy.
-
-        # Collection hint: inbox message referencing items to collect
-        if (
-            not self._collection_hint_fired
-            and tool == "read"
-            and _INBOX_KEYWORDS.search(obs)
-            and _COLLECTION_KEYWORDS.search(obs)
-        ):
-            self._collection_hint_fired = True
-            _LOG.info("[ARCH:VALIDATOR_T1] rule=collection_hint step=%d", step_idx)
-            return (
-                "VALIDATOR: This inbox message requests specific items "
-                "(invoices/attachments). Before selecting, list the FULL "
-                "source directory and read metadata (related_entity, "
-                "issued_on) of every candidate. Keyword search alone "
-                "misses items linked under different names."
-            )
 
         return None
 
