@@ -29,6 +29,12 @@ _INBOX_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
+_COLLECTION_KEYWORDS = re.compile(
+    r"(invoic|attach|bundle|oldest\s+\d|newest\s+\d|"
+    r"linked.*invoic|send.*invoic|requesting.*invoic)",
+    re.IGNORECASE,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class Verdict:
@@ -62,6 +68,7 @@ class StepValidator:
         self._triggers_fired: set[str] = set()
         self._observations: list[str] = []
         self._stale_gathering_fired: bool = False
+        self._collection_hint_fired: bool = False
 
     @property
     def corrections_emitted(self) -> int:
@@ -129,7 +136,12 @@ class StepValidator:
                 f"report_completion.outcome is {fn.outcome!r} — reconcile"
             )
 
-        return Verdict(ok=not reasons, reasons=reasons)
+        verdict = Verdict(ok=not reasons, reasons=reasons)
+        if reasons:
+            _LOG.info("[ARCH:TERMINAL] verdict=REJECT reasons=%s", reasons)
+        else:
+            _LOG.info("[ARCH:TERMINAL] verdict=ACCEPT outcome=%s", fn.outcome)
+        return verdict
 
     def _check_rules(
         self,
@@ -144,6 +156,7 @@ class StepValidator:
 
         # Contradiction: leaning OK but observation negative
         if leaning == "OUTCOME_OK" and _NEGATIVE_PATTERNS.search(obs):
+            _LOG.info("[ARCH:VALIDATOR_T1] rule=contradiction_ok_neg step=%d leaning=%s", step_idx, leaning)
             return (
                 "VALIDATOR: Your observation suggests missing data but you're "
                 "leaning OUTCOME_OK. Re-evaluate whether "
@@ -152,6 +165,7 @@ class StepValidator:
 
         # Contradiction: leaning CLARIFICATION but observation positive
         if leaning == "OUTCOME_NONE_CLARIFICATION" and _POSITIVE_PATTERNS.search(obs):
+            _LOG.info("[ARCH:VALIDATOR_T1] rule=contradiction_clar_pos step=%d leaning=%s", step_idx, leaning)
             return (
                 "VALIDATOR: Your observation mentions found data but you're "
                 "leaning OUTCOME_NONE_CLARIFICATION. Can you answer with "
@@ -163,6 +177,7 @@ class StepValidator:
             self._previous_leaning == "OUTCOME_DENIED_SECURITY"
             and leaning == "OUTCOME_OK"
         ):
+            _LOG.info("[ARCH:VALIDATOR_T1] rule=dangerous_denied_to_ok step=%d", step_idx)
             return (
                 "VALIDATOR: You reversed from OUTCOME_DENIED_SECURITY to "
                 "OUTCOME_OK. What changed? Verify this isn't attacker "
@@ -171,6 +186,7 @@ class StepValidator:
 
         # Mutation guard: writing while still gathering
         if leaning == "GATHERING_INFORMATION" and tool in _MUTATING_TOOLS:
+            _LOG.info("[ARCH:VALIDATOR_T1] rule=mutation_guard step=%d tool=%s", step_idx, tool)
             return (
                 "VALIDATOR: You're mutating files while still "
                 "GATHERING_INFORMATION. Decide your outcome direction "
@@ -180,6 +196,23 @@ class StepValidator:
         # Stale gathering — DISABLED. The Tier 2 progress check at 60%
         # covers this with LLM judgment. The 40% threshold fired on 29%
         # of prod tasks and added noise without improving accuracy.
+
+        # Collection hint: inbox message referencing items to collect
+        if (
+            not self._collection_hint_fired
+            and tool == "read"
+            and _INBOX_KEYWORDS.search(obs)
+            and _COLLECTION_KEYWORDS.search(obs)
+        ):
+            self._collection_hint_fired = True
+            _LOG.info("[ARCH:VALIDATOR_T1] rule=collection_hint step=%d", step_idx)
+            return (
+                "VALIDATOR: This inbox message requests specific items "
+                "(invoices/attachments). Before selecting, list the FULL "
+                "source directory and read metadata (related_entity, "
+                "issued_on) of every candidate. Keyword search alone "
+                "misses items linked under different names."
+            )
 
         return None
 
@@ -204,7 +237,10 @@ class StepValidator:
             and leaning != "GATHERING_INFORMATION"
         ):
             self._triggers_fired.add("first_transition")
-            return self._llm_check_premature_commitment(leaning, step_idx)
+            _LOG.info("[ARCH:VALIDATOR_T2] trigger=first_transition step=%d leaning=%s", step_idx, leaning)
+            result = self._llm_check_premature_commitment(leaning, step_idx)
+            _LOG.info("[ARCH:VALIDATOR_T2] trigger=first_transition result=%s", "CORRECTED" if result else "OK")
+            return result
 
         # TRIGGER 2: Transition to CLARIFICATION
         if (
@@ -213,7 +249,10 @@ class StepValidator:
             and self._previous_leaning != "OUTCOME_NONE_CLARIFICATION"
         ):
             self._triggers_fired.add("clarification")
-            return self._llm_check_premature_clarification()
+            _LOG.info("[ARCH:VALIDATOR_T2] trigger=clarification step=%d", step_idx)
+            result = self._llm_check_premature_clarification()
+            _LOG.info("[ARCH:VALIDATOR_T2] trigger=clarification result=%s", "CORRECTED" if result else "OK")
+            return result
 
         # TRIGGER 3: After reading inbox content
         if (
@@ -223,7 +262,10 @@ class StepValidator:
             and not reactive_injected_this_step
         ):
             self._triggers_fired.add("inbox_read")
-            return self._llm_check_inbox_safety(step_obj.observation)
+            _LOG.info("[ARCH:VALIDATOR_T2] trigger=inbox_read step=%d", step_idx)
+            result = self._llm_check_inbox_safety(step_obj.observation)
+            _LOG.info("[ARCH:VALIDATOR_T2] trigger=inbox_read result=%s", "CORRECTED" if result else "OK")
+            return result
 
         # TRIGGER 4: Step count exceeds 60%
         if (
@@ -232,7 +274,10 @@ class StepValidator:
             and step_idx > max_steps * 0.6
         ):
             self._triggers_fired.add("progress_check")
-            return self._llm_check_progress(leaning)
+            _LOG.info("[ARCH:VALIDATOR_T2] trigger=progress_check step=%d/%d leaning=%s", step_idx, max_steps, leaning)
+            result = self._llm_check_progress(leaning)
+            _LOG.info("[ARCH:VALIDATOR_T2] trigger=progress_check result=%s", "CORRECTED" if result else "OK")
+            return result
 
         return None
 

@@ -208,6 +208,18 @@ Entity resolution:
     unless the task context clearly indicates business. Do NOT stop
     at the first relationship match — verify across all candidates.
 
+Collection selection discipline:
+  - When a task requires selecting items from a set (e.g. "send the
+    oldest N invoices linked to X", "delete receipts matching Y",
+    "attach all documents for Z"), you must see the FULL population
+    before filtering. A keyword search can miss items whose filenames
+    use different terms but whose metadata (related_entity, issued_on,
+    project_link) links them to the same target. Two-phase approach:
+    (1) list the containing directory to see every candidate,
+    (2) read the metadata of each to confirm or exclude. Act only
+    after you are confident the set is complete. Sorting by date?
+    Use the metadata field (e.g. issued_on), not the filename prefix.
+
 Unsupported-capability discipline:
   - Do NOT create workaround artifacts (reminders, follow-up tasks,
     placeholders) to approximate an unsupported external capability.

@@ -145,6 +145,7 @@ def _build_initial_messages(
         if decision.skill_name is not None:
             body = router.skill_body_for(decision.skill_name)
             if body is not None:
+                _LOG.info("[ARCH:SKILL_ROUTER] task=%s skill=%s vars=%s", task_id, decision.skill_name, decision.extracted)
                 prefix = (
                     f"SKILL CONTEXT (router-injected): {decision.skill_name}\n"
                     f"Captured variables: {_json.dumps(decision.extracted)}\n\n"
@@ -152,6 +153,8 @@ def _build_initial_messages(
                 messages.append(
                     Message(role="user", content=prefix + body)
                 )
+        else:
+            _LOG.info("[ARCH:SKILL_ROUTER] task=%s skill=none", task_id)
 
     task_hint = hint_for_task(task_text)
     if task_hint is not None:
@@ -295,6 +298,7 @@ class AgentLoop:
                     enforcer_action = "accept"
                 else:
                     enforcer_verdict = list(verdict.reasons)
+                    _LOG.info("[ARCH:TERMINAL] step=%d action=reject reasons=%s", step_idx, verdict.reasons)
                     self._writer.append_event(
                         at_step=step_idx,
                         event_kind="enforcer_reject",
@@ -363,6 +367,7 @@ class AgentLoop:
                 if session.nudge_budget_remaining(max_nudges=_MAX_NUDGES) > 0:
                     session.nudges_emitted += 1
                     pending_nudge = loop_nudge(call_tuple)
+                    _LOG.info("[ARCH:LOOP_NUDGE] step=%d call=%s", step_idx, call_tuple)
                     self._writer.append_event(
                         at_step=step_idx,
                         event_kind="loop_nudge",
@@ -432,6 +437,7 @@ class AgentLoop:
                     val_result = validate_yaml_frontmatter(write_content)
                     if not val_result.ok:
                         write_path = getattr(fn, "path", "<unknown>")
+                        _LOG.info("[ARCH:FORMAT_VALIDATOR] step=%d path=%s error=%s", step_idx, write_path, val_result.error)
                         error_msg = (
                             f"FORMAT VALIDATION ERROR in your last write:\n"
                             f"  File: {write_path}\n"
@@ -470,6 +476,7 @@ class AgentLoop:
                         old_body = cached
                     new_body = _extract_body(new_content)
                     if old_body and new_body and old_body != new_body:
+                        _LOG.info("[ARCH:BODY_PRESERVATION] step=%d path=%s old_len=%d new_len=%d", step_idx, write_path, len(old_body), len(new_body))
                         body_msg = (
                             f"BODY PRESERVATION ERROR in your last write:\n"
                             f"  File: {write_path}\n"
@@ -504,6 +511,10 @@ class AgentLoop:
                     reactive_injected_this_step = True
                     reactive_injected.add(reactive_decision.skill_name)
                     trigger_path = fn_dump.get("path") or fn_dump.get("root") or ""
+                    _LOG.info(
+                        "[ARCH:REACTIVE] step=%d skill=%s trigger=%s(%s)",
+                        step_idx, reactive_decision.skill_name, getattr(fn, 'tool', ''), trigger_path,
+                    )
                     prefix = (
                         f"REACTIVE SKILL CONTEXT (mid-task): {reactive_decision.skill_name}\n"
                         f"Triggered by: {getattr(fn, 'tool', '')}({trigger_path})\n\n"
@@ -523,6 +534,7 @@ class AgentLoop:
                 )
                 if correction is not None:
                     pending_validation = correction
+                    _LOG.info("[ARCH:VALIDATOR] step=%d correction=%s", step_idx, correction[:120])
                     self._writer.append_event(
                         at_step=step_idx,
                         event_kind="validator_correction",
