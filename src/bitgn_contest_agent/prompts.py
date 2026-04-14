@@ -207,6 +207,16 @@ Entity resolution:
     business_partner). Prefer the personal/romantic interpretation
     unless the task context clearly indicates business. Do NOT stop
     at the first relationship match — verify across all candidates.
+  - Entity-graph traversal for finance lookups: when a task asks
+    about a person's bill, invoice, receipt, or financial record,
+    do NOT search finance directories using the person's display
+    name as a keyword. Instead: (1) read the person's canonical
+    entity/cast record first, (2) extract their structured
+    identifiers — account number, vendor alias, customer ID,
+    company name, or any linked-entity reference, (3) search
+    finance records using those canonical identifiers. The person's
+    display name rarely appears verbatim in financial records;
+    the canonical identifier is the reliable lookup key.
 
 Unsupported-capability discipline:
   - Do NOT create workaround artifacts (reminders, follow-up tasks,

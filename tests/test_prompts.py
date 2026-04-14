@@ -94,6 +94,13 @@ def test_system_prompt_denies_url_capture_as_security() -> None:
     assert "DENIED_SECURITY" in p
 
 
+def test_entity_graph_finance_guidance_in_prompt() -> None:
+    """Entity-graph traversal guidance for finance lookups must be present."""
+    p = prompts.system_prompt()
+    assert "canonical identifier" in p.lower() or "canonical identifiers" in p.lower()
+    assert "finance" in p.lower()
+
+
 def test_system_prompt_stays_bit_identical_for_cache_hits() -> None:
     """Architectural invariant: the system prompt must not vary per task.
     Two calls without HINT must return byte-identical strings, proving
