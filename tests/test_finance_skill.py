@@ -24,6 +24,14 @@ class TestFinanceLookupSkillLoads:
         assert "YYYY_MM_DD" not in body
 
 
+class TestFinanceLookupDateGuidance:
+    def test_skill_has_date_tiebreaker_guidance(self) -> None:
+        from bitgn_contest_agent.skill_loader import load_skill
+        skill = load_skill(SKILLS_DIR / "finance_lookup.md")
+        body_lower = skill.body.lower()
+        assert "closest" in body_lower or "nearest" in body_lower or "tiebreak" in body_lower
+
+
 class TestFinanceLookupRouting:
     def test_routes_on_charge_total_line_item(self) -> None:
         router = load_router(skills_dir=SKILLS_DIR)
@@ -37,6 +45,13 @@ class TestFinanceLookupRouting:
         router = load_router(skills_dir=SKILLS_DIR)
         decision = router.route(
             "What was the total from Hörnbach Österreich for seal set 139 days ago?"
+        )
+        assert decision.skill_name == "finance-lookup"
+
+    def test_routes_receipt_total_relative(self) -> None:
+        router = load_router(skills_dir=SKILLS_DIR)
+        decision = router.route(
+            "How much did Acme Corp charge me for widget repairs 51 days ago?"
         )
         assert decision.skill_name == "finance-lookup"
 
