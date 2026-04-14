@@ -30,8 +30,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
+
+# repo root on path so this script runs from the checkout
+_here = Path(__file__).resolve()
+_repo_root = _here.parent.parent
+if str(_repo_root / "src") not in sys.path:
+    sys.path.insert(0, str(_repo_root / "src"))
 
 # ---------------------------------------------------------------------------
 # Intent-to-position map (stable across 5+ PROD runs, 101/104 confirmed)
@@ -145,7 +151,52 @@ def _classify_failure(task: dict) -> str:
 # Core reporting
 # ---------------------------------------------------------------------------
 
-def build_intent_report(bench: dict) -> dict[str, dict]:
+def _collect_arch_rejects_per_task(trace_dir: Path) -> dict[str, list[str]]:
+    """Return {task_id: [reject reason, ...]} from trace JSONL files.
+
+    Used by --with-arch to aggregate validator REJECT reasons per intent.
+    Lazy import so intent_report still runs when arch_constants is absent.
+    """
+    from bitgn_contest_agent.arch_constants import ArchCategory, ArchResult
+    from bitgn_contest_agent.trace_schema import TraceArch, TraceMeta, load_jsonl
+
+    out: dict[str, list[str]] = defaultdict(list)
+    for jsonl in sorted(trace_dir.glob("t*.jsonl")):
+        task_id: str | None = None
+        try:
+            for rec in load_jsonl(jsonl):
+                if isinstance(rec, TraceMeta):
+                    task_id = rec.task_id
+                elif isinstance(rec, TraceArch):
+                    if task_id and rec.result == ArchResult.REJECT:
+                        for r in rec.reasons or []:
+                            out[task_id].append(r)
+        except Exception as exc:  # noqa: BLE001
+            print(f"# arch read skipped for {jsonl.name}: {exc}",
+                  file=sys.stderr)
+    return dict(out)
+
+
+def _normalise_reason(reason: str) -> str:
+    """Collapse near-duplicate reasons into stable buckets for counting."""
+    r = reason.lower()
+    if "grounding_ref" in r and "never successfully read" in r:
+        return "grounding_ref never read"
+    if "mutation integrity" in r:
+        return "mutation integrity mismatch"
+    if "contradiction" in r:
+        return "contradiction"
+    if "dangerous" in r and "denied" in r:
+        return "dangerous denied->ok"
+    # fall back: keep the first 80 chars as a cluster key
+    return reason[:80]
+
+
+def build_intent_report(
+    bench: dict,
+    *,
+    arch_rejects_by_task: dict[str, list[str]] | None = None,
+) -> dict[str, dict]:
     """Build per-intent aggregation from a bench summary."""
     tasks = bench.get("tasks", {})
     report: dict[str, dict] = {}
@@ -181,6 +232,12 @@ def build_intent_report(bench: dict) -> dict[str, dict]:
         pass_rate = passes / total if total else 0.0
         baseline = HISTORICAL_BASELINE.get(intent, 0.0)
 
+        reject_buckets: Counter = Counter()
+        if arch_rejects_by_task is not None:
+            for t in intent_tasks:
+                for reason in arch_rejects_by_task.get(t["tid"], []):
+                    reject_buckets[_normalise_reason(reason)] += 1
+
         report[intent] = {
             "total": total,
             "passes": passes,
@@ -190,6 +247,7 @@ def build_intent_report(bench: dict) -> dict[str, dict]:
             "delta": pass_rate - baseline,
             "tasks": intent_tasks,
             "failure_types": defaultdict(int),
+            "reject_buckets": dict(reject_buckets),
         }
 
         for t in intent_tasks:
@@ -275,6 +333,13 @@ def print_report(
                                      key=lambda x: -x[1]):
                 print(f"    {ft}: {count}")
 
+        # Arch validator REJECT summary (if --with-arch was provided)
+        rb = r.get("reject_buckets") or {}
+        if rb:
+            print("  Validator REJECT reasons (all tasks in intent):")
+            for reason, count in sorted(rb.items(), key=lambda x: -x[1]):
+                print(f"    {reason}: {count}")
+
         # Individual failures
         for t in r["tasks"]:
             if t["passed"]:
@@ -311,6 +376,8 @@ def build_json_output(
             entry["delta_vs_prev"] = round(
                 r["pass_rate"] - baseline_report[intent]["pass_rate"], 4
             )
+        if r.get("reject_buckets"):
+            entry["reject_buckets"] = r["reject_buckets"]
         # Failed task details
         entry["failures"] = [
             {
@@ -349,10 +416,27 @@ def main() -> int:
                    help="Filter to specific intents (repeatable)")
     p.add_argument("--json", action="store_true",
                    help="Output JSON instead of human-readable text")
+    p.add_argument("--with-arch", action="store_true",
+                   help="Join arch REJECT reasons per intent from trace_dir "
+                        "(overall.trace_dir or --trace-dir)")
+    p.add_argument("--trace-dir", type=Path, default=None,
+                   help="Override trace dir used by --with-arch")
     args = p.parse_args()
 
     bench = _load(args.bench)
-    report = build_intent_report(bench)
+
+    arch_rejects: dict[str, list[str]] | None = None
+    if args.with_arch:
+        td = args.trace_dir
+        if td is None:
+            td_str = bench.get("overall", {}).get("trace_dir")
+            td = Path(td_str) if td_str else None
+        if td is None or not td.is_dir():
+            print("error: --with-arch needs a valid trace dir", file=sys.stderr)
+            return 2
+        arch_rejects = _collect_arch_rejects_per_task(td)
+
+    report = build_intent_report(bench, arch_rejects_by_task=arch_rejects)
 
     # Filter intents if requested
     if args.intents:
@@ -365,7 +449,7 @@ def main() -> int:
     baseline_report = None
     if args.baseline:
         baseline_bench = _load(args.baseline)
-        baseline_report = build_intent_report(baseline_bench)
+        baseline_report = build_intent_report(baseline_bench)  # no arch join for baseline
 
     if args.json:
         output = build_json_output(
