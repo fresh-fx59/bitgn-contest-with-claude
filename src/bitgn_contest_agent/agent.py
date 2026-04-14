@@ -63,6 +63,31 @@ _ROUTER_SOURCE_MAP = {
 }
 
 
+def _record_read_attempt(
+    session: "Session", path: str, tool_result: "ToolResult"
+) -> None:
+    """Record a read dispatch into the session tracking sets.
+
+    Called unconditionally for every `read` tool call, regardless of
+    success. The validator's R1 rule uses `verified_absent` to accept
+    grounding_refs that point to files the agent has evidence don't
+    exist (legitimate negative grounding).
+    """
+    if not path:
+        return
+    session.attempted_reads.add(path)
+    if tool_result.ok:
+        return
+    err = (tool_result.error or "").lower()
+    # Adapter surfaces ENOENT as a plain-text "file not found" message
+    # (see src/bitgn_contest_agent/adapter/pcm.py). We match substrings
+    # rather than error_code because pcm currently labels everything
+    # UNKNOWN; tightening the adapter classification is a separate
+    # concern.
+    if "file not found" in err or "no such file" in err:
+        session.verified_absent.add(path)
+
+
 @dataclass(frozen=True, slots=True)
 class AgentLoopResult:
     terminated_by: str
@@ -418,16 +443,21 @@ class AgentLoop:
                     )
 
             tool_result = self._adapter.dispatch(fn)
+            tool_name = getattr(fn, "tool", "")
+            # Track every read attempt (success or failure) for R1 validator.
+            if tool_name == "read":
+                _record_read_attempt(
+                    session, getattr(fn, "path", ""), tool_result
+                )
             if tool_result.ok:
                 for ref in tool_result.refs:
                     session.seen_refs.add(ref)
                 # Track successful mutations for terminal integrity check.
-                tool_name = getattr(fn, "tool", "")
                 if tool_name in ("write", "delete", "move"):
                     mut_path = getattr(fn, "path", "") or getattr(fn, "from_name", "")
                     session.mutations.append((tool_name, mut_path))
                 # Cache file content on successful read for body validation.
-                if getattr(fn, "tool", "") == "read":
+                if tool_name == "read":
                     read_path = getattr(fn, "path", "")
                     if read_path and tool_result.content:
                         try:
