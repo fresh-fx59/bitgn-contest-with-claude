@@ -517,8 +517,8 @@ class AgentLoop:
                     reactive_injected.add(reactive_decision.skill_name)
                     trigger_path = fn_dump.get("path") or fn_dump.get("root") or ""
                     _LOG.info(
-                        "[ARCH:REACTIVE] step=%d skill=%s trigger=%s(%s)",
-                        step_idx, reactive_decision.skill_name, getattr(fn, 'tool', ''), trigger_path,
+                        "[ARCH:REACTIVE] step=%d skill=%s source=%s conf=%.2f trigger=%s(%s)",
+                        step_idx, reactive_decision.skill_name, reactive_decision.source, reactive_decision.confidence, getattr(fn, 'tool', ''), trigger_path,
                     )
                     prefix = (
                         f"REACTIVE SKILL CONTEXT (mid-task): {reactive_decision.skill_name}\n"
