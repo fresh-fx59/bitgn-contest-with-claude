@@ -549,11 +549,12 @@ class StepValidator:
                     f"Re-check which operations actually succeeded."
                 )
             else:
+                result_val = ArchResult(cat) if cat in ArchResult.__members__ else None
                 emit_arch(
                     category=ArchCategory.TERMINAL_R4,
-                    result=ArchResult(cat),
+                    result=result_val,
                     confidence=conf,
-                    details=f"actual={len(actual)}",
+                    details=f"actual={len(actual)} cat={cat}",
                 )
         except Exception:
             _LOG.warning("R4 mutation integrity classifier failed", exc_info=True)
