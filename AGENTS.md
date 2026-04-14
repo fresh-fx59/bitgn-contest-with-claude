@@ -11,6 +11,7 @@ This AGENTS.md is the top-level operating contract for the workspace.
 - Keep diffs small, reviewable, and reversible.
 - Run lint, typecheck, tests, and static analysis after changes.
 - Final reports must include changed files, simplifications made, and remaining risks.
+- Default plan execution mode is **subagent-driven** (one subagent per task with review between tasks). Do not ask the user which execution mode to use — proceed with subagents unless the user explicitly overrides.
 
 ## Project constraints
 Use this section for stable, repo-wide constraints the agent must follow by default.
