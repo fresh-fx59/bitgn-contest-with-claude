@@ -29,6 +29,11 @@ _INBOX_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
+_FINANCE_DIR_PATTERNS = re.compile(
+    r"(financ|receipt|invoice|bill|accounting|ledger)",
+    re.IGNORECASE,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class Verdict:
@@ -260,6 +265,20 @@ class StepValidator:
             _LOG.info("[ARCH:VALIDATOR_T2] trigger=progress_check result=%s", "CORRECTED" if result else "OK")
             return result
 
+        # TRIGGER 5: Search in finance directory by possible person name
+        if (
+            "entity_finance_search" not in self._triggers_fired
+            and tool in ("search", "find")
+        ):
+            fn_root = getattr(step_obj.function, "root", "")
+            fn_pattern = getattr(step_obj.function, "pattern", "") or getattr(step_obj.function, "name", "")
+            if _FINANCE_DIR_PATTERNS.search(fn_root) and fn_pattern:
+                self._triggers_fired.add("entity_finance_search")
+                _LOG.info("[ARCH:VALIDATOR_T2] trigger=entity_finance_search step=%d pattern=%s", step_idx, fn_pattern)
+                result = self._llm_check_entity_search(fn_pattern, fn_root)
+                _LOG.info("[ARCH:VALIDATOR_T2] trigger=entity_finance_search result=%s", "CORRECTED" if result else "OK")
+                return result
+
         return None
 
     def _llm_check_premature_commitment(
@@ -363,6 +382,38 @@ class StepValidator:
                 )
         except Exception:
             _LOG.warning("validator trigger 4 classifier failed", exc_info=True)
+        return None
+
+    def _llm_check_entity_search(self, search_pattern: str, search_root: str) -> Optional[str]:
+        """Check if the search pattern is a person name rather than a canonical identifier."""
+        try:
+            raw = classifier.classify(
+                system=(
+                    "You evaluate whether a search pattern is a person's display name "
+                    "or a canonical business identifier (account number, vendor code, "
+                    "company name, customer ID). "
+                    "Respond ONLY with JSON: "
+                    '{"category": "PERSON_NAME" or "IDENTIFIER", "confidence": 0.0-1.0}'
+                ),
+                user=(
+                    f"An agent is searching in '{search_root}' for: '{search_pattern}'. "
+                    f"Is this a person's display name or a canonical business identifier?"
+                ),
+            )
+            cat, conf = classifier.parse_response(
+                raw, valid_categories={"PERSON_NAME", "IDENTIFIER"}
+            )
+            if cat == "PERSON_NAME" and conf >= 0.6:
+                return (
+                    "VALIDATOR: You're searching finance records by a person's display "
+                    "name. Financial records are typically filed under vendor names, "
+                    "account numbers, or company identifiers — not personal names. "
+                    "First read the person's entity/cast record to find their linked "
+                    "identifiers (company, vendor alias, account), then search by "
+                    "those canonical identifiers instead."
+                )
+        except Exception:
+            _LOG.warning("validator trigger 5 classifier failed", exc_info=True)
         return None
 
     def _check_mutation_integrity(

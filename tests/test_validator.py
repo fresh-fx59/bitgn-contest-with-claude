@@ -418,3 +418,93 @@ def test_r4_passes_when_mutations_consistent(monkeypatch) -> None:
     v = StepValidator()
     verdict = v.check_terminal(session, step)
     assert verdict.ok
+
+
+# === Tier 2 trigger: entity-graph search ===
+
+def test_trigger_entity_search_fires_on_finance_name_search(monkeypatch) -> None:
+    """Trigger fires when agent searches finance dirs by what looks like a person name."""
+    import bitgn_contest_agent.classifier as cls_mod
+
+    def fake_classify(*, system, user):
+        return {"category": "PERSON_NAME", "confidence": 0.85}
+
+    monkeypatch.setattr(cls_mod, "classify", fake_classify)
+
+    v = StepValidator()
+    # Step 1: gathering info
+    s1 = _mk_step({"tool": "read", "path": "x"}, observation="exploring", outcome_leaning="GATHERING_INFORMATION")
+    v.check_step(s1, Session(), step_idx=3, max_steps=40)
+
+    # Step 2: agent searches finance dir with what looks like a person name
+    s2 = _mk_step(
+        {"tool": "search", "root": "50_finance", "pattern": "John Smith", "limit": 10},
+        observation="searched 50_finance for John Smith, 0 matches",
+        outcome_leaning="GATHERING_INFORMATION",
+    )
+    correction = v.check_step(s2, Session(), step_idx=4, max_steps=40)
+    assert correction is not None
+    assert "entity" in correction.lower() or "identifier" in correction.lower() or "canonical" in correction.lower()
+
+
+def test_trigger_entity_search_does_not_fire_for_non_finance(monkeypatch) -> None:
+    """Trigger should not fire for searches outside finance directories."""
+    import bitgn_contest_agent.classifier as cls_mod
+
+    calls = []
+    def fake_classify(*, system, user):
+        calls.append(1)
+        return {"category": "PERSON_NAME", "confidence": 0.85}
+
+    monkeypatch.setattr(cls_mod, "classify", fake_classify)
+
+    v = StepValidator()
+    s1 = _mk_step({"tool": "read", "path": "x"}, observation="exploring", outcome_leaning="GATHERING_INFORMATION")
+    v.check_step(s1, Session(), step_idx=3, max_steps=40)
+
+    # Search in a non-finance directory — should NOT trigger
+    s2 = _mk_step(
+        {"tool": "search", "root": "30_knowledge", "pattern": "John Smith", "limit": 10},
+        observation="searched knowledge base for John Smith",
+        outcome_leaning="GATHERING_INFORMATION",
+    )
+    correction = v.check_step(s2, Session(), step_idx=4, max_steps=40)
+    assert correction is None
+    assert len(calls) == 0  # no classifier call
+
+
+def test_trigger_entity_search_fires_only_once(monkeypatch) -> None:
+    """Entity search trigger fires at most once per run."""
+    import bitgn_contest_agent.classifier as cls_mod
+
+    calls = []
+    def fake_classify(*, system, user):
+        calls.append(1)
+        return {"category": "PERSON_NAME", "confidence": 0.85}
+
+    monkeypatch.setattr(cls_mod, "classify", fake_classify)
+
+    v = StepValidator()
+    s1 = _mk_step({"tool": "read", "path": "x"}, observation="exploring", outcome_leaning="GATHERING_INFORMATION")
+    v.check_step(s1, Session(), step_idx=3, max_steps=40)
+
+    # First finance search — should trigger
+    s2 = _mk_step(
+        {"tool": "search", "root": "50_finance", "pattern": "Jane Doe", "limit": 10},
+        observation="searched finance for Jane Doe",
+        outcome_leaning="GATHERING_INFORMATION",
+    )
+    corr1 = v.check_step(s2, Session(), step_idx=4, max_steps=40)
+    assert corr1 is not None
+    assert len(calls) == 1
+
+    # Second finance search — should NOT trigger again
+    s3 = _mk_step(
+        {"tool": "search", "root": "50_finance/invoices", "pattern": "Bob Jones", "limit": 10},
+        observation="searched invoices for Bob Jones",
+        outcome_leaning="GATHERING_INFORMATION",
+    )
+    corr2 = v.check_step(s3, Session(), step_idx=5, max_steps=40)
+    # Should be None (trigger already fired) — or if another rule fires, that's OK too
+    # The key assertion is no second classifier call
+    assert len(calls) == 1
