@@ -36,6 +36,7 @@ When you find candidate files through any search path:
 
 - Read each candidate fully
 - **Primary match criteria: vendor name + item/line-item description.** These are the definitive identifiers.
+- **Vendor mismatch is disqualifying.** If none of the candidate records' vendor fields match the vendor named in the task, do NOT answer with a number from any of them. Widen the search (Step 2.2 partial match, Step 2.3 different artifact, Step 2.4 broader listing) before falling back to `OUTCOME_NONE_CLARIFICATION`. A numeric answer pulled from a different vendor's invoice is worse than asking for clarification.
 - **Date is contextual, NOT a strict filter.** The "N days ago" in the task is an approximate hint. The actual record's filing date or transaction date may differ significantly from the computed anchor date. Do NOT reject a record just because the date doesn't align — if vendor and item match, it IS the right record.
 - **Multiple matches for the same vendor + item — use date as tiebreaker:** When two or more records match on vendor and item description, compute the target date (today minus N days) and select the record whose date is **closest** to that target. The "N days ago" phrasing points to a specific transaction in time; when all other fields match, temporal proximity is the tiebreaker.
 - **Single match:** Accept it regardless of date distance — the vendor + item match is sufficient.
