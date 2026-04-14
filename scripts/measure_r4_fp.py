@@ -87,11 +87,19 @@ def _replay_task(jsonl: Path) -> dict | None:
         return None
 
     # Apply the new R1 rule.
-    seen_lower = {r.lower() for r in seen_refs}
-    absent_lower = {r.lower() for r in verified_absent}
+    # Normalise with lstrip("/") because the live adapter strips leading
+    # slashes from tool_result.refs before seeding session.seen_refs,
+    # while the raw read path (our proxy) keeps the slash as-written.
+    # Without this the proxy reports fake FPs that the real validator
+    # never produces.
+    def _norm(p: str) -> str:
+        return p.lstrip("/").lower()
+
+    seen_lower = {_norm(r) for r in seen_refs}
+    absent_lower = {_norm(r) for r in verified_absent}
     new_rejects: list[str] = []
     for ref in grounding_refs_claimed:
-        rl = ref.lower()
+        rl = _norm(ref)
         if rl in seen_lower or rl in absent_lower:
             continue
         new_rejects.append(f"grounding_ref {ref!r} never successfully read")
