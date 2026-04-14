@@ -44,3 +44,17 @@ def test_nudge_budget_is_tracked_separately() -> None:
     assert s.nudge_budget_remaining(max_nudges=2) == 0
     s.nudges_emitted = 0
     assert s.nudge_budget_remaining(max_nudges=2) == 2
+
+
+def test_session_mutations_default_empty() -> None:
+    s = Session()
+    assert s.mutations == []
+
+
+def test_session_record_mutation() -> None:
+    s = Session()
+    s.mutations.append(("write", "outbox/reply.md"))
+    s.mutations.append(("delete", "50_finance/receipt_old.md"))
+    assert len(s.mutations) == 2
+    assert s.mutations[0] == ("write", "outbox/reply.md")
+    assert s.mutations[1] == ("delete", "50_finance/receipt_old.md")

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Tuple
+from typing import Deque, List, Tuple
 
 
 _RECENT_WINDOW = 6
@@ -24,6 +24,7 @@ class Session:
         default_factory=lambda: deque(maxlen=_RECENT_WINDOW)
     )
     nudges_emitted: int = 0
+    mutations: List[Tuple[str, str]] = field(default_factory=list)
 
     def loop_nudge_needed(self, call: Tuple[str, ...]) -> bool:
         """Record a (tool, canonical_args) tuple; return True if the same
