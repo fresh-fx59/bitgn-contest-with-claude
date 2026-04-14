@@ -15,6 +15,7 @@ from bitgn_contest_agent.trace_schema import (
     StepLLMStats,
     StepSessionAfter,
     StepToolResult,
+    TraceArch,
     TraceEvent,
     TraceMeta,
     TraceOutcome,
@@ -107,6 +108,10 @@ class TraceWriter:
             repeated_tuple=repeated_tuple,
         )
         self._write(rec.model_dump(mode="json"))
+
+    def append_arch(self, record: TraceArch) -> None:
+        """Write a TraceArch record (architecture decision event)."""
+        self._write(record.model_dump(mode="json"))
 
     def append_outcome(self, outcome: TraceOutcome) -> None:
         self._write(outcome.model_dump(mode="json"))

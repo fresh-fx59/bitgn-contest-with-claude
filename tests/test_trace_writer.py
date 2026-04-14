@@ -218,3 +218,24 @@ def test_writer_is_thread_safe_per_instance(tmp_path: Path) -> None:
     records = list(load_jsonl(path))
     # 1 meta + 100 events
     assert len(records) == 101
+
+
+def test_append_arch_writes_record(tmp_path) -> None:
+    from bitgn_contest_agent.trace_writer import TraceWriter
+    from bitgn_contest_agent.trace_schema import TraceArch, load_jsonl
+    from bitgn_contest_agent.arch_constants import (
+        ArchCategory, ValidatorT1Rule
+    )
+    p = tmp_path / "t.jsonl"
+    w = TraceWriter(path=p)
+    w.append_arch(TraceArch(
+        category=ArchCategory.VALIDATOR_T1,
+        at_step=2,
+        rule=ValidatorT1Rule.MUTATION_GUARD,
+        details="tool=write",
+    ))
+    w.close()
+    records = list(load_jsonl(p))
+    assert len(records) == 1
+    assert isinstance(records[0], TraceArch)
+    assert records[0].rule == ValidatorT1Rule.MUTATION_GUARD
