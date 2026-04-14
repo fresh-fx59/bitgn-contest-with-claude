@@ -143,3 +143,88 @@ def test_trace_meta_harness_url_defaults_to_none() -> None:
         trace_schema_version=TRACE_SCHEMA_VERSION,
     )
     assert m.harness_url is None
+
+
+def test_trace_arch_minimal() -> None:
+    from bitgn_contest_agent.trace_schema import TraceArch
+    from bitgn_contest_agent.arch_constants import ArchCategory
+    rec = TraceArch(category=ArchCategory.SKILL_ROUTER)
+    assert rec.kind == "arch"
+    assert rec.at_step is None  # pre-task convention
+    assert rec.category == ArchCategory.SKILL_ROUTER
+    assert rec.rule is None
+    assert rec.trigger is None
+
+
+def test_trace_arch_full_fields() -> None:
+    from bitgn_contest_agent.trace_schema import TraceArch
+    from bitgn_contest_agent.arch_constants import (
+        ArchCategory, ValidatorT1Rule, ArchResult, RouterSource
+    )
+    rec = TraceArch(
+        category=ArchCategory.VALIDATOR_T1,
+        at_step=3,
+        rule=ValidatorT1Rule.MUTATION_GUARD,
+        result=ArchResult.OK,
+        source=RouterSource.TIER1_REGEX,
+        confidence=0.87,
+        details="tool=write",
+        emitted_at="2026-04-14T18:22:31.104+00:00",
+    )
+    dumped = rec.model_dump(mode="json")
+    assert dumped["category"] == "VALIDATOR_T1"
+    assert dumped["rule"] == "mutation_guard"
+    assert dumped["source"] == "tier1_regex"
+
+
+def test_trace_arch_in_kind_map() -> None:
+    from bitgn_contest_agent.trace_schema import _KIND_TO_MODEL, TraceArch
+    assert _KIND_TO_MODEL["arch"] is TraceArch
+
+
+def test_trace_arch_load_jsonl_roundtrip(tmp_path) -> None:
+    from bitgn_contest_agent.trace_schema import TraceArch, load_jsonl
+    from bitgn_contest_agent.arch_constants import (
+        ArchCategory, ValidatorT2Trigger, ArchResult
+    )
+    p = tmp_path / "t.jsonl"
+    rec = TraceArch(
+        category=ArchCategory.VALIDATOR_T2,
+        at_step=5,
+        trigger=ValidatorT2Trigger.FIRST_TRANSITION,
+        result=ArchResult.CORRECTED,
+    )
+    p.write_text(json.dumps(rec.model_dump(mode="json")) + "\n", encoding="utf-8")
+    read = list(load_jsonl(p))
+    assert len(read) == 1
+    assert isinstance(read[0], TraceArch)
+    assert read[0].trigger == ValidatorT2Trigger.FIRST_TRANSITION
+    assert read[0].result == ArchResult.CORRECTED
+
+
+def test_trace_meta_intent_head_optional() -> None:
+    # Backward-compat: existing traces without intent_head still parse.
+    from bitgn_contest_agent.trace_schema import TraceMeta
+    m = TraceMeta(
+        agent_version="0.1.8", agent_commit="abc",
+        model="gpt-5.3-codex", backend="openai_compat",
+        reasoning_effort="medium", benchmark="bitgn/pac1",
+        task_id="t100", task_index=99,
+        started_at="2026-04-14T18:22:31+00:00",
+        trace_schema_version="1.0.0",
+    )
+    assert m.intent_head is None
+
+
+def test_trace_meta_with_intent_head() -> None:
+    from bitgn_contest_agent.trace_schema import TraceMeta
+    m = TraceMeta(
+        agent_version="0.1.8", agent_commit="abc",
+        model="gpt-5.3-codex", backend="openai_compat",
+        reasoning_effort="medium", benchmark="bitgn/pac1",
+        task_id="t100", task_index=99,
+        started_at="2026-04-14T18:22:31+00:00",
+        trace_schema_version="1.0.0",
+        intent_head="how much did I pay to Filamenthütte Wien in total?",
+    )
+    assert m.intent_head.startswith("how much")

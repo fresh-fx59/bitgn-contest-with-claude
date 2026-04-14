@@ -17,6 +17,14 @@ from typing import Any, Iterator, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from bitgn_contest_agent.arch_constants import (
+    ArchCategory,
+    ValidatorT1Rule,
+    ValidatorT2Trigger,
+    ArchResult,
+    RouterSource,
+)
+
 
 TRACE_SCHEMA_VERSION = "1.0.0"
 
@@ -70,6 +78,7 @@ class TraceMeta(_BaseRecord):
     trace_schema_version: str
     harness_url: Optional[str] = None
     cancelled: bool = False
+    intent_head: Optional[str] = None  # first 240 chars of task_text
 
 
 class TraceTask(_BaseRecord):
@@ -136,6 +145,22 @@ class TraceEvent(_BaseRecord):
     repeated_tuple: Optional[List[str]] = None
 
 
+class TraceArch(_BaseRecord):
+    kind: Literal["arch"] = "arch"
+    at_step: Optional[int] = None      # None = pre-task (router)
+    category: ArchCategory
+    tier: Optional[str] = None
+    rule: Optional[ValidatorT1Rule] = None
+    trigger: Optional[ValidatorT2Trigger] = None
+    result: Optional[ArchResult] = None
+    skill: Optional[str] = None
+    source: Optional[RouterSource] = None
+    confidence: Optional[float] = None
+    reasons: Optional[List[str]] = None
+    details: Optional[str] = None
+    emitted_at: Optional[str] = None
+
+
 class TraceOutcome(_BaseRecord):
     kind: Literal["outcome"] = "outcome"
     terminated_by: str
@@ -158,7 +183,7 @@ class TraceOutcome(_BaseRecord):
     score_detail: Optional[List[str]] = None
 
 
-TraceRecord = Union[TraceMeta, TraceTask, TracePrepass, TraceStep, TraceEvent, TraceOutcome]
+TraceRecord = Union[TraceMeta, TraceTask, TracePrepass, TraceStep, TraceEvent, TraceArch, TraceOutcome]
 
 
 _KIND_TO_MODEL: dict[str, type[_BaseRecord]] = {
@@ -167,6 +192,7 @@ _KIND_TO_MODEL: dict[str, type[_BaseRecord]] = {
     "prepass": TracePrepass,
     "step": TraceStep,
     "event": TraceEvent,
+    "arch": TraceArch,
     "outcome": TraceOutcome,
 }
 
