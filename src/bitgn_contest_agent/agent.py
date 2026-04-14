@@ -79,11 +79,10 @@ def _record_read_attempt(
     if tool_result.ok:
         return
     err = (tool_result.error or "").lower()
-    # Adapter surfaces ENOENT as a plain-text "file not found" message
-    # (see src/bitgn_contest_agent/adapter/pcm.py). We match substrings
-    # rather than error_code because pcm currently labels everything
-    # UNKNOWN; tightening the adapter classification is a separate
-    # concern.
+    # The PCM server owns the error wording; the adapter passes it through
+    # verbatim (see adapter/pcm.py). We match known ENOENT substrings as a
+    # heuristic. Follow-up: expose structured error_code=NOT_FOUND from the
+    # adapter so this string match can become a fallback signal.
     if "file not found" in err or "no such file" in err:
         session.verified_absent.add(path)
 
