@@ -324,3 +324,97 @@ def test_observation_window_limited_to_5() -> None:
         v.check_step(step, Session(), step_idx=i + 1, max_steps=40)
     assert len(v._observations) == 5
     assert v._observations[0] == "obs 5"
+
+
+def test_r4_mutation_mismatch_rejects(monkeypatch) -> None:
+    """R4: agent claims 2 deletes but session only has 1 → reject."""
+    import bitgn_contest_agent.classifier as cls_mod
+
+    def fake_classify(*, system, user):
+        return {"category": "MISMATCH", "confidence": 0.9}
+
+    monkeypatch.setattr(cls_mod, "classify", fake_classify)
+
+    session = Session()
+    session.seen_refs.add("AGENTS.md")
+    session.seen_refs.add("50_finance/receipt_a.md")
+    session.mutations.append(("delete", "50_finance/receipt_a.md"))
+
+    step = NextStep(
+        current_state="done",
+        plan_remaining_steps_brief=["report"],
+        identity_verified=True,
+        observation="deleted both receipts",
+        outcome_leaning="OUTCOME_OK",
+        function=ReportTaskCompletion(
+            tool="report_completion",
+            message="deleted both",
+            grounding_refs=["AGENTS.md", "50_finance/receipt_a.md"],
+            rulebook_notes="n",
+            outcome_justification="deleted receipt_a and receipt_b",
+            completed_steps_laconic=[
+                "read receipt_a", "delete receipt_a",
+                "read receipt_b", "delete receipt_b",
+            ],
+            outcome="OUTCOME_OK",
+        ),
+    )
+    v = StepValidator()
+    verdict = v.check_terminal(session, step)
+    assert not verdict.ok
+    assert any("mutation" in r.lower() for r in verdict.reasons)
+
+
+def test_r4_skipped_when_no_mutations_claimed(monkeypatch) -> None:
+    """R4 should not fire when there are no mutations at all."""
+    import bitgn_contest_agent.classifier as cls_mod
+
+    calls = []
+    def fake_classify(*, system, user):
+        calls.append(1)
+        return {"category": "CONSISTENT", "confidence": 0.9}
+
+    monkeypatch.setattr(cls_mod, "classify", fake_classify)
+
+    session = Session()
+    session.seen_refs.add("AGENTS.md")
+
+    step = _mk_terminal("OUTCOME_OK", ["AGENTS.md"])
+    v = StepValidator()
+    verdict = v.check_terminal(session, step)
+    assert verdict.ok
+    assert len(calls) == 0  # no LLM call — no mutations to check
+
+
+def test_r4_passes_when_mutations_consistent(monkeypatch) -> None:
+    """R4 accepts when claimed steps match actual mutations."""
+    import bitgn_contest_agent.classifier as cls_mod
+
+    def fake_classify(*, system, user):
+        return {"category": "CONSISTENT", "confidence": 0.9}
+
+    monkeypatch.setattr(cls_mod, "classify", fake_classify)
+
+    session = Session()
+    session.seen_refs.add("AGENTS.md")
+    session.mutations.append(("delete", "50_finance/receipt.md"))
+
+    step = NextStep(
+        current_state="done",
+        plan_remaining_steps_brief=["report"],
+        identity_verified=True,
+        observation="deleted receipt",
+        outcome_leaning="OUTCOME_OK",
+        function=ReportTaskCompletion(
+            tool="report_completion",
+            message="deleted receipt",
+            grounding_refs=["AGENTS.md"],
+            rulebook_notes="n",
+            outcome_justification="deleted the receipt",
+            completed_steps_laconic=["read receipt", "delete receipt"],
+            outcome="OUTCOME_OK",
+        ),
+    )
+    v = StepValidator()
+    verdict = v.check_terminal(session, step)
+    assert verdict.ok

@@ -129,6 +129,11 @@ class StepValidator:
                 f"report_completion.outcome is {fn.outcome!r} — reconcile"
             )
 
+        # R4 — mutation integrity (LLM-verified).
+        r4 = self._check_mutation_integrity(session, fn)
+        if r4 is not None:
+            reasons.append(r4)
+
         verdict = Verdict(ok=not reasons, reasons=reasons)
         if reasons:
             _LOG.info("[ARCH:TERMINAL] verdict=REJECT reasons=%s", reasons)
@@ -358,4 +363,54 @@ class StepValidator:
                 )
         except Exception:
             _LOG.warning("validator trigger 4 classifier failed", exc_info=True)
+        return None
+
+    def _check_mutation_integrity(
+        self, session: Session, fn: ReportTaskCompletion,
+    ) -> Optional[str]:
+        """R4 — verify claimed mutations match actual mutations via LLM."""
+        actual = session.mutations
+        claimed = fn.completed_steps_laconic
+
+        # Skip when no mutations were performed or claimed.
+        _MUT_VERBS = {"write", "wrote", "delete", "deleted", "move", "moved",
+                      "create", "created", "remove", "removed"}
+        has_claimed_mutations = any(
+            any(verb in step_text.lower() for verb in _MUT_VERBS)
+            for step_text in claimed
+        )
+        if not actual and not has_claimed_mutations:
+            return None
+
+        actual_summary = "; ".join(f"{tool}({path})" for tool, path in actual)
+        claimed_summary = "; ".join(claimed)
+
+        try:
+            raw = classifier.classify(
+                system=(
+                    "You verify whether an agent's claimed file operations match "
+                    "the operations that actually succeeded. "
+                    "Respond ONLY with JSON: "
+                    '{"category": "CONSISTENT" or "MISMATCH", "confidence": 0.0-1.0, '
+                    '"detail": "one sentence explanation"}'
+                ),
+                user=(
+                    f"Actual mutations (tool+path): [{actual_summary}]\n"
+                    f"Agent's claimed steps: [{claimed_summary}]"
+                ),
+            )
+            cat, conf = classifier.parse_response(
+                raw, valid_categories={"CONSISTENT", "MISMATCH"}
+            )
+            if cat == "MISMATCH" and conf >= 0.6:
+                detail = raw.get("detail", "") if isinstance(raw, dict) else ""
+                _LOG.info("[ARCH:TERMINAL_R4] mutation_mismatch actual=%d detail=%s",
+                         len(actual), detail)
+                return (
+                    f"mutation integrity: agent claims operations that don't match "
+                    f"the {len(actual)} actual mutation(s). {detail}. "
+                    f"Re-check which operations actually succeeded."
+                )
+        except Exception:
+            _LOG.warning("R4 mutation integrity classifier failed", exc_info=True)
         return None
