@@ -21,7 +21,7 @@ def test_load_from_env_reads_all_required_values(monkeypatch: pytest.MonkeyPatch
     assert cfg.model == "gpt-5.3-codex"
     assert cfg.reasoning_effort == "medium"
     assert cfg.max_steps == 40
-    assert cfg.task_timeout_sec == 300
+    assert cfg.task_timeout_sec == 600
     assert cfg.task_timeout_grace_sec == 20
     assert cfg.llm_http_timeout_sec == 30
     assert cfg.max_tool_result_bytes == 16384
@@ -46,3 +46,36 @@ def test_task_timeout_zero_disables_cancel(monkeypatch: pytest.MonkeyPatch) -> N
     cfg = load_from_env()
     assert cfg.task_timeout_sec == 0
     assert cfg.cancel_enabled is False
+
+
+def test_load_from_env_task_timeout_default_matches_dataclass() -> None:
+    """Regression: commit 87e9a4d bumped the dataclass default 300->600
+    but missed this env loader default. The resulting effective timeout
+    was 300s, not 600s as intended. Both defaults must stay in sync.
+    """
+    import os
+
+    required = {
+        "BITGN_API_KEY": "x",
+        "CLIPROXY_BASE_URL": "http://localhost",
+        "CLIPROXY_API_KEY": "x",
+    }
+    saved = {k: os.environ.get(k) for k in list(required) + ["TASK_TIMEOUT_SEC"]}
+    try:
+        for k, v in required.items():
+            os.environ[k] = v
+        os.environ.pop("TASK_TIMEOUT_SEC", None)
+        cfg = load_from_env()
+        dataclass_default = AgentConfig.__dataclass_fields__[
+            "task_timeout_sec"
+        ].default
+        assert cfg.task_timeout_sec == dataclass_default, (
+            f"env loader default {cfg.task_timeout_sec} != "
+            f"dataclass default {dataclass_default}"
+        )
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
