@@ -12,6 +12,8 @@ def test_session_defaults_are_empty() -> None:
     assert s.step == 0
     assert s.nudges_emitted == 0
     assert list(s.recent_calls) == []
+    assert s.attempted_reads == set()
+    assert s.verified_absent == set()
     assert s.loop_nudge_needed(("read", "AGENTS.md")) is False
 
 
