@@ -27,6 +27,12 @@ from typing import List, Optional
 from pydantic import ValidationError
 
 from bitgn_contest_agent.adapter.pcm import PcmAdapter, ToolResult
+from bitgn_contest_agent.arch_constants import (
+    ArchCategory,
+    ArchResult,
+    RouterSource,
+)
+from bitgn_contest_agent.arch_log import emit_arch, update_task_context
 from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, TransientBackendError
 from bitgn_contest_agent.bench.run_metrics import RunMetrics
 from bitgn_contest_agent.validator import StepValidator, Verdict
@@ -49,6 +55,12 @@ from bitgn_contest_agent.trace_writer import TraceWriter
 _LOG = logging.getLogger(__name__)
 _MAX_NUDGES = 2
 _DEFAULT_BACKOFF_MS: tuple[int, ...] = (500, 1500, 4000, 10000)
+
+_ROUTER_SOURCE_MAP = {
+    "regex": RouterSource.TIER1_REGEX,
+    "classifier": RouterSource.TIER2_LLM,
+    "unknown": RouterSource.NONE,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,7 +157,17 @@ def _build_initial_messages(
         if decision.skill_name is not None:
             body = router.skill_body_for(decision.skill_name)
             if body is not None:
-                _LOG.info("[ARCH:SKILL_ROUTER] task=%s skill=%s source=%s conf=%.2f vars=%s", task_id, decision.skill_name, decision.source, decision.confidence, decision.extracted)
+                emit_arch(
+                    category=ArchCategory.SKILL_ROUTER,
+                    skill=decision.skill_name,
+                    source=_ROUTER_SOURCE_MAP.get(decision.source, RouterSource.NONE),
+                    confidence=decision.confidence,
+                    details=f"vars={decision.extracted}",
+                )
+                update_task_context(
+                    skill=decision.skill_name,
+                    category=decision.category or "UNKNOWN",
+                )
                 prefix = (
                     f"SKILL CONTEXT (router-injected): {decision.skill_name}\n"
                     f"Captured variables: {_json.dumps(decision.extracted)}\n\n"
@@ -154,7 +176,11 @@ def _build_initial_messages(
                     Message(role="user", content=prefix + body)
                 )
         else:
-            _LOG.info("[ARCH:SKILL_ROUTER] task=%s skill=none", task_id)
+            emit_arch(
+                category=ArchCategory.SKILL_ROUTER,
+                source=_ROUTER_SOURCE_MAP.get(decision.source, RouterSource.NONE),
+            )
+            update_task_context(skill="-", category=decision.category or "UNKNOWN")
 
     task_hint = hint_for_task(task_text)
     if task_hint is not None:
@@ -298,7 +324,13 @@ class AgentLoop:
                     enforcer_action = "accept"
                 else:
                     enforcer_verdict = list(verdict.reasons)
-                    _LOG.info("[ARCH:TERMINAL] step=%d action=reject reasons=%s", step_idx, verdict.reasons)
+                    emit_arch(
+                        category=ArchCategory.TERMINAL,
+                        at_step=step_idx,
+                        result=ArchResult.REJECT,
+                        details="action=reject",
+                        reasons=list(verdict.reasons),
+                    )
                     self._writer.append_event(
                         at_step=step_idx,
                         event_kind="enforcer_reject",
@@ -367,7 +399,11 @@ class AgentLoop:
                 if session.nudge_budget_remaining(max_nudges=_MAX_NUDGES) > 0:
                     session.nudges_emitted += 1
                     pending_nudge = loop_nudge(call_tuple)
-                    _LOG.info("[ARCH:LOOP_NUDGE] step=%d call=%s", step_idx, call_tuple)
+                    emit_arch(
+                        category=ArchCategory.LOOP_NUDGE,
+                        at_step=step_idx,
+                        details=f"call={call_tuple}",
+                    )
                     self._writer.append_event(
                         at_step=step_idx,
                         event_kind="loop_nudge",
@@ -442,7 +478,11 @@ class AgentLoop:
                     val_result = validate_yaml_frontmatter(write_content)
                     if not val_result.ok:
                         write_path = getattr(fn, "path", "<unknown>")
-                        _LOG.info("[ARCH:FORMAT_VALIDATOR] step=%d path=%s error=%s", step_idx, write_path, val_result.error)
+                        emit_arch(
+                            category=ArchCategory.FORMAT_VALIDATOR,
+                            at_step=step_idx,
+                            details=f"path={write_path} error={val_result.error}",
+                        )
                         error_msg = (
                             f"FORMAT VALIDATION ERROR in your last write:\n"
                             f"  File: {write_path}\n"
@@ -481,7 +521,11 @@ class AgentLoop:
                         old_body = cached
                     new_body = _extract_body(new_content)
                     if old_body and new_body and old_body != new_body:
-                        _LOG.info("[ARCH:BODY_PRESERVATION] step=%d path=%s old_len=%d new_len=%d", step_idx, write_path, len(old_body), len(new_body))
+                        emit_arch(
+                            category=ArchCategory.BODY_PRESERVATION,
+                            at_step=step_idx,
+                            details=f"path={write_path} old_len={len(old_body)} new_len={len(new_body)}",
+                        )
                         body_msg = (
                             f"BODY PRESERVATION ERROR in your last write:\n"
                             f"  File: {write_path}\n"
@@ -516,9 +560,13 @@ class AgentLoop:
                     reactive_injected_this_step = True
                     reactive_injected.add(reactive_decision.skill_name)
                     trigger_path = fn_dump.get("path") or fn_dump.get("root") or ""
-                    _LOG.info(
-                        "[ARCH:REACTIVE] step=%d skill=%s source=%s conf=%.2f trigger=%s(%s)",
-                        step_idx, reactive_decision.skill_name, reactive_decision.source, reactive_decision.confidence, getattr(fn, 'tool', ''), trigger_path,
+                    emit_arch(
+                        category=ArchCategory.REACTIVE,
+                        at_step=step_idx,
+                        skill=reactive_decision.skill_name,
+                        source=_ROUTER_SOURCE_MAP.get(reactive_decision.source, RouterSource.NONE),
+                        confidence=reactive_decision.confidence,
+                        details=f"trigger={getattr(fn, 'tool', '')}({trigger_path})",
                     )
                     prefix = (
                         f"REACTIVE SKILL CONTEXT (mid-task): {reactive_decision.skill_name}\n"
