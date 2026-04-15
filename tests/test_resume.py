@@ -170,3 +170,12 @@ def test_finalize_resume_respects_force_false():
     finalize_resume(h, "r", force=False)
 
     assert h.submit_calls == [("r", False)]
+
+
+def test_bitgn_harness_exposes_get_run_get_trial_end_task_by_id():
+    """The three RPCs resume.py needs must be reachable from BitgnHarness
+    without touching its private connect client."""
+    from bitgn_contest_agent.harness import BitgnHarness
+    assert hasattr(BitgnHarness, "get_run")
+    assert hasattr(BitgnHarness, "get_trial")
+    assert hasattr(BitgnHarness, "end_task_by_id")

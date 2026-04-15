@@ -32,6 +32,8 @@ from bitgn.harness_connect import HarnessServiceClientSync
 from bitgn.harness_pb2 import (
     EndTrialRequest,
     GetBenchmarkRequest,
+    GetRunRequest,
+    GetTrialRequest,
     StartPlaygroundRequest,
     StartTrialRequest,
     SubmitRunRequest,
@@ -207,6 +209,33 @@ class BitgnHarness:
     def end_task(self, started: StartedTask) -> Tuple[float, list[Any]]:
         """Shared between playground and leaderboard flows: grade one trial."""
         resp = self._harness.end_trial(EndTrialRequest(trial_id=started.trial_id))
+        return float(resp.score), list(resp.score_detail)
+
+    def get_run(self, run_id: str):
+        """Return the server's view of a run (trial states, scores, stats).
+
+        Used by resume.py to compute which trials still need work after
+        a process crash or relaunch. Does not mutate server state.
+        """
+        return self._harness.get_run(GetRunRequest(run_id=run_id))
+
+    def get_trial(self, trial_id: str):
+        """Return the server's view of a single trial (instruction, logs, state).
+
+        Used by resume.py to recover the instruction text for RUNNING
+        trials without calling start_trial (which would reset the
+        server wall-clock).
+        """
+        return self._harness.get_trial(GetTrialRequest(trial_id=trial_id))
+
+    def end_task_by_id(self, trial_id: str) -> Tuple[float, list[Any]]:
+        """Grade a trial when we only have its id (no StartedTask).
+
+        Symmetric with end_task() but takes a bare trial_id. Used by
+        the resume path to attempt a best-effort grade of a RUNNING
+        trial left over from a previous process.
+        """
+        resp = self._harness.end_trial(EndTrialRequest(trial_id=trial_id))
         return float(resp.score), list(resp.score_detail)
 
     def submit_run(self, run_id: str, *, force: bool = False) -> str:
