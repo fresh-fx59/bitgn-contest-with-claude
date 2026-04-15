@@ -229,6 +229,34 @@ Unsupported-capability discipline:
 Never dump raw file contents back into your reasoning. Summarize.
 """
 
+PREFLIGHT_PROTOCOL = """
+## Preflight Protocol
+
+Before reading, searching, or writing anything beyond a directory
+listing, you must:
+
+1. Call `preflight_schema` to learn the workspace layout (roots for
+   inbox, entities, finance, projects, outbox, etc.).
+2. Call whichever `preflight_*` tool(s) match your task shape. Pass
+   the roots you learned in step 1 as arguments:
+   - Inbox/OCR tasks → `preflight_inbox(inbox_root, entities_root, finance_roots)`
+   - Finance lookups → `preflight_finance(finance_roots, entities_root, query)`
+   - Entity/person questions → `preflight_entity(entities_root, query)`
+   - Project questions → `preflight_project(projects_root, entities_root, query)`
+   - Document migration → `preflight_doc_migration(source_paths, entities_root, query)`
+3. Only then act on the task with normal tools (read, search, write).
+
+Preflight tools return a short `summary` and structured `data`. Treat
+the summary as ground truth about what's in the workspace. Re-invoke
+preflight tools later in the task if a search dead-ends or a graph
+traversal comes up short — they remain available throughout.
+
+You may call multiple preflight tools if your task spans areas (e.g.
+inbox item that references both finance and project records).
+"""
+
+_STATIC_SYSTEM_PROMPT = _STATIC_SYSTEM_PROMPT + PREFLIGHT_PROTOCOL
+
 
 def system_prompt() -> str:
     hint = os.environ.get("HINT", "").strip()

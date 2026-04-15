@@ -88,6 +88,7 @@ def _fake_prepass(session: Session) -> None:
     session.identity_loaded = True
     session.rulebook_loaded = True
     session.seen_refs.add("AGENTS.md")
+    session.preflight_seen = True
 
 
 def test_agent_loop_happy_path_read_then_report(tmp_path: Path) -> None:
