@@ -562,7 +562,7 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
     # --resume pins a single iteration against an existing BitGN run_id.
     # Forces runs=1 because resume semantics only make sense for one run
     # (the run_id is already fixed server-side).
-    resume_run_id: Optional[str] = getattr(args, "resume", None)
+    resume_run_id: Optional[str] = args.resume
     if resume_run_id is not None:
         if args.smoke:
             print("--resume is incompatible with --smoke", file=sys.stderr)
