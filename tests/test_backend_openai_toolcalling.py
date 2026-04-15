@@ -420,3 +420,29 @@ def test_next_step_raises_validation_error_when_salvage_fails() -> None:
     )
     with pytest.raises(ValidationError):
         backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
+
+
+def test_valid_tool_names_matches_built_tool_catalog() -> None:
+    """Drift guard: if a new Req_* is added to schemas.py, either
+    _VALID_TOOL_NAMES must be updated alongside it or this test fails
+    loudly. Protects the salvage allowlist from silent widening."""
+    from bitgn_contest_agent.backend.openai_toolcalling import (
+        _VALID_TOOL_NAMES,
+    )
+    catalog_names = {t["function"]["name"] for t in build_tool_catalog()}
+    assert catalog_names == _VALID_TOOL_NAMES
+
+
+def test_salvage_envelope_missing_entirely_uses_defaults() -> None:
+    """Bare {"function": {...}} content — no envelope keys at all — must
+    default-fill every envelope field via _build_next_step."""
+    payload = {"function": {"tool": "read", "path": "x"}}
+    ns = _try_salvage_from_content(json.dumps(payload))
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path == "x"
+    assert ns.current_state == "(not provided by model)"
+    assert ns.observation == "(not provided by model)"
+    assert ns.plan_remaining_steps_brief == ["continue task"]
+    assert ns.identity_verified is False
+    assert ns.outcome_leaning == "GATHERING_INFORMATION"
