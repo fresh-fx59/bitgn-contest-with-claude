@@ -1,4 +1,4 @@
 ---
-aliases: ["Juniper Systems"]
+aliases: ["Juniper Systems", "House Mesh"]
 role: vendor
 ---
