@@ -44,7 +44,12 @@ def _discover_pcm_request_types() -> set[str]:
 
 
 def _req_model_rpc_names() -> set[str]:
-    """Map each Req_* model to the proto class name it shadows."""
+    """Map each Req_* model to the proto class name it shadows.
+
+    Preflight models are client-side only (no PCM proto backing); they are
+    registered here to pass the assertion but excluded from the proto-coverage
+    check via CLIENT_SIDE_ONLY.
+    """
     mapping: dict[str, str] = {
         "Req_Read": "ReadRequest",
         "Req_Write": "WriteRequest",
@@ -56,6 +61,13 @@ def _req_model_rpc_names() -> set[str]:
         "Req_Find": "FindRequest",
         "Req_Search": "SearchRequest",
         "Req_Context": "ContextRequest",
+        # Client-side preflight tools — no PCM proto backing.
+        "Req_PreflightSchema": "PREFLIGHT_SchemaRequest",
+        "Req_PreflightInbox": "PREFLIGHT_InboxRequest",
+        "Req_PreflightFinance": "PREFLIGHT_FinanceRequest",
+        "Req_PreflightEntity": "PREFLIGHT_EntityRequest",
+        "Req_PreflightProject": "PREFLIGHT_ProjectRequest",
+        "Req_PreflightDocMigration": "PREFLIGHT_DocMigrationRequest",
     }
     names: set[str] = set()
     for model in REQ_MODELS:
@@ -68,9 +80,22 @@ def _req_model_rpc_names() -> set[str]:
     return names
 
 
+# Client-side-only pseudo-proto names that do not appear in pcm_pb2.
+_CLIENT_SIDE_ONLY: frozenset[str] = frozenset(
+    {
+        "PREFLIGHT_SchemaRequest",
+        "PREFLIGHT_InboxRequest",
+        "PREFLIGHT_FinanceRequest",
+        "PREFLIGHT_EntityRequest",
+        "PREFLIGHT_ProjectRequest",
+        "PREFLIGHT_DocMigrationRequest",
+    }
+)
+
+
 def test_pcm_request_types_exactly_covered_by_union():
     rpc_requests = _discover_pcm_request_types()
-    covered = _req_model_rpc_names() | {TERMINAL_RPC}
+    covered = (_req_model_rpc_names() | {TERMINAL_RPC}) - _CLIENT_SIDE_ONLY
 
     missing = rpc_requests - covered
     extra = covered - rpc_requests

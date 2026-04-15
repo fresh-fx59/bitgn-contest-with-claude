@@ -70,6 +70,50 @@ class Req_Context(BaseModel):
     tool: Literal["context"]
 
 
+class Req_PreflightSchema(BaseModel):
+    """Discover the workspace layout (roots and roles). Always safe to call."""
+    tool: Literal["preflight_schema"]
+
+
+class Req_PreflightInbox(BaseModel):
+    """Enumerate open inbox items with referenced entities and related finance files."""
+    tool: Literal["preflight_inbox"]
+    inbox_root: NonEmptyStr
+    entities_root: NonEmptyStr
+    finance_roots: Annotated[List[NonEmptyStr], Field(min_length=1)]
+
+
+class Req_PreflightFinance(BaseModel):
+    """Canonicalize a finance query and enumerate matching purchase/invoice files."""
+    tool: Literal["preflight_finance"]
+    finance_roots: Annotated[List[NonEmptyStr], Field(min_length=1)]
+    entities_root: NonEmptyStr
+    query: NonEmptyStr
+
+
+class Req_PreflightEntity(BaseModel):
+    """Disambiguate an entity query against entity records and aliases."""
+    tool: Literal["preflight_entity"]
+    entities_root: NonEmptyStr
+    query: NonEmptyStr
+
+
+class Req_PreflightProject(BaseModel):
+    """Look up a project record and the entities involved."""
+    tool: Literal["preflight_project"]
+    projects_root: NonEmptyStr
+    entities_root: NonEmptyStr
+    query: NonEmptyStr
+
+
+class Req_PreflightDocMigration(BaseModel):
+    """Resolve the migration destination for a set of documents."""
+    tool: Literal["preflight_doc_migration"]
+    source_paths: Annotated[List[NonEmptyStr], Field(min_length=1)]
+    entities_root: NonEmptyStr
+    query: NonEmptyStr
+
+
 class ReportTaskCompletion(BaseModel):
     tool: Literal["report_completion"]
     message: NonEmptyStr
@@ -86,18 +130,27 @@ class ReportTaskCompletion(BaseModel):
     ]
 
 
-FunctionUnion = Union[
-    Req_Tree,
-    Req_Find,
-    Req_Search,
-    Req_List,
-    Req_Read,
-    Req_Write,
-    Req_Delete,
-    Req_MkDir,
-    Req_Move,
-    Req_Context,
-    ReportTaskCompletion,
+FunctionUnion = Annotated[
+    Union[
+        Req_Read,
+        Req_Write,
+        Req_Delete,
+        Req_MkDir,
+        Req_Move,
+        Req_List,
+        Req_Tree,
+        Req_Find,
+        Req_Search,
+        Req_Context,
+        Req_PreflightSchema,
+        Req_PreflightInbox,
+        Req_PreflightFinance,
+        Req_PreflightEntity,
+        Req_PreflightProject,
+        Req_PreflightDocMigration,
+        ReportTaskCompletion,
+    ],
+    Field(discriminator="tool"),
 ]
 
 
@@ -128,4 +181,10 @@ REQ_MODELS: tuple[type[BaseModel], ...] = (
     Req_Find,
     Req_Search,
     Req_Context,
+    Req_PreflightSchema,
+    Req_PreflightInbox,
+    Req_PreflightFinance,
+    Req_PreflightEntity,
+    Req_PreflightProject,
+    Req_PreflightDocMigration,
 )
