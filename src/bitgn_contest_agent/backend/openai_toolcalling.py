@@ -250,6 +250,32 @@ def _extract_first_json_object(text: str) -> Dict[str, Any] | None:
     return None
 
 
+_VALID_TOOL_NAMES: frozenset[str] = frozenset({
+    "read", "write", "delete", "mkdir", "move",
+    "list", "tree", "find", "search", "context",
+    "report_completion",
+})
+
+
+def _try_salvage_from_content(content: str) -> NextStep | None:
+    """Attempt to build a NextStep from a content-only reply.
+
+    Shape 1: ``{"name": "<tool>", "arguments": {...}}`` — bare OpenAI tool
+    shape emitted as free text (liquid/lfm2 trained behavior).
+    """
+    obj = _extract_first_json_object(content)
+    if obj is None:
+        return None
+    if "name" in obj and isinstance(obj.get("arguments"), dict):
+        tool_name = obj.get("name")
+        if tool_name in _VALID_TOOL_NAMES:
+            try:
+                return _build_next_step(tool_name, obj["arguments"])
+            except ValidationError:
+                return None
+    return None
+
+
 class OpenAIToolCallingBackend(Backend):
     """Backend that uses native OpenAI tool-calling instead of free-text JSON."""
 

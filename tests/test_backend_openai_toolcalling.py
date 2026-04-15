@@ -22,6 +22,7 @@ from bitgn_contest_agent.backend.openai_toolcalling import (
     OpenAIToolCallingBackend,
     _build_next_step,
     _extract_first_json_object,
+    _try_salvage_from_content,
     build_tool_catalog,
 )
 from bitgn_contest_agent.schemas import NextStep
@@ -281,3 +282,26 @@ def test_extract_first_json_object_handles_nested_objects() -> None:
 def test_extract_first_json_object_skips_broken_first_object_and_finds_next() -> None:
     text = 'garbage {not-json:here} then {"ok": 1}'
     assert _extract_first_json_object(text) == {"ok": 1}
+
+
+def test_salvage_parses_bare_name_arguments_shape() -> None:
+    """lfm2 emits the OpenAI tool shape as free text. Salvage it."""
+    content = '{"name": "read", "arguments": {"path": "AGENTS.md"}}'
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path == "AGENTS.md"
+
+
+def test_salvage_rejects_unknown_tool_name() -> None:
+    content = '{"name": "rm_minus_rf", "arguments": {"path": "/"}}'
+    assert _try_salvage_from_content(content) is None
+
+
+def test_salvage_returns_none_on_empty_content() -> None:
+    assert _try_salvage_from_content("") is None
+
+
+def test_salvage_returns_none_when_arguments_missing() -> None:
+    content = '{"name": "read"}'
+    assert _try_salvage_from_content(content) is None
