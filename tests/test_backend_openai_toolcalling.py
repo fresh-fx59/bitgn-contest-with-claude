@@ -21,6 +21,7 @@ from bitgn_contest_agent.backend.base import (
 from bitgn_contest_agent.backend.openai_toolcalling import (
     OpenAIToolCallingBackend,
     _build_next_step,
+    _extract_first_json_object,
     build_tool_catalog,
 )
 from bitgn_contest_agent.schemas import NextStep
@@ -246,11 +247,6 @@ def test_timeout_is_remapped_to_transient_backend_error() -> None:
         backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
 
 
-from bitgn_contest_agent.backend.openai_toolcalling import (
-    _extract_first_json_object,
-)
-
-
 def test_extract_first_json_object_returns_none_for_empty_string() -> None:
     assert _extract_first_json_object("") is None
 
@@ -261,3 +257,27 @@ def test_extract_first_json_object_returns_none_when_no_braces() -> None:
 
 def test_extract_first_json_object_parses_bare_object() -> None:
     assert _extract_first_json_object('{"a": 1}') == {"a": 1}
+
+
+def test_extract_first_json_object_parses_object_wrapped_in_prose() -> None:
+    text = 'Sure, here you go:\n{"name": "read", "arguments": {"path": "x"}}\nHope that helps.'
+    assert _extract_first_json_object(text) == {
+        "name": "read", "arguments": {"path": "x"},
+    }
+
+
+def test_extract_first_json_object_handles_braces_inside_strings() -> None:
+    text = '{"s": "has { brace", "n": 1}'
+    assert _extract_first_json_object(text) == {"s": "has { brace", "n": 1}
+
+
+def test_extract_first_json_object_handles_nested_objects() -> None:
+    text = '{"outer": {"inner": {"leaf": 1}}}'
+    assert _extract_first_json_object(text) == {
+        "outer": {"inner": {"leaf": 1}},
+    }
+
+
+def test_extract_first_json_object_skips_broken_first_object_and_finds_next() -> None:
+    text = 'garbage {not-json:here} then {"ok": 1}'
+    assert _extract_first_json_object(text) == {"ok": 1}
