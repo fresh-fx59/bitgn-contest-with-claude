@@ -31,7 +31,9 @@ from bitgn_contest_agent.arch_log import (
     reset_task_context,
     set_task_context,
 )
+from bitgn_contest_agent.backend.base import Backend
 from bitgn_contest_agent.backend.openai_compat import OpenAIChatBackend
+from bitgn_contest_agent.backend.openai_toolcalling import OpenAIToolCallingBackend
 from bitgn_contest_agent.bench.run_metrics import RunMetrics
 from bitgn_contest_agent.config import AgentConfig, ConfigError, load_from_env
 from bitgn_contest_agent.harness import BitgnHarness, StartedTask
@@ -111,7 +113,18 @@ def _make_harness(cfg: AgentConfig) -> BitgnHarness:
     )
 
 
-def _make_backend(cfg: AgentConfig) -> OpenAIChatBackend:
+def _make_backend(cfg: AgentConfig) -> Backend:
+    # AGENT_TOOLCALLING=1 routes to the native OpenAI tool-calling backend,
+    # required to drive small local models (LM Studio etc.) that can't emit
+    # the NextStep envelope as free-text JSON. Default (off) keeps the
+    # frontier cliproxyapi path bit-identical.
+    if os.environ.get("AGENT_TOOLCALLING", "").strip() in {"1", "true", "True"}:
+        return OpenAIToolCallingBackend.from_config(
+            base_url=cfg.cliproxy_base_url,
+            api_key=cfg.cliproxy_api_key,
+            model=cfg.model,
+            reasoning_effort=cfg.reasoning_effort,
+        )
     return OpenAIChatBackend.from_config(
         base_url=cfg.cliproxy_base_url,
         api_key=cfg.cliproxy_api_key,
@@ -175,7 +188,7 @@ def _run_single_task(
     *,
     cfg: AgentConfig,
     harness: BitgnHarness,
-    backend: OpenAIChatBackend,
+    backend: Backend,
     task: TaskSpec,
     run_id: str,
     run_index: int,
@@ -392,7 +405,7 @@ def _run_tasks_and_summarize(
     cfg: AgentConfig,
     *,
     harness: BitgnHarness,
-    backend: OpenAIChatBackend,
+    backend: Backend,
     run_id: str,
     runs: int,
     output: str | None,
@@ -563,7 +576,10 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
         # dashboard. The run name is the canonical owner/agent handle
         # fixed by the user (2026-04-11) — the server disambiguates
         # iterations by run_id, not by name.
-        LEADERBOARD_RUN_NAME = "aleksei_aksenov-ai_engineer_helper-bitgn-agent"
+        _model_slug = cfg.model.rsplit("/", 1)[-1].replace(":", "-")
+        LEADERBOARD_RUN_NAME = (
+            f"aleksei_aksenov-ai_engineer_helper-bitgn-agent-{_model_slug}"
+        )
 
         def tasks_for_iteration(run_index: int) -> List[TaskSpec]:
             rid, trial_ids = harness.start_run(name=LEADERBOARD_RUN_NAME)
