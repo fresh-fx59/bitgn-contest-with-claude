@@ -66,6 +66,19 @@ _OUTCOME_LEANING_VALUES: Tuple[str, ...] = (
     "OUTCOME_NONE_UNSUPPORTED",
 )
 
+# Defaults injected when a small local model omits the envelope fields
+# despite being listed in the tool schema. Keeps the NextStep valid and
+# lets the validator operate without envelope-filling becoming a blocker
+# on every turn. Good models (that fill the envelope) get the full
+# benefit; sloppy models still drive the benchmark.
+_ENVELOPE_DEFAULTS: Dict[str, Any] = {
+    "current_state": "(not provided by model)",
+    "plan_remaining_steps_brief": ["continue task"],
+    "identity_verified": False,
+    "observation": "(not provided by model)",
+    "outcome_leaning": "GATHERING_INFORMATION",
+}
+
 
 def _envelope_schema_fragment() -> Dict[str, Any]:
     """Return the JSONSchema object fragment shared by every tool.
@@ -122,7 +135,12 @@ def _tool_spec_for_req(model_cls: type) -> Dict[str, Any]:
 
     envelope = _envelope_schema_fragment()
     combined_props: Dict[str, Any] = {**envelope, **own_props}
-    combined_required = list(_ENVELOPE_FIELDS) + own_required
+    # Envelope fields are advertised as properties on every tool so good
+    # models fill them, but only the tool's own fields are REQUIRED. Small
+    # local models routinely ignore ``required`` on every field, and we'd
+    # rather default-fill the envelope than lose every turn to
+    # double-validation failure.
+    combined_required = own_required
 
     tool_name = raw.get("properties", {}).get("tool", {}).get("const") \
         or raw.get("properties", {}).get("tool", {}).get("enum", [None])[0]
@@ -167,8 +185,19 @@ def _split_envelope(
 
 
 def _build_next_step(tool_name: str, args: Dict[str, Any]) -> NextStep:
-    """Construct a NextStep from a tool_call's (name, arguments)."""
+    """Construct a NextStep from a tool_call's (name, arguments).
+
+    Envelope fields missing or empty in ``args`` are default-filled from
+    ``_ENVELOPE_DEFAULTS``. This keeps small local models (which
+    frequently ignore JSON-schema ``required`` on anything beyond the
+    tool's own parameters) from losing every turn to validation failure.
+    """
     env, rest = _split_envelope(args)
+    for k, default in _ENVELOPE_DEFAULTS.items():
+        val = env.get(k)
+        if val is None or (isinstance(val, str) and val.strip() == "") \
+                or (isinstance(val, list) and len(val) == 0):
+            env[k] = default
     function_payload = {"tool": tool_name, **rest}
     return NextStep.model_validate(
         {
@@ -231,13 +260,20 @@ class OpenAIToolCallingBackend(Backend):
         if not tool_calls:
             # Model returned content-only — treat as validation failure so
             # the agent's P3 critique path can push it toward a tool call.
+            # Echo a short slice of the content so the critique message
+            # gives the model a specific reason to correct.
+            content_head = (getattr(choice.message, "content", None) or "")[:200]
             raise ValidationError.from_exception_data(
                 "NextStep",
                 [
                     {
                         "type": "missing",
                         "loc": ("function",),
-                        "input": {},
+                        "input": {"hint": (
+                            "You replied with prose instead of a tool call. "
+                            "You MUST call exactly one tool per turn. "
+                            f"Your content started with: {content_head!r}"
+                        )},
                     }
                 ],
             )

@@ -69,8 +69,12 @@ def test_tool_catalog_has_all_eleven_tools() -> None:
     }
 
 
-def test_tool_catalog_every_tool_has_envelope_fields_required() -> None:
+def test_tool_catalog_every_tool_exposes_envelope_fields_as_properties() -> None:
+    """Envelope fields are advertised on every tool so good models fill them,
+    but not listed as REQUIRED — small local models ignore required on
+    everything except the tool's own fields, and we'd rather default-fill."""
     for t in build_tool_catalog():
+        props = t["function"]["parameters"]["properties"]
         required = t["function"]["parameters"]["required"]
         for env in (
             "current_state",
@@ -79,7 +83,9 @@ def test_tool_catalog_every_tool_has_envelope_fields_required() -> None:
             "observation",
             "outcome_leaning",
         ):
-            assert env in required, f"{t['function']['name']} missing {env}"
+            assert env in props, f"{t['function']['name']} missing {env} property"
+            assert env not in required, \
+                f"{t['function']['name']} should not REQUIRE {env} — defaults cover it"
 
 
 def test_tool_catalog_no_oneof_nodes() -> None:
@@ -114,10 +120,22 @@ def test_build_next_step_roundtrip_report_completion() -> None:
     assert ns.function.outcome == "OUTCOME_OK"
 
 
-def test_build_next_step_empty_envelope_raises() -> None:
-    args = {"path": "AGENTS.md"}
+def test_build_next_step_fills_envelope_defaults_when_missing() -> None:
+    """Tool-specific args alone are enough — envelope fields default-fill."""
+    ns = _build_next_step("read", {"path": "AGENTS.md"})
+    assert ns.function.tool == "read"
+    assert ns.function.path == "AGENTS.md"
+    assert ns.current_state == "(not provided by model)"
+    assert ns.observation == "(not provided by model)"
+    assert ns.outcome_leaning == "GATHERING_INFORMATION"
+    assert ns.plan_remaining_steps_brief == ["continue task"]
+    assert ns.identity_verified is False
+
+
+def test_build_next_step_empty_tool_args_still_raises() -> None:
+    """Missing the tool's own required field (path) must still raise."""
     with pytest.raises(ValidationError):
-        _build_next_step("read", args)
+        _build_next_step("read", {})
 
 
 def test_next_step_happy_path_returns_result_with_tokens() -> None:
@@ -181,19 +199,23 @@ def test_next_step_malformed_args_is_validation_error() -> None:
         )
 
 
-def test_next_step_empty_envelope_in_args_is_validation_error() -> None:
+def test_next_step_missing_envelope_fields_defaults_and_succeeds() -> None:
+    """Small local models commonly omit envelope fields. Defaults kick in
+    so the agent can keep turning — trading observation quality for
+    forward progress. Only missing tool-own fields fail."""
     fake_client = MagicMock()
     fake_client.chat.completions.create.return_value = _mk_completion(
         tool_name="read",
-        arguments={"path": "AGENTS.md"},  # no envelope fields at all
+        arguments={"path": "AGENTS.md"},
     )
     backend = OpenAIToolCallingBackend(
         client=fake_client, model="local-model", reasoning_effort="medium",
     )
-    with pytest.raises(ValidationError):
-        backend.next_step(
-            [Message(role="user", content="t")], NextStep, 30.0,
-        )
+    out = backend.next_step(
+        [Message(role="user", content="t")], NextStep, 30.0,
+    )
+    assert out.parsed.function.tool == "read"
+    assert out.parsed.current_state == "(not provided by model)"
 
 
 def test_rate_limit_is_remapped_to_transient_backend_error() -> None:
