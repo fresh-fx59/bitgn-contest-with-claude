@@ -90,3 +90,66 @@ def test_plan_resume_buckets_new_done_error():
     assert [t.task_id for t in plan.pending] == ["task-1", "task-2"]
     assert all(t.instruction == "" for t in plan.pending)
     assert plan.stuck == []
+
+
+def test_plan_resume_running_trial_fetches_instruction():
+    run_resp = _FakeGetRunResponse(
+        run_id="run-xyz",
+        benchmark_id="bitgn/pac1-prod",
+        trials=[
+            _FakeTrialHead("t-run-1", "task-a", TRIAL_STATE_RUNNING),
+            _FakeTrialHead("t-new-1", "task-b", TRIAL_STATE_NEW),
+        ],
+    )
+    trials = {
+        "t-run-1": _FakeGetTrialResponse(
+            trial_id="t-run-1",
+            task_id="task-a",
+            instruction="Do the thing.",
+        ),
+    }
+    h = _FakeHarness(run_resp, trials)
+
+    plan = plan_resume(h, "run-xyz")
+
+    assert [t.trial_id for t in plan.stuck] == ["t-run-1"]
+    assert plan.stuck[0].instruction == "Do the thing."
+    assert plan.stuck[0].task_id == "task-a"
+    assert [t.trial_id for t in plan.pending] == ["t-new-1"]
+
+
+def test_plan_resume_running_trial_uses_trialhead_task_id_when_gettrial_empty():
+    """Guard against a server regression that returns empty task_id on GetTrial."""
+    run_resp = _FakeGetRunResponse(
+        run_id="run-xyz",
+        benchmark_id="bitgn/pac1-prod",
+        trials=[_FakeTrialHead("t-run-1", "task-a", TRIAL_STATE_RUNNING)],
+    )
+    trials = {
+        "t-run-1": _FakeGetTrialResponse(trial_id="t-run-1", task_id="", instruction=""),
+    }
+    h = _FakeHarness(run_resp, trials)
+
+    plan = plan_resume(h, "run-xyz")
+
+    assert plan.stuck[0].task_id == "task-a"  # falls back to TrialHead.task_id
+    assert plan.stuck[0].instruction == ""
+
+
+def test_plan_resume_empty_run_all_done():
+    run_resp = _FakeGetRunResponse(
+        run_id="run-empty",
+        benchmark_id="bitgn/pac1-dev",
+        trials=[
+            _FakeTrialHead("t-1", "task-1", TRIAL_STATE_DONE, score=1.0),
+            _FakeTrialHead("t-2", "task-2", TRIAL_STATE_DONE, score=0.0),
+        ],
+    )
+    h = _FakeHarness(run_resp)
+
+    plan = plan_resume(h, "run-empty")
+
+    assert plan.pending == []
+    assert plan.stuck == []
+    assert plan.done_count == 2
+    assert plan.error_count == 0
