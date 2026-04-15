@@ -321,10 +321,39 @@ def test_salvage_parses_full_next_step_envelope_shape() -> None:
     assert ns.current_state == "reading rules"
 
 
-def test_salvage_returns_none_for_envelope_missing_function_tool() -> None:
+def test_salvage_returns_none_when_envelope_function_fails_validation() -> None:
     payload = {**_envelope_copy(), "function": {"tool": "read"}}  # no path
     content = json.dumps(payload)
     assert _try_salvage_from_content(content) is None
+
+
+def test_salvage_returns_none_for_envelope_missing_function_tool() -> None:
+    """If function dict has no tool discriminator, salvage returns None."""
+    payload = {**_envelope_copy(), "function": {"path": "x"}}
+    assert _try_salvage_from_content(json.dumps(payload)) is None
+
+
+def test_salvage_envelope_with_empty_strings_uses_defaults() -> None:
+    """gpt-oss-20b emits envelope JSON with ``current_state=""`` and
+    ``observation=""`` — both ``NonEmptyStr``. Salvage must route
+    through ``_build_next_step`` so ``_ENVELOPE_DEFAULTS`` papers over
+    the empties. Spec §Problem lines 14–17."""
+    payload = {
+        "current_state": "",
+        "plan_remaining_steps_brief": ["read", "report"],
+        "identity_verified": False,
+        "observation": "",
+        "outcome_leaning": "GATHERING_INFORMATION",
+        "function": {"tool": "read", "path": "AGENTS.md"},
+    }
+    content = json.dumps(payload)
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path == "AGENTS.md"
+    # Defaults kicked in for empty envelope fields.
+    assert ns.current_state == "(not provided by model)"
+    assert ns.observation == "(not provided by model)"
 
 
 def test_salvage_prefers_name_arguments_shape_when_both_keys_present() -> None:

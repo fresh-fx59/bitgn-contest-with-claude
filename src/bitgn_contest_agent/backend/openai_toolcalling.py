@@ -279,10 +279,20 @@ def _try_salvage_from_content(content: str) -> NextStep | None:
             except ValidationError:
                 return None
     if "function" in obj and isinstance(obj["function"], dict):
-        try:
-            return NextStep.model_validate(obj)
-        except ValidationError:
-            return None
+        func = obj["function"]
+        tool_name = func.get("tool")
+        if tool_name in _VALID_TOOL_NAMES:
+            merged: Dict[str, Any] = {}
+            for key in _ENVELOPE_FIELDS:
+                if key in obj:
+                    merged[key] = obj[key]
+            for key, val in func.items():
+                if key != "tool":
+                    merged[key] = val
+            try:
+                return _build_next_step(tool_name, merged)
+            except ValidationError:
+                return None
     return None
 
 
