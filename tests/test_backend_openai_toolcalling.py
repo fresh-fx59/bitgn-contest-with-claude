@@ -740,6 +740,61 @@ def test_salvage_truncated_final_harmony() -> None:
     assert ns.function.path == "AGENTS.md"
 
 
+def test_strip_harmony_captures_tool_via_final_nested_commentary() -> None:
+    """v12 shape: ``<|channel|>final <|constrain|>commentary to=functions.X``
+    — the tool target appears after the channel name but inside a nested
+    ``<|constrain|>`` block. Stripper must still extract the tool."""
+    content = (
+        '<|channel|>final <|constrain|>commentary '
+        'to=functions.preflight_doc_migration <|constrain|>json<|message|>'
+        '{"entities_root": "01_entity"}<|end|>'
+    )
+    tool, stripped = _strip_harmony(content)
+    assert tool == "preflight_doc_migration"
+    assert stripped == '{"entities_root": "01_entity"}'
+
+
+def test_strip_harmony_captures_tool_via_bare_constrain() -> None:
+    """v12 shape: ``<|channel|>final <|constrain|>report_completion<|message|>``
+    — no ``to=functions.`` prefix; tool name is the sole word inside
+    ``<|constrain|>``. Must match because report_completion is valid."""
+    content = (
+        '<|channel|>final <|constrain|>report_completion<|message|>'
+        '{"outcome": "OUTCOME_OK"}<|end|>'
+    )
+    tool, stripped = _strip_harmony(content)
+    assert tool == "report_completion"
+    assert stripped == '{"outcome": "OUTCOME_OK"}'
+
+
+def test_strip_harmony_bare_constrain_ignores_json_marker() -> None:
+    """Guard: ``<|constrain|>json<|message|>`` must NOT be treated as a tool
+    name — json isn't a valid tool. The stripper falls through to the
+    generic final-header match and returns no tool."""
+    content = (
+        '<|channel|>final <|constrain|>json<|message|>'
+        '{"current_state": "x"}<|end|>'
+    )
+    tool, stripped = _strip_harmony(content)
+    assert tool is None
+    assert stripped == '{"current_state": "x"}'
+
+
+def test_salvage_truncated_final_nested_commentary_harmony() -> None:
+    """v12 shape end-to-end: nested-commentary header with truncated body
+    that still holds enough tool-specific args to validate. Tool must be
+    captured from the header and the body repaired via closers."""
+    content = (
+        '<|channel|>final <|constrain|>commentary '
+        'to=functions.read <|constrain|>json<|message|>'
+        '{"path": "01_entity/companies/ACME.md"'
+    )
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path == "01_entity/companies/ACME.md"
+
+
 def test_salvage_harmony_analysis_channel_then_commentary() -> None:
     """LM Studio sometimes emits an analysis channel as prelude before the
     commentary tool call. _strip_harmony matches the commentary header

@@ -365,22 +365,32 @@ _VALID_TOOL_NAMES: frozenset[str] = _collect_valid_tool_names()
 
 
 # gpt-oss harmony channel headers leak when LM Studio's parser doesn't
-# route them. Two shapes are observed in v9-v11 PROD logs:
+# route them. Shapes observed in v9-v12 PROD logs:
 #
 #   <|channel|>commentary to=functions.<TOOL> <|constrain|>json<|message|>{...}
+#   <|channel|>final <|constrain|>commentary to=functions.<TOOL> <|constrain|>json<|message|>{...}
+#   <|channel|>final <|constrain|><TOOL><|message|>{...}
 #   <|channel|>final <|constrain|>json<|message|>{...}
+#   <|channel|>final<|message|>{...}
 #
-# In the first, the JSON body is the bare tool arguments. In the second,
-# the body is a NextStep-shaped envelope. Strip the header (and any
-# trailing <|end|>), capture the tool name when present, and pass the
-# remainder to the existing salvage shapes.
-_HARMONY_TOOL_HEADER = _re.compile(
-    r"<\|channel\|>\s*\w+\s+to=functions\.(?P<tool>[A-Za-z_][A-Za-z0-9_]*)"
+# When a tool name is recoverable (via ``to=functions.<TOOL>`` or a bare
+# ``<|constrain|><TOOL>`` where <TOOL> is a known valid tool), the JSON
+# body is bare arguments for that tool. Otherwise the body is typically a
+# full NextStep envelope. Strip the header (and any trailing
+# ``<|end|>`` / ``<|return|>`` / ``<|call|>``), capture the tool name when
+# present, and hand the remainder to the existing salvage shapes.
+_HARMONY_FUNCTIONS_HEADER = _re.compile(
+    r"<\|channel\|>.*?to=functions\.(?P<tool>[A-Za-z_][A-Za-z0-9_]*)"
     r".*?<\|message\|>",
     _re.IGNORECASE | _re.DOTALL,
 )
+_HARMONY_CONSTRAIN_TOOL_HEADER = _re.compile(
+    r"<\|channel\|>.*?<\|constrain\|>(?P<tool>[A-Za-z_][A-Za-z0-9_]*)"
+    r"<\|message\|>",
+    _re.IGNORECASE | _re.DOTALL,
+)
 _HARMONY_FINAL_HEADER = _re.compile(
-    r"<\|channel\|>\s*\w+.*?<\|message\|>",
+    r"<\|channel\|>.*?<\|message\|>",
     _re.IGNORECASE | _re.DOTALL,
 )
 _HARMONY_END = _re.compile(r"<\|(?:end|return|call)\|>\s*$")
@@ -389,18 +399,23 @@ _HARMONY_END = _re.compile(r"<\|(?:end|return|call)\|>\s*$")
 def _strip_harmony(content: str) -> Tuple[Optional[str], str]:
     """Return ``(tool_name, body)`` after stripping gpt-oss harmony tags.
 
-    ``tool_name`` is the captured target from a ``commentary
-    to=functions.<TOOL>`` header, or ``None`` if no harmony header was
-    matched (or the matched header was a ``final`` channel without an
-    explicit tool target). ``body`` is the content with the matched
-    header and any trailing ``<|end|>`` / ``<|return|>`` / ``<|call|>``
-    sentinel removed; if no header matched, ``body`` is the input
-    unchanged.
+    Tries, in order: an explicit ``to=functions.<TOOL>`` header, a bare
+    ``<|constrain|><TOOL><|message|>`` header where <TOOL> is a known
+    valid tool name (not e.g. ``json``), then a generic channel header
+    with no tool target. ``tool_name`` is the captured target (or
+    ``None``); ``body`` is the content with the matched header and any
+    trailing ``<|end|>`` / ``<|return|>`` / ``<|call|>`` sentinel
+    stripped. If no header matched, ``body`` is returned unchanged.
     """
     if not content:
         return None, content
-    m = _HARMONY_TOOL_HEADER.search(content)
+    m = _HARMONY_FUNCTIONS_HEADER.search(content)
     if m is not None:
+        body = content[m.end():]
+        body = _HARMONY_END.sub("", body).rstrip()
+        return m.group("tool"), body
+    m = _HARMONY_CONSTRAIN_TOOL_HEADER.search(content)
+    if m is not None and m.group("tool") in _VALID_TOOL_NAMES:
         body = content[m.end():]
         body = _HARMONY_END.sub("", body).rstrip()
         return m.group("tool"), body
