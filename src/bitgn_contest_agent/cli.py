@@ -656,19 +656,8 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
         def finalize_iteration(run_index: int, _results: List[TaskExecutionResult]) -> None:
             with leaderboard_run_ids_lock:
                 rid = leaderboard_run_ids.get(run_index)
-            # If the map was never populated (e.g. the worker pool skipped
-            # tasks_for_iteration because there were no tasks), use a fallback:
-            # - resume path: the run_id is already known from the CLI flag.
-            # - normal path: call start_run now to get a fresh run_id so we
-            #   can still submit the (empty) leaderboard entry.
             if rid is None:
-                if resume_run_id is not None:
-                    rid = resume_run_id
-                else:
-                    _rid, _ = harness.start_run(name=LEADERBOARD_RUN_NAME)
-                    with leaderboard_run_ids_lock:
-                        leaderboard_run_ids[run_index] = _rid
-                    rid = _rid
+                return
             # --max-trials leaves some trials unstarted and resume re-submits
             # a partial run; both require force=True so the server finalizes
             # the incomplete leaderboard entry. Full clean runs keep
@@ -684,6 +673,9 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
                     rid, force_submit, state,
                 )
             except Exception as exc:
+                # SubmitRun failure must not lose the results we already
+                # collected. Log and continue — the results artifact
+                # stays on disk for offline analysis.
                 logging.getLogger(__name__).warning(
                     "submit_run failed for run_id=%s: %s", rid, exc,
                 )

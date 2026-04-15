@@ -104,7 +104,10 @@ def test_cmd_run_benchmark_resume_calls_plan_resume_and_force_submits(monkeypatc
     # The resume path should still call finalize_iteration which is where
     # our force=True assertion lives.
     def _fake_runner(*a, **kw):
-        # simulate the runner invoking finalize_iteration once with no results
+        # Mirror the real runner: call tasks_for_iteration to populate
+        # leaderboard_run_ids, then finalize. Ignore the returned tasks —
+        # the stubbed harness returns zero-length lists.
+        kw["tasks_for_iteration"](0)
         kw["finalize_iteration"](0, [])
         return []
     monkeypatch.setattr(cli, "_run_tasks_and_summarize", _fake_runner)
@@ -140,6 +143,10 @@ def test_cmd_run_benchmark_no_resume_uses_force_false(monkeypatch):
     ))
 
     def _fake_runner(*a, **kw):
+        # Mirror the real runner: call tasks_for_iteration to populate
+        # leaderboard_run_ids, then finalize. Ignore the returned tasks —
+        # the stubbed harness returns zero-length lists.
+        kw["tasks_for_iteration"](0)
         kw["finalize_iteration"](0, [])
         return []
     monkeypatch.setattr(cli, "_run_tasks_and_summarize", _fake_runner)
