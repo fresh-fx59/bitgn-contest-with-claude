@@ -72,7 +72,7 @@ def classify(*, system: str, user: str) -> Any:
                     {"role": "user", "content": user},
                 ],
                 temperature=0.0,
-                timeout=10.0,
+                timeout=_classifier_timeout_sec(),
             )
             content = resp.choices[0].message.content
             if content is None:
@@ -117,7 +117,7 @@ def _try_fix_json(
             model=model,
             messages=[{"role": "user", "content": fix_prompt}],
             temperature=0.0,
-            timeout=10.0,
+            timeout=_classifier_timeout_sec(),
         )
         fix_content = resp.choices[0].message.content
         if fix_content is None:
@@ -162,6 +162,20 @@ def parse_response(
         return None, confidence
 
     return category, confidence
+
+
+def _classifier_timeout_sec() -> float:
+    """Per-call HTTP timeout for classifier LLM calls.
+
+    Default 10s suits hosted Haiku via cliproxy; local 20B models under
+    parallelism need much more headroom. Overridable via
+    ``BITGN_CLASSIFIER_TIMEOUT_SEC``.
+    """
+    raw = os.environ.get("BITGN_CLASSIFIER_TIMEOUT_SEC", "10")
+    try:
+        return float(raw)
+    except ValueError:
+        return 10.0
 
 
 def _llm_call(client: Any, **kwargs: Any) -> Any:
