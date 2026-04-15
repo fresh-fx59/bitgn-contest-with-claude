@@ -16,7 +16,7 @@ import time
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 import threading as _threading
 
@@ -42,6 +42,7 @@ from bitgn_contest_agent.orchestrator import (
     TaskExecutionResult,
     TaskSpec,
 )
+from bitgn_contest_agent import resume as _resume_mod
 from bitgn_contest_agent.reactive_router import ReactiveRouter, load_reactive_router
 from bitgn_contest_agent.router import Router, load_router
 from bitgn_contest_agent.trace_schema import TRACE_SCHEMA_VERSION, TraceMeta
@@ -558,6 +559,20 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
     leaderboard_run_ids: dict[int, str] = {}
     leaderboard_run_ids_lock = threading.Lock()
 
+    # --resume pins a single iteration against an existing BitGN run_id.
+    # Forces runs=1 because resume semantics only make sense for one run
+    # (the run_id is already fixed server-side).
+    resume_run_id: Optional[str] = getattr(args, "resume", None)
+    if resume_run_id is not None:
+        if args.smoke:
+            print("--resume is incompatible with --smoke", file=sys.stderr)
+            return 2
+        if args.runs != 1:
+            logging.getLogger(__name__).info(
+                "--resume forces runs=1 (was %d)", args.runs,
+            )
+            args.runs = 1
+
     if args.smoke:
         # Smoke uses the playground flow: a small fixed subset of tasks
         # exercised against StartPlayground. Kept invisible to the
@@ -586,6 +601,35 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
         )
 
         def tasks_for_iteration(run_index: int) -> List[TaskSpec]:
+            if resume_run_id is not None:
+                plan = _resume_mod.plan_resume(harness, resume_run_id)
+                with leaderboard_run_ids_lock:
+                    leaderboard_run_ids[run_index] = plan.run_id
+                logging.getLogger(__name__).info(
+                    "resume run_id=%s pending=%d stuck=%d done=%d error=%d",
+                    plan.run_id, len(plan.pending), len(plan.stuck),
+                    plan.done_count, plan.error_count,
+                )
+                # Best-effort grade stuck (RUNNING) trials inline. On error
+                # the server keeps them in ERROR — force-submit handles it.
+                for st in plan.stuck:
+                    try:
+                        harness.end_task_by_id(st.trial_id)
+                    except Exception as exc:
+                        logging.getLogger(__name__).warning(
+                            "resume: end_task_by_id(%s) failed: %s",
+                            st.trial_id, exc,
+                        )
+                return [
+                    TaskSpec(
+                        task_id=t.task_id,
+                        task_index=i,
+                        task_text="",
+                        trial_id=t.trial_id,
+                    )
+                    for i, t in enumerate(plan.pending)
+                ]
+
             rid, trial_ids = harness.start_run(name=LEADERBOARD_RUN_NAME)
             with leaderboard_run_ids_lock:
                 leaderboard_run_ids[run_index] = rid
@@ -601,7 +645,7 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
                 )
             return [
                 TaskSpec(
-                    task_id=tid,  # placeholder until start_trial resolves the real id
+                    task_id=tid,
                     task_index=i,
                     task_text="",
                     trial_id=tid,
@@ -612,13 +656,27 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
         def finalize_iteration(run_index: int, _results: List[TaskExecutionResult]) -> None:
             with leaderboard_run_ids_lock:
                 rid = leaderboard_run_ids.get(run_index)
+            # If the map was never populated (e.g. the worker pool skipped
+            # tasks_for_iteration because there were no tasks), use a fallback:
+            # - resume path: the run_id is already known from the CLI flag.
+            # - normal path: call start_run now to get a fresh run_id so we
+            #   can still submit the (empty) leaderboard entry.
             if rid is None:
-                return
-            # --max-trials leaves some trials unstarted; the server
-            # considers such runs incomplete and requires force=True on
-            # submit. Full runs keep force=False (default) so a real
-            # incomplete run still fails loudly.
-            force_submit = getattr(args, "max_trials", None) is not None
+                if resume_run_id is not None:
+                    rid = resume_run_id
+                else:
+                    _rid, _ = harness.start_run(name=LEADERBOARD_RUN_NAME)
+                    with leaderboard_run_ids_lock:
+                        leaderboard_run_ids[run_index] = _rid
+                    rid = _rid
+            # --max-trials leaves some trials unstarted and resume re-submits
+            # a partial run; both require force=True so the server finalizes
+            # the incomplete leaderboard entry. Full clean runs keep
+            # force=False (default) so a real incomplete run fails loudly.
+            force_submit = (
+                getattr(args, "max_trials", None) is not None
+                or resume_run_id is not None
+            )
             try:
                 state = harness.submit_run(rid, force=force_submit)
                 logging.getLogger(__name__).info(
@@ -626,9 +684,6 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
                     rid, force_submit, state,
                 )
             except Exception as exc:
-                # SubmitRun failure must not lose the results we already
-                # collected. Log and continue — the results artifact
-                # stays on disk for offline analysis.
                 logging.getLogger(__name__).warning(
                     "submit_run failed for run_id=%s: %s", rid, exc,
                 )
