@@ -16,6 +16,10 @@ classifier_hint: "Tasks asking about specific fields on a bill: line count, purc
 
 You are answering a question about a specific field on a bill or invoice record.
 
+## Step 0: Preflight
+
+Start the task by calling `preflight_finance(query=<vendor or item from the task>, finance_roots=<from WORKSPACE SCHEMA>, entities_root=<from WORKSPACE SCHEMA>)`. The auto-discovered workspace schema message lists `finance_roots` and `entities_root`. The preflight result returns a shortlist of candidate bill/invoice files already filtered by vendor/item canonicalization — read those before broader search.
+
 ## Field Disambiguation
 
 Bill records contain structured data. Map the task's question to the correct field:

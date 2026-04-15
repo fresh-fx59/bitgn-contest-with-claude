@@ -251,8 +251,16 @@ class AgentLoop:
             task_id=task_id,
         )
 
-        # Pre-pass (best effort).
-        self._adapter.run_prepass(session=session, trace_writer=self._writer)
+        # Pre-pass (best effort). The adapter may return extra user-message
+        # content (currently the preflight_schema summary) that must be
+        # injected into the conversation so skill bodies can reference
+        # discovered workspace roots without a separate LLM step.
+        bootstrap = self._adapter.run_prepass(
+            session=session, trace_writer=self._writer
+        )
+        if isinstance(bootstrap, list):
+            for content in bootstrap:
+                messages.append(Message(role="user", content=content))
         self._writer.append_task(task_id=task_id, task_text=task_text)
 
         totals = _Totals()

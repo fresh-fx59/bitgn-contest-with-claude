@@ -18,7 +18,7 @@ class _FakeTraceWriter:
         self.events.append({"cmd": cmd, "ok": ok, **kwargs})
 
 
-def test_prepass_runs_tree_read_context_and_marks_loaded() -> None:
+def test_prepass_runs_tree_read_context_preflight_and_marks_loaded() -> None:
     runtime = MagicMock()
     runtime.tree.return_value = pcm_pb2.TreeResponse()
     runtime.read.return_value = pcm_pb2.ReadResponse(content="rules")
@@ -27,9 +27,9 @@ def test_prepass_runs_tree_read_context_and_marks_loaded() -> None:
     adapter = PcmAdapter(runtime=runtime, max_tool_result_bytes=16384)
     session = Session()
     writer = _FakeTraceWriter()
-    adapter.run_prepass(session=session, trace_writer=writer)
+    bootstrap = adapter.run_prepass(session=session, trace_writer=writer)
 
-    # Three pre-pass calls attempted.
+    # Four pre-pass calls attempted (tree, read, context, preflight_schema).
     assert runtime.tree.call_count == 1
     assert runtime.read.call_count == 1
     assert runtime.context.call_count == 1
@@ -37,8 +37,16 @@ def test_prepass_runs_tree_read_context_and_marks_loaded() -> None:
     # On ANY success, identity_loaded flips true.
     assert session.identity_loaded is True
     assert "AGENTS.md" in session.seen_refs
-    assert len(writer.events) == 3
+    assert len(writer.events) == 4
     assert all(e["ok"] for e in writer.events)
+    assert writer.events[3]["cmd"] == "preflight_schema"
+
+    # preflight_schema bootstrap content returned for injection into the
+    # conversation. run_preflight_schema wraps internal exceptions in
+    # `schema.errors` but still returns ok=True, so there is always content.
+    assert isinstance(bootstrap, list)
+    assert len(bootstrap) == 1
+    assert "WORKSPACE SCHEMA" in bootstrap[0]
 
 
 def test_prepass_is_best_effort_one_failure_does_not_abort_others() -> None:
@@ -56,7 +64,11 @@ def test_prepass_is_best_effort_one_failure_does_not_abort_others() -> None:
     assert runtime.read.call_count == 1
     assert runtime.context.call_count == 1
     assert session.identity_loaded is True  # still true — read + context succeeded
-    assert len(writer.events) == 3
+    assert len(writer.events) == 4
     assert writer.events[0]["ok"] is False
     assert writer.events[1]["ok"] is True
     assert writer.events[2]["ok"] is True
+    # preflight_schema dispatch always returns ok=True (internal errors
+    # are captured in its schema.errors payload, not as a dispatch failure).
+    assert writer.events[3]["ok"] is True
+    assert writer.events[3]["cmd"] == "preflight_schema"

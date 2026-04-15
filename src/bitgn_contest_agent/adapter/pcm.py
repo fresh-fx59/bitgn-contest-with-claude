@@ -234,18 +234,27 @@ class PcmAdapter:
                 wall_ms=wall_ms,
             )
 
-    def run_prepass(self, *, session: Any, trace_writer: Any) -> None:
+    def run_prepass(self, *, session: Any, trace_writer: Any) -> list[str]:
         """Best-effort identity bootstrap.
 
-        Attempts tree(/), read(AGENTS.md), context(). Each failure is
-        recorded and proceeds to the next call — identity_loaded flips
-        true on ANY success. Per §1 the session is task-local, and the
-        trace writer captures every attempt for the analyzer.
+        Attempts tree(/), read(AGENTS.md), context(), preflight_schema().
+        Each failure is recorded and proceeds to the next call —
+        identity_loaded flips true on ANY success. Per §1 the session
+        is task-local, and the trace writer captures every attempt for
+        the analyzer.
+
+        Returns a list of content strings that the caller (agent loop)
+        should inject into the conversation as additional user messages.
+        Currently contains only the preflight_schema summary (on success)
+        so downstream skill bodies can reference discovered roots
+        (finance_roots, entities_root, …) without a separate LLM step.
         """
+        bootstrap_content: list[str] = []
         pre_cmds = [
             ("tree", Req_Tree(tool="tree", root="/")),
             ("read_agents_md", Req_Read(tool="read", path="AGENTS.md")),
             ("context", Req_Context(tool="context")),
+            ("preflight_schema", Req_PreflightSchema(tool="preflight_schema")),
         ]
         for label, req in pre_cmds:
             result = self.dispatch(req)
@@ -255,6 +264,13 @@ class PcmAdapter:
                     session.rulebook_loaded = True
                 for ref in result.refs:
                     session.seen_refs.add(ref)
+                if label == "preflight_schema" and result.content:
+                    bootstrap_content.append(
+                        "WORKSPACE SCHEMA (auto-discovered, use these roots "
+                        "when a preflight tool asks for inbox_root / "
+                        "entities_root / finance_roots / projects_root):\n"
+                        f"{result.content}"
+                    )
             trace_writer.append_prepass(
                 cmd=label,
                 ok=result.ok,
@@ -263,6 +279,7 @@ class PcmAdapter:
                 error=result.error,
                 error_code=result.error_code,
             )
+        return bootstrap_content
 
     # -- helpers ----------------------------------------------------------
 

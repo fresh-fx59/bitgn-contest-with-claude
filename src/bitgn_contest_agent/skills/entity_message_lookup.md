@@ -7,6 +7,10 @@ matcher_patterns:
 classifier_hint: "Tasks asking to quote or find the last recorded message or communication from a person or entity"
 ---
 
+## Step 0: Preflight
+
+Start by calling `preflight_entity(query=<entity name or reference from the task>, entities_root=<from WORKSPACE SCHEMA>)`. The auto-discovered workspace schema message lists `entities_root` — copy that value directly. The preflight result canonicalizes the entity reference against entity records and aliases and returns the matched canonical name plus the entity's record path. Use the canonical name for subsequent message searches, not the raw phrasing from the task.
+
 ## Search Strategy
 
 1. Identify the target entity and resolve to their canonical name.
