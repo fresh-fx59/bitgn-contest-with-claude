@@ -207,6 +207,49 @@ def _build_next_step(tool_name: str, args: Dict[str, Any]) -> NextStep:
     )
 
 
+def _extract_first_json_object(text: str) -> Dict[str, Any] | None:
+    """Find and parse the first balanced ``{...}`` JSON object in ``text``.
+
+    Small local models sometimes wrap their JSON in prose or code fences.
+    Scan for a brace-balanced object and attempt ``json.loads`` on it.
+    """
+    if not text:
+        return None
+    start = text.find("{")
+    while start != -1:
+        depth = 0
+        in_str = False
+        escape = False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if escape:
+                escape = False
+                continue
+            if ch == "\\" and in_str:
+                escape = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                continue
+            if in_str:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start:i + 1]
+                    try:
+                        obj = _json.loads(candidate)
+                    except _json.JSONDecodeError:
+                        break
+                    if isinstance(obj, dict):
+                        return obj
+                    break
+        start = text.find("{", start + 1)
+    return None
+
+
 class OpenAIToolCallingBackend(Backend):
     """Backend that uses native OpenAI tool-calling instead of free-text JSON."""
 

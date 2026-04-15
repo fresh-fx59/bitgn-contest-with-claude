@@ -244,3 +244,20 @@ def test_timeout_is_remapped_to_transient_backend_error() -> None:
     )
     with pytest.raises(TransientBackendError):
         backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
+
+
+from bitgn_contest_agent.backend.openai_toolcalling import (
+    _extract_first_json_object,
+)
+
+
+def test_extract_first_json_object_returns_none_for_empty_string() -> None:
+    assert _extract_first_json_object("") is None
+
+
+def test_extract_first_json_object_returns_none_when_no_braces() -> None:
+    assert _extract_first_json_object("plain prose, nothing to parse") is None
+
+
+def test_extract_first_json_object_parses_bare_object() -> None:
+    assert _extract_first_json_object('{"a": 1}') == {"a": 1}
