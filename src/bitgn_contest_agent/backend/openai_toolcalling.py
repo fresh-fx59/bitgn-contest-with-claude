@@ -214,7 +214,10 @@ def _extract_first_json_object(text: str) -> Dict[str, Any] | None:
     """Find and parse the first balanced ``{...}`` JSON object in ``text``.
 
     Small local models sometimes wrap their JSON in prose or code fences.
-    Scan for a brace-balanced object and attempt ``json.loads`` on it.
+    Scan for a brace-balanced object and attempt ``json.loads`` on it. If
+    no scan reaches depth 0 (the response was cut mid-JSON by an
+    upstream token cap), fall back to ``_repair_truncated_json`` on the
+    suffix starting at the first ``{``.
     """
     if not text:
         return None
@@ -250,7 +253,88 @@ def _extract_first_json_object(text: str) -> Dict[str, Any] | None:
                         return obj
                     break
         start = text.find("{", start + 1)
-    return None
+    first = text.find("{")
+    if first == -1:
+        return None
+    return _repair_truncated_json(text[first:])
+
+
+def _repair_truncated_json(text: str) -> Dict[str, Any] | None:
+    """Best-effort parse of a JSON object that was cut off mid-structure.
+
+    Walks the input tracking string state, array/object depth, and escape
+    sequences. On reaching the end with unclosed scopes, closes the open
+    string (if any), drops any trailing ``,`` or ``:`` that would make
+    the JSON invalid, closes any dangling partial-key, then appends the
+    matching ``]``/``}`` closers in reverse order. If that yields a
+    valid dict, returns it; otherwise ``None``.
+
+    Only applied when the balanced-brace scanner found no complete
+    object — the normal happy path is unchanged.
+    """
+    stack: List[str] = []
+    in_str = False
+    escape = False
+    for ch in text:
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_str:
+            escape = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+            continue
+        if in_str:
+            continue
+        if ch == "{":
+            stack.append("}")
+        elif ch == "[":
+            stack.append("]")
+        elif ch == "}" or ch == "]":
+            if stack and stack[-1] == ch:
+                stack.pop()
+    repaired = text
+    if in_str:
+        repaired += '"'
+    stripped = repaired.rstrip()
+
+    def _try(payload: str) -> Dict[str, Any] | None:
+        try:
+            obj = _json.loads(payload)
+        except _json.JSONDecodeError:
+            return None
+        return obj if isinstance(obj, dict) else None
+
+    # Attempt 1: just close open scopes.
+    attempt = stripped + "".join(reversed(stack))
+    out = _try(attempt)
+    if out is not None:
+        return out
+
+    # Attempt 2: drop a trailing ``,`` or ``:`` that would leave a dangling
+    # pair, then close.
+    while stripped and stripped[-1] in ",:":
+        stripped = stripped[:-1].rstrip()
+    attempt = stripped + "".join(reversed(stack))
+    out = _try(attempt)
+    if out is not None:
+        return out
+
+    # Attempt 3: walk back past the last ``,`` or ``{`` to drop a partial
+    # or incomplete trailing pair entirely, then close.
+    for cut in range(len(stripped) - 1, -1, -1):
+        c = stripped[cut]
+        if c == ',':
+            candidate = stripped[:cut]
+            break
+        if c == '{':
+            candidate = stripped[:cut + 1]
+            break
+    else:
+        return None
+    attempt = candidate + "".join(reversed(stack))
+    return _try(attempt)
 
 
 _VALID_TOOL_NAMES: frozenset[str] = frozenset({
@@ -343,6 +427,7 @@ class OpenAIToolCallingBackend(Backend):
                 tools=self._tools,
                 tool_choice="required",
                 timeout=timeout_sec,
+                max_tokens=4096,
             )
         except _TRANSIENT_EXCEPTIONS as exc:
             raise TransientBackendError(str(exc)) from exc

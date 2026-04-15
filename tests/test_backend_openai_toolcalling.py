@@ -446,3 +446,68 @@ def test_salvage_envelope_missing_entirely_uses_defaults() -> None:
     assert ns.plan_remaining_steps_brief == ["continue task"]
     assert ns.identity_verified is False
     assert ns.outcome_leaning == "GATHERING_INFORMATION"
+
+
+def test_salvage_recovers_truncated_envelope_missing_closing_braces() -> None:
+    """When LM Studio cuts the response at max_tokens mid-JSON, the envelope
+    ends with open braces/brackets (no string-mid truncation). Salvage must
+    still recover something usable by appending the missing closers."""
+    # Valid envelope with function but closing braces stripped off.
+    payload = {
+        "current_state": "reading rules",
+        "plan_remaining_steps_brief": ["read", "report"],
+        "identity_verified": False,
+        "observation": "starting",
+        "outcome_leaning": "GATHERING_INFORMATION",
+        "function": {"tool": "read", "path": "AGENTS.md"},
+    }
+    full = json.dumps(payload)
+    # Simulate mid-structure truncation: drop the trailing "}}"
+    truncated = full[:-2]
+    ns = _try_salvage_from_content(truncated)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path == "AGENTS.md"
+
+
+def test_salvage_recovers_truncated_envelope_mid_string() -> None:
+    """Truncation inside a string value: close the string and the object."""
+    # Envelope truncated mid-string (inside the last path value).
+    truncated = (
+        '{"current_state":"reading","plan_remaining_steps_brief":["a"],'
+        '"identity_verified":false,"observation":"obs",'
+        '"outcome_leaning":"GATHERING_INFORMATION",'
+        '"function":{"tool":"read","path":"02_distill/cards/very-long-file-na'
+    )
+    ns = _try_salvage_from_content(truncated)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    # Path is whatever we could recover before the cut.
+    assert ns.function.path.startswith("02_distill/cards/")
+
+
+def test_extract_first_json_object_repairs_simple_truncation() -> None:
+    """Direct _extract_first_json_object check: truncated input still yields
+    a parseable dict via the repair pass."""
+    truncated = '{"a": 1, "b": [1, 2'
+    obj = _extract_first_json_object(truncated)
+    assert obj is not None
+    assert obj["a"] == 1
+    assert obj["b"] == [1, 2]
+
+
+def test_next_step_sets_max_tokens_on_completion_call() -> None:
+    """Guard: backend MUST pass a non-trivial max_tokens to the server so
+    LM Studio's default cap does not truncate a long envelope reply."""
+    fake = MagicMock()
+    fake.chat.completions.create.return_value = _mk_completion(
+        tool_name="read",
+        arguments={**_envelope_copy(), "path": "AGENTS.md"},
+    )
+    backend = OpenAIToolCallingBackend(
+        client=fake, model="m", reasoning_effort="medium",
+    )
+    backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
+    _, kwargs = fake.chat.completions.create.call_args
+    assert "max_tokens" in kwargs
+    assert kwargs["max_tokens"] >= 2048
