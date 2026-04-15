@@ -20,12 +20,15 @@ the transport differs.
 from __future__ import annotations
 
 import json as _json
+import logging
 from typing import Any, Dict, List, Sequence, Tuple
 
 import httpx
 import openai
 from openai import OpenAI
 from pydantic import ValidationError
+
+_LOG = logging.getLogger(__name__)
 
 from bitgn_contest_agent.backend.base import (
     Backend,
@@ -358,19 +361,28 @@ class OpenAIToolCallingBackend(Backend):
                 parsed = salvaged
             else:
                 content_head = content[:200]
+                # Log raw content preview so post-mortem can see what the
+                # model sent. ValidationError below is the caller-visible
+                # signal; this log is the debug trail.
+                _LOG.warning(
+                    "salvage_miss: content-only reply, no JSON object found; "
+                    "content[:200]=%r",
+                    content_head,
+                )
+                hint = (
+                    "tool_calls missing: you replied with prose instead of "
+                    "a tool call. You MUST call exactly one tool per turn "
+                    "using the OpenAI tool_calls mechanism (not free text). "
+                    f"Your content started with: {content_head!r}"
+                )
                 raise ValidationError.from_exception_data(
                     "NextStep",
                     [
                         {
-                            "type": "missing",
+                            "type": "value_error",
                             "loc": ("function",),
-                            "input": {"hint": (
-                                "tool_calls missing: you replied with prose "
-                                "instead of a tool call. You MUST call "
-                                "exactly one tool per turn using the OpenAI "
-                                "tool_calls mechanism (not free text). "
-                                f"Your content started with: {content_head!r}"
-                            )},
+                            "input": content_head,
+                            "ctx": {"error": ValueError(hint)},
                         }
                     ],
                 )
