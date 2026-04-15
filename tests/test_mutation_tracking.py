@@ -56,7 +56,6 @@ def _fake_prepass(session: Session) -> None:
     session.identity_loaded = True
     session.rulebook_loaded = True
     session.seen_refs.add("AGENTS.md")
-    session.preflight_seen = True
 
 
 def test_write_and_delete_recorded_in_session_mutations(tmp_path: Path) -> None:

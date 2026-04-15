@@ -17,7 +17,6 @@ def test_arch_category_members() -> None:
         "SKILL_ROUTER", "REACTIVE", "VALIDATOR_T1", "VALIDATOR_T2",
         "TERMINAL", "TERMINAL_R4", "LOOP_NUDGE",
         "FORMAT_VALIDATOR", "BODY_PRESERVATION", "TASK_START",
-        "GATE",
     }
 
 

@@ -33,7 +33,6 @@ class Session:
     )
     nudges_emitted: int = 0
     mutations: List[Tuple[str, str]] = field(default_factory=list)
-    preflight_seen: bool = False
 
     def loop_nudge_needed(self, call: Tuple[str, ...]) -> bool:
         """Record a (tool, canonical_args) tuple; return True if the same

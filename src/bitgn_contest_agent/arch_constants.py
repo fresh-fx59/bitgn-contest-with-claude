@@ -22,7 +22,6 @@ class ArchCategory(StrEnum):
     FORMAT_VALIDATOR = "FORMAT_VALIDATOR"
     BODY_PRESERVATION = "BODY_PRESERVATION"
     TASK_START = "TASK_START"
-    GATE = "GATE"
 
 
 class ValidatorT1Rule(StrEnum):
