@@ -79,6 +79,10 @@ def build_parser() -> argparse.ArgumentParser:
     run_bench.add_argument("--no-parallel-iterations", dest="parallel_iterations",
                            action="store_false",
                            help="force serial iteration execution (old behavior)")
+    run_bench.add_argument("--resume", default=None, metavar="RUN_ID",
+                           help="resume a crashed leaderboard run by its BitGN run_id; "
+                                "skips trials already DONE/ERROR and submits with force=True. "
+                                "Implies --runs 1.")
 
     tri = subs.add_parser("triage", help="classify bench failures")
     tri.add_argument("summary", nargs="?", default=None,
