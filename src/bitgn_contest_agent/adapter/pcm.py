@@ -177,7 +177,7 @@ class PcmAdapter:
                 return self._finish(start, resp, refs=())
             if isinstance(req, Req_PreflightSchema):
                 from bitgn_contest_agent.preflight.schema import run_preflight_schema
-                return run_preflight_schema(self._runtime, self._workspace_context)
+                return run_preflight_schema(self._runtime, None)
             if isinstance(req, Req_PreflightInbox):
                 from bitgn_contest_agent.preflight.inbox import run_preflight_inbox
                 return run_preflight_inbox(self._runtime, req)
