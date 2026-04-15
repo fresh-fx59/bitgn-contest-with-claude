@@ -496,6 +496,66 @@ def test_extract_first_json_object_repairs_simple_truncation() -> None:
     assert obj["b"] == [1, 2]
 
 
+def test_build_next_step_caps_plan_remaining_steps_brief_at_5() -> None:
+    """Real repro: gpt-oss-20b emits a valid envelope with 9 delete plan
+    items, which violates maxItems=5 and fails NextStep validation.
+    _build_next_step must truncate to the first 5 items so the step
+    goes through instead of cascading to double-validation failure."""
+    from bitgn_contest_agent.backend.openai_toolcalling import _build_next_step
+    args = {
+        "current_state": "ready to delete",
+        "plan_remaining_steps_brief": [
+            "delete a.md", "delete b.md", "delete c.md",
+            "delete d.md", "delete e.md", "delete f.md",
+            "delete g.md", "delete h.md", "delete i.md",
+        ],
+        "identity_verified": True,
+        "observation": "Identity verified",
+        "outcome_leaning": "GATHERING_INFORMATION",
+        "path": "a.md",
+    }
+    ns = _build_next_step("delete", args)
+    assert len(ns.plan_remaining_steps_brief) == 5
+    assert ns.plan_remaining_steps_brief[0] == "delete a.md"
+    assert ns.function.tool == "delete"
+    assert ns.function.path == "a.md"
+
+
+def test_build_next_step_normalizes_invalid_outcome_leaning() -> None:
+    """If the model emits a string not in the enum, fall back to
+    GATHERING_INFORMATION instead of failing validation."""
+    from bitgn_contest_agent.backend.openai_toolcalling import _build_next_step
+    args = {
+        "current_state": "s",
+        "plan_remaining_steps_brief": ["step"],
+        "identity_verified": False,
+        "observation": "o",
+        "outcome_leaning": "OUTCOME_MAYBE_OK",  # not in enum
+        "path": "x",
+    }
+    ns = _build_next_step("read", args)
+    assert ns.outcome_leaning == "GATHERING_INFORMATION"
+
+
+def test_salvage_envelope_with_9_plan_items_succeeds() -> None:
+    """End-to-end salvage path: envelope-shape content with over-long
+    plan list must be recovered (not returned as None) by virtue of the
+    cap applied inside _build_next_step."""
+    import json as _json
+    content = _json.dumps({
+        "current_state": "ready",
+        "plan_remaining_steps_brief": [f"delete {i}" for i in range(9)],
+        "identity_verified": True,
+        "observation": "ok",
+        "outcome_leaning": "GATHERING_INFORMATION",
+        "function": {"tool": "delete", "path": "a.md"},
+    })
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert len(ns.plan_remaining_steps_brief) == 5
+    assert ns.function.path == "a.md"
+
+
 def test_next_step_sets_max_tokens_on_completion_call() -> None:
     """Guard: backend MUST pass a non-trivial max_tokens to the server so
     LM Studio's default cap does not truncate a long envelope reply."""

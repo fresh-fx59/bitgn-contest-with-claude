@@ -82,6 +82,12 @@ _ENVELOPE_DEFAULTS: Dict[str, Any] = {
     "outcome_leaning": "GATHERING_INFORMATION",
 }
 
+# Matches the maxItems=5 constraint the schema fragment advertises.
+# Sloppy local models routinely emit longer lists (e.g. one plan entry per
+# file they intend to touch on a "delete all captured cards" task).
+# Instead of losing the turn to too_long validation, keep the first 5.
+_PLAN_MAX_ITEMS: int = 5
+
 
 def _envelope_schema_fragment() -> Dict[str, Any]:
     """Return the JSONSchema object fragment shared by every tool.
@@ -201,6 +207,12 @@ def _build_next_step(tool_name: str, args: Dict[str, Any]) -> NextStep:
         if val is None or (isinstance(val, str) and val.strip() == "") \
                 or (isinstance(val, list) and len(val) == 0):
             env[k] = default
+    plan = env.get("plan_remaining_steps_brief")
+    if isinstance(plan, list) and len(plan) > _PLAN_MAX_ITEMS:
+        env["plan_remaining_steps_brief"] = plan[:_PLAN_MAX_ITEMS]
+    leaning = env.get("outcome_leaning")
+    if leaning not in _OUTCOME_LEANING_VALUES:
+        env["outcome_leaning"] = _ENVELOPE_DEFAULTS["outcome_leaning"]
     function_payload = {"tool": tool_name, **rest}
     return NextStep.model_validate(
         {
