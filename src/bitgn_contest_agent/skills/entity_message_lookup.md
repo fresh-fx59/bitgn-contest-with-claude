@@ -7,9 +7,11 @@ matcher_patterns:
 classifier_hint: "Tasks asking to quote or find the last recorded message or communication from a person or entity"
 ---
 
-## Step 0: Preflight
+## Step 0: Workspace exploration shortcut
 
-Start by calling `preflight_entity(query=<entity name or reference from the task>, entities_root=<from WORKSPACE SCHEMA>)`. The auto-discovered workspace schema message lists `entities_root` — copy that value directly. The preflight result canonicalizes the entity reference against entity records and aliases and returns the matched canonical name plus the entity's record path. Use the canonical name for subsequent message searches, not the raw phrasing from the task.
+Task shape here = "resolve a person from an informal reference (nickname, role, relationship term) so message search can match their canonical name." That's exactly what `preflight_entity(query=<entity name or reference from the task>, entities_root=<from WORKSPACE SCHEMA>)` solves in one call — it canonicalizes the reference against entity records and aliases and returns the matched canonical name plus the entity's record path. The auto-discovered WORKSPACE SCHEMA message lists `entities_root` — copy that value directly.
+
+Use it before Step 1 whenever the task reference is informal. Use the canonical name preflight returns for subsequent message searches, not the raw phrasing from the task. If preflight is empty or ambiguous, fall back to the search strategy below.
 
 ## Search Strategy
 

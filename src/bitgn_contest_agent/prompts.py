@@ -230,29 +230,45 @@ Never dump raw file contents back into your reasoning. Summarize.
 """
 
 PREFLIGHT_PROTOCOL = """
-## Preflight Protocol
+## Preflight Shortcuts
 
-Before reading, searching, or writing anything beyond a directory
-listing, you must:
+When you need to explore the working tree for a specific task shape,
+there are precomputed shortcuts that beat manual tree+search+read:
 
-1. Call `preflight_schema` to learn the workspace layout (roots for
-   inbox, entities, finance, projects, outbox, etc.).
-2. Call whichever `preflight_*` tool(s) match your task shape. Pass
-   the roots you learned in step 1 as arguments:
-   - Inbox/OCR tasks → `preflight_inbox(inbox_root, entities_root, finance_roots)`
-   - Finance lookups → `preflight_finance(finance_roots, entities_root, query)`
-   - Entity/person questions → `preflight_entity(entities_root, query)`
-   - Project questions → `preflight_project(projects_root, entities_root, query)`
-   - Document migration → `preflight_doc_migration(source_paths, entities_root, query)`
-3. Only then act on the task with normal tools (read, search, write).
+USE WHEN you need to...                               → call
+──────────────────────────────────────────────────── ─────────────────
+discover where records of each kind live             preflight_schema
+(inbox, entities, finance, projects, outbox roots)
 
-Preflight tools return a short `summary` and structured `data`. Treat
-the summary as ground truth about what's in the workspace. Re-invoke
-preflight tools later in the task if a search dead-ends or a graph
-traversal comes up short — they remain available throughout.
+find bills/invoices by vendor or line-item,          preflight_finance
+especially with spelling / spacing variants          (finance_roots,
+                                                      entities_root, query)
 
-You may call multiple preflight tools if your task spans areas (e.g.
-inbox item that references both finance and project records).
+resolve a person from an informal reference          preflight_entity
+(nickname, role like "infra counterpart",            (entities_root, query)
+ relationship like "mother-in-law")
+
+list projects involving a specific person            preflight_project
+                                                     (projects_root,
+                                                      entities_root, query)
+
+process the next inbox item (usually touches         preflight_inbox
+finance + entity graphs)                             (inbox_root,
+                                                      entities_root,
+                                                      finance_roots)
+
+move documents and need the target system's          preflight_doc_migration
+destination + metadata conventions                   (source_paths,
+                                                      entities_root, query)
+
+Each tool returns a `summary` (treat as ground truth) and structured
+`data`. Preflight is a shortcut, not a gate — use it when the task
+shape matches a row above; skip it when it doesn't. Re-invoke later
+in the task if a search dead-ends.
+
+The `preflight_schema` result is already in your conversation (look
+for the WORKSPACE SCHEMA message) — you don't need to call it again
+unless you're re-grounding.
 """
 
 _STATIC_SYSTEM_PROMPT = _STATIC_SYSTEM_PROMPT + PREFLIGHT_PROTOCOL

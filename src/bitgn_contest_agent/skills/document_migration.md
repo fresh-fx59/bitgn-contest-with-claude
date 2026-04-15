@@ -7,9 +7,11 @@ matcher_patterns:
 classifier_hint: "Tasks asking to queue, migrate, or prepare documents for transfer to another system"
 ---
 
-## Step 0: Preflight
+## Step 0: Workspace exploration shortcut
 
-Start by calling `preflight_doc_migration(query=<target system or destination from the task>, source_paths=<list of document paths from the task>, entities_root=<from WORKSPACE SCHEMA>)`. The auto-discovered workspace schema message lists `entities_root`. The preflight result resolves the target system's destination directory and the canonical metadata schema the migration queue expects. Use that destination and metadata schema directly — do NOT invent paths or fields that the preflight didn't confirm.
+Task shape here = "queue documents for a named target system, where you need the exact destination directory and required metadata schema." That's exactly what `preflight_doc_migration(query=<target system or destination from the task>, source_paths=<list of document paths from the task>, entities_root=<from WORKSPACE SCHEMA>)` solves in one call — it resolves the target system's destination directory and the canonical metadata schema the migration queue expects, so you don't have to guess. The auto-discovered WORKSPACE SCHEMA message lists `entities_root` — copy that value directly.
+
+Use it before the search strategy below. Use the destination and metadata schema preflight returns directly — do NOT invent paths or fields it didn't confirm. If preflight is empty or ambiguous, fall back to reading workspace migration docs.
 
 ## Search Strategy
 

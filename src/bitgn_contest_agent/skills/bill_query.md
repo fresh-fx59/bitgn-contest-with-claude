@@ -16,9 +16,11 @@ classifier_hint: "Tasks asking about specific fields on a bill: line count, purc
 
 You are answering a question about a specific field on a bill or invoice record.
 
-## Step 0: Preflight
+## Step 0: Workspace exploration shortcut
 
-Start the task by calling `preflight_finance(query=<vendor or item from the task>, finance_roots=<from WORKSPACE SCHEMA>, entities_root=<from WORKSPACE SCHEMA>)`. The auto-discovered workspace schema message lists `finance_roots` and `entities_root`. The preflight result returns a shortlist of candidate bill/invoice files already filtered by vendor/item canonicalization — read those before broader search.
+Task shape here = "pull a specific field from a specific vendor's bill." That's exactly what `preflight_finance(query=<vendor or item from the task>, finance_roots=<from WORKSPACE SCHEMA>, entities_root=<from WORKSPACE SCHEMA>)` solves in one call — it returns a shortlist of candidate bill/invoice files already filtered by vendor/item canonicalization, so you skip the tree+search loop. The auto-discovered WORKSPACE SCHEMA message lists `finance_roots` and `entities_root` — copy those values directly.
+
+Use it before the search strategy below. If the result is empty or ambiguous, fall back to the broader search.
 
 ## Field Disambiguation
 

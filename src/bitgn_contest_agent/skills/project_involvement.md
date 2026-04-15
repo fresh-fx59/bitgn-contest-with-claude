@@ -7,9 +7,11 @@ matcher_patterns:
 classifier_hint: "Tasks asking which projects a person or entity is involved in, or project participation queries"
 ---
 
-## Step 0: Preflight
+## Step 0: Workspace exploration shortcut
 
-Start by calling `preflight_project(query=<entity name or reference from the task>, projects_root=<from WORKSPACE SCHEMA>, entities_root=<from WORKSPACE SCHEMA>)`. The auto-discovered workspace schema message lists both `projects_root` and `entities_root` — copy those values directly. The preflight result resolves the entity to its canonical identifier and returns the matching project records indexed by linked-entity fields. If preflight returns a non-empty list, use it as the answer set (after reading the matched project records to confirm) instead of doing a fresh `search`.
+Task shape here = "list projects involving a specific person, where the person may be referenced informally and projects may link to them via structured alias rather than prose." That's exactly what `preflight_project(query=<entity name or reference from the task>, projects_root=<from WORKSPACE SCHEMA>, entities_root=<from WORKSPACE SCHEMA>)` solves in one call — it resolves the entity to its canonical identifier and returns matching project records indexed by linked-entity fields (not by prose keywords). The auto-discovered WORKSPACE SCHEMA message lists `projects_root` and `entities_root` — copy those values directly.
+
+Use it before Step 1. If preflight returns a non-empty list, use it as the answer set (after reading each matched project record to confirm) instead of doing a fresh `search`. If it's empty or ambiguous, fall back to the search strategy below.
 
 ## Search Strategy
 

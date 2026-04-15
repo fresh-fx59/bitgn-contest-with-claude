@@ -15,9 +15,11 @@ matcher_patterns:
 
 You are answering a question about a past financial transaction — a charge, invoice, receipt, or bill from a specific vendor or for a specific item.
 
-## Step 0: Preflight
+## Step 0: Workspace exploration shortcut
 
-Start by calling `preflight_finance(query=<vendor or item from the task>, finance_roots=<from WORKSPACE SCHEMA>, entities_root=<from WORKSPACE SCHEMA>)`. The auto-discovered workspace schema message (injected at task start) lists `finance_roots` and `entities_root` — copy those values directly. The preflight result returns a shortlist of candidate purchase/invoice files with vendor + item already canonicalized; read those before doing any broader search. If preflight returns matches, skip the broad `search` in Step 2 and go straight to Step 3 (cross-validate + select).
+Task shape here = "locate bills/invoices matching a vendor + line-item, often with spelling or spacing variants." That's exactly what `preflight_finance(query=<vendor or item from the task>, finance_roots=<from WORKSPACE SCHEMA>, entities_root=<from WORKSPACE SCHEMA>)` solves in one call — it canonicalizes the query and returns a filtered shortlist of candidate files, so you skip the tree+search loop for the initial narrowing. The auto-discovered WORKSPACE SCHEMA message lists `finance_roots` and `entities_root` — copy those values directly.
+
+Use it before Step 1. If preflight returns matches, skip the broad `search` in Step 2 and go straight to Step 3 (cross-validate + select). If the result is empty or ambiguous, fall back to the progressive search below.
 
 ## Step 1: Anchor the Date
 
