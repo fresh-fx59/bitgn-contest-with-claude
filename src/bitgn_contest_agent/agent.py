@@ -49,11 +49,6 @@ from bitgn_contest_agent.trace_schema import (
     TraceOutcome,
 )
 from bitgn_contest_agent.format_validator import validate_yaml_frontmatter
-from bitgn_contest_agent.harness_gate import (
-    REJECTION_MESSAGE,
-    is_preflight_tool,
-    should_reject,
-)
 from bitgn_contest_agent.trace_writer import TraceWriter
 
 
@@ -446,30 +441,8 @@ class AgentLoop:
                         error_msg="loop nudge budget exhausted",
                     )
 
-            # Preflight gate — reject non-whitelisted calls until preflight observed.
-            tool_name_peek = getattr(fn, "tool", "")
-            if should_reject(tool_name_peek, session.preflight_seen):
-                emit_arch(
-                    category=ArchCategory.GATE,
-                    at_step=step_idx,
-                    details=f"preflight_gate_reject tool={tool_name_peek}",
-                )
-                messages.append(
-                    Message(role="assistant", content=step_obj.model_dump_json())
-                )
-                messages.append(
-                    Message(
-                        role="user",
-                        content=f"Tool result:\nERROR (PREFLIGHT_REQUIRED): {REJECTION_MESSAGE}",
-                    )
-                )
-                continue  # do NOT increment totals.steps
-
             tool_result = self._adapter.dispatch(fn)
             tool_name = getattr(fn, "tool", "")
-            # Mark preflight as seen when any preflight tool succeeds.
-            if is_preflight_tool(tool_name) and tool_result.ok:
-                session.preflight_seen = True
             # Track every read attempt (success or failure) for R1 validator.
             if tool_name == "read":
                 _record_read_attempt(
