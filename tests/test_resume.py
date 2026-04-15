@@ -153,3 +153,20 @@ def test_plan_resume_empty_run_all_done():
     assert plan.stuck == []
     assert plan.done_count == 2
     assert plan.error_count == 0
+
+
+def test_finalize_resume_defaults_to_force_true():
+    h = _FakeHarness(_FakeGetRunResponse(run_id="r", benchmark_id="b"))
+
+    state = finalize_resume(h, "r")
+
+    assert state == "RUN_STATE_EVALUATED"
+    assert h.submit_calls == [("r", True)]
+
+
+def test_finalize_resume_respects_force_false():
+    h = _FakeHarness(_FakeGetRunResponse(run_id="r", benchmark_id="b"))
+
+    finalize_resume(h, "r", force=False)
+
+    assert h.submit_calls == [("r", False)]
