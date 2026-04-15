@@ -22,6 +22,7 @@ from bitgn_contest_agent.backend.openai_toolcalling import (
     OpenAIToolCallingBackend,
     _build_next_step,
     _extract_first_json_object,
+    _strip_harmony,
     _try_salvage_from_content,
     build_tool_catalog,
 )
@@ -622,3 +623,134 @@ def test_next_step_sets_max_tokens_on_completion_call() -> None:
     _, kwargs = fake.chat.completions.create.call_args
     assert "max_tokens" in kwargs
     assert kwargs["max_tokens"] >= 2048
+
+
+# --- gpt-oss harmony stripper tests --------------------------------------
+#
+# LM Studio's chat template parser for openai/gpt-oss-20b occasionally
+# routes "harmony" channel markers into the content field instead of into
+# tool_calls / reasoning_content. Four shapes were observed in v9-v11 PROD
+# logs; salvage must recover all four without regressing the existing
+# bare-JSON shapes.
+
+
+def test_strip_harmony_returns_content_unchanged_when_no_header() -> None:
+    body = '{"name": "read", "arguments": {"path": "x"}}'
+    tool, stripped = _strip_harmony(body)
+    assert tool is None
+    assert stripped == body
+
+
+def test_strip_harmony_captures_tool_from_commentary_header() -> None:
+    content = (
+        '<|channel|>commentary to=functions.read '
+        '<|constrain|>json<|message|>{"path": "AGENTS.md"}<|call|>'
+    )
+    tool, stripped = _strip_harmony(content)
+    assert tool == "read"
+    assert stripped == '{"path": "AGENTS.md"}'
+
+
+def test_strip_harmony_strips_final_channel_without_tool() -> None:
+    content = (
+        '<|channel|>final <|constrain|>json<|message|>'
+        '{"current_state": "ok"}<|end|>'
+    )
+    tool, stripped = _strip_harmony(content)
+    assert tool is None
+    assert stripped == '{"current_state": "ok"}'
+
+
+def test_strip_harmony_strips_return_and_end_sentinels() -> None:
+    content = (
+        '<|channel|>final<|message|>{"a": 1}<|return|>'
+    )
+    tool, stripped = _strip_harmony(content)
+    assert tool is None
+    assert stripped == '{"a": 1}'
+
+
+def test_salvage_commentary_harmony_with_bare_arguments() -> None:
+    """Complete harmony commentary shape: body is bare arguments for the
+    target tool; envelope defaults must fill in the NextStep envelope."""
+    content = (
+        '<|channel|>commentary to=functions.read '
+        '<|constrain|>json<|message|>'
+        '{"path": "AGENTS.md"}<|call|>'
+    )
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path == "AGENTS.md"
+    # Envelope defaults (not supplied in the harmony body) must be applied.
+    assert ns.current_state == "(not provided by model)"
+
+
+def test_salvage_final_harmony_with_full_envelope() -> None:
+    """Complete harmony final shape: body is a full NextStep envelope —
+    salvage must parse it via the existing shape-3 path."""
+    inner = json.dumps({
+        "current_state": "ready",
+        "plan_remaining_steps_brief": ["read"],
+        "identity_verified": True,
+        "observation": "ok",
+        "outcome_leaning": "GATHERING_INFORMATION",
+        "function": {"tool": "read", "path": "AGENTS.md"},
+    })
+    content = (
+        f'<|channel|>final <|constrain|>json<|message|>{inner}<|end|>'
+    )
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path == "AGENTS.md"
+    assert ns.current_state == "ready"
+    assert ns.identity_verified is True
+
+
+def test_salvage_truncated_commentary_harmony() -> None:
+    """Harmony commentary header with truncated JSON body (max_tokens cut).
+    Expect the repair pass to close the missing braces and recover."""
+    content = (
+        '<|channel|>commentary to=functions.read '
+        '<|constrain|>json<|message|>'
+        '{"path": "02_distill/cards/very-long-file-'
+    )
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path.startswith("02_distill/cards/")
+
+
+def test_salvage_truncated_final_harmony() -> None:
+    """Harmony final header with truncated envelope body; shape-3 salvage
+    via repair pass must still produce a valid NextStep."""
+    partial_inner = (
+        '{"current_state":"reading","plan_remaining_steps_brief":["a"],'
+        '"identity_verified":false,"observation":"o",'
+        '"outcome_leaning":"GATHERING_INFORMATION",'
+        '"function":{"tool":"read","path":"AGENTS.md"'
+    )
+    content = (
+        f'<|channel|>final <|constrain|>json<|message|>{partial_inner}'
+    )
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path == "AGENTS.md"
+
+
+def test_salvage_harmony_analysis_channel_then_commentary() -> None:
+    """LM Studio sometimes emits an analysis channel as prelude before the
+    commentary tool call. _strip_harmony matches the commentary header
+    (the first header with a tool target), dropping the analysis prose."""
+    content = (
+        '<|channel|>analysis<|message|>Let me think about this.<|end|>'
+        '<|channel|>commentary to=functions.read '
+        '<|constrain|>json<|message|>'
+        '{"path": "AGENTS.md"}<|call|>'
+    )
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path == "AGENTS.md"

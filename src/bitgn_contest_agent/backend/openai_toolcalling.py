@@ -21,7 +21,8 @@ from __future__ import annotations
 
 import json as _json
 import logging
-from typing import Any, Dict, List, Sequence, Tuple
+import re as _re
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import httpx
 import openai
@@ -363,20 +364,79 @@ def _collect_valid_tool_names() -> frozenset[str]:
 _VALID_TOOL_NAMES: frozenset[str] = _collect_valid_tool_names()
 
 
+# gpt-oss harmony channel headers leak when LM Studio's parser doesn't
+# route them. Two shapes are observed in v9-v11 PROD logs:
+#
+#   <|channel|>commentary to=functions.<TOOL> <|constrain|>json<|message|>{...}
+#   <|channel|>final <|constrain|>json<|message|>{...}
+#
+# In the first, the JSON body is the bare tool arguments. In the second,
+# the body is a NextStep-shaped envelope. Strip the header (and any
+# trailing <|end|>), capture the tool name when present, and pass the
+# remainder to the existing salvage shapes.
+_HARMONY_TOOL_HEADER = _re.compile(
+    r"<\|channel\|>\s*\w+\s+to=functions\.(?P<tool>[A-Za-z_][A-Za-z0-9_]*)"
+    r".*?<\|message\|>",
+    _re.IGNORECASE | _re.DOTALL,
+)
+_HARMONY_FINAL_HEADER = _re.compile(
+    r"<\|channel\|>\s*\w+.*?<\|message\|>",
+    _re.IGNORECASE | _re.DOTALL,
+)
+_HARMONY_END = _re.compile(r"<\|(?:end|return|call)\|>\s*$")
+
+
+def _strip_harmony(content: str) -> Tuple[Optional[str], str]:
+    """Return ``(tool_name, body)`` after stripping gpt-oss harmony tags.
+
+    ``tool_name`` is the captured target from a ``commentary
+    to=functions.<TOOL>`` header, or ``None`` if no harmony header was
+    matched (or the matched header was a ``final`` channel without an
+    explicit tool target). ``body`` is the content with the matched
+    header and any trailing ``<|end|>`` / ``<|return|>`` / ``<|call|>``
+    sentinel removed; if no header matched, ``body`` is the input
+    unchanged.
+    """
+    if not content:
+        return None, content
+    m = _HARMONY_TOOL_HEADER.search(content)
+    if m is not None:
+        body = content[m.end():]
+        body = _HARMONY_END.sub("", body).rstrip()
+        return m.group("tool"), body
+    m = _HARMONY_FINAL_HEADER.search(content)
+    if m is not None:
+        body = content[m.end():]
+        body = _HARMONY_END.sub("", body).rstrip()
+        return None, body
+    return None, content
+
+
 def _try_salvage_from_content(content: str) -> NextStep | None:
     """Attempt to build a NextStep from a content-only reply.
 
-    Two shapes to handle:
-      1. ``{"name": "<tool>", "arguments": {...}}`` — bare OpenAI tool
+    Three shapes to handle:
+      1. gpt-oss harmony ``commentary to=functions.<TOOL>`` header with
+         the JSON body being the bare arguments dict for ``<TOOL>``.
+      2. ``{"name": "<tool>", "arguments": {...}}`` — bare OpenAI tool
          shape emitted as free text (liquid/lfm2 trained behavior).
-      2. ``{"current_state": ..., "function": {"tool": ..., ...}}`` — the
+      3. ``{"current_state": ..., "function": {"tool": ..., ...}}`` — the
          full NextStep envelope that the OpenAIChatBackend expects.
+
+    Harmony headers (channel/final, with or without tool target) are
+    stripped before shapes 2 and 3 are tried.
 
     Returns the parsed ``NextStep`` on success, ``None`` otherwise.
     """
-    obj = _extract_first_json_object(content)
+    harmony_tool, body = _strip_harmony(content)
+    obj = _extract_first_json_object(body)
     if obj is None:
         return None
+    if harmony_tool is not None and harmony_tool in _VALID_TOOL_NAMES:
+        try:
+            return _build_next_step(harmony_tool, obj)
+        except ValidationError:
+            pass
     if "name" in obj and isinstance(obj.get("arguments"), dict):
         tool_name = obj.get("name")
         if tool_name in _VALID_TOOL_NAMES:
