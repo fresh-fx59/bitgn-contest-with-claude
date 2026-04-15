@@ -70,6 +70,35 @@ def _int_env(name: str, default: int) -> int:
         raise ConfigError(f"{name} must be an integer, got {raw!r}") from exc
 
 
+_DEFAULT_BACKOFF_MS: Tuple[int, ...] = (500, 1500, 4000, 10000)
+
+
+def _build_backoff_schedule() -> Tuple[int, ...]:
+    """Build the backend retry schedule, optionally with a long tail.
+
+    The built-in schedule (16s total) is tuned for a healthy remote.
+    Local inference (LM Studio on a single GPU) crashes or reloads for
+    tens of seconds at a time, and PAC1 can return a brief 502 during
+    a deploy — neither recovers inside 16s. Setting
+    AGENT_MAX_BACKOFF_SEC=N appends a 30s bridge step and a final
+    N-second step so a single backend call can survive an outage up
+    to ~(16 + 30 + N) seconds before giving up. The trial-level
+    TASK_TIMEOUT_SEC caps the overall trial budget, so there is no
+    need to clamp AGENT_MAX_BACKOFF_SEC here.
+
+    AGENT_MAX_BACKOFF_SEC=0 (or unset) keeps the short schedule —
+    preserves the original behavior for frontier backends where a
+    long tail would just waste time.
+    """
+    raw = os.environ.get("AGENT_MAX_BACKOFF_SEC")
+    if raw is None:
+        return _DEFAULT_BACKOFF_MS
+    extra = int(raw)  # raises ValueError on non-numeric, which is desirable
+    if extra <= 0:
+        return _DEFAULT_BACKOFF_MS
+    return _DEFAULT_BACKOFF_MS + (30_000, extra * 1000)
+
+
 def load_from_env() -> AgentConfig:
     return AgentConfig(
         bitgn_api_key=_require("BITGN_API_KEY"),
@@ -85,5 +114,6 @@ def load_from_env() -> AgentConfig:
         max_tool_result_bytes=_int_env("MAX_TOOL_RESULT_BYTES", 16384),
         max_parallel_tasks=_int_env("MAX_PARALLEL_TASKS", 4),
         max_inflight_llm=_int_env("MAX_INFLIGHT_LLM", 6),
+        rate_limit_backoff_ms=_build_backoff_schedule(),
         log_dir=os.environ.get("LOG_DIR", "logs"),
     )
