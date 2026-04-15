@@ -450,6 +450,14 @@ class OpenAIToolCallingBackend(Backend):
             )
         except _TRANSIENT_EXCEPTIONS as exc:
             raise TransientBackendError(str(exc)) from exc
+        except openai.BadRequestError as exc:
+            # LM Studio returns 400 {'error': 'Model reloaded.'} to every
+            # in-flight request when it swaps weights. Treat as transient
+            # so the caller's retry loop waits out the reload (~30-60s)
+            # instead of crashing all parallel tasks.
+            if "model reloaded" in str(exc).lower():
+                raise TransientBackendError(str(exc)) from exc
+            raise
 
         choice = completion.choices[0]
         tool_calls = getattr(choice.message, "tool_calls", None) or []

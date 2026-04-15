@@ -169,6 +169,54 @@ def test_next_step_happy_path_returns_result_with_tokens() -> None:
     assert len(kwargs.get("tools")) == len(build_tool_catalog())
 
 
+def test_next_step_model_reloaded_400_is_transient() -> None:
+    """LM Studio returns 400 'Model reloaded.' to in-flight requests when
+    it swaps weights. That blast-radius (one event hitting all parallel
+    tasks at once) must be a transient retry, not a hard crash."""
+    import openai as _openai
+    fake_client = MagicMock()
+    fake_response = MagicMock(status_code=400)
+    fake_response.json = MagicMock(return_value={"error": "Model reloaded."})
+    fake_response.text = '{"error": "Model reloaded."}'
+    err = _openai.BadRequestError(
+        message="Error code: 400 - {'error': 'Model reloaded.'}",
+        response=fake_response,
+        body={"error": "Model reloaded."},
+    )
+    fake_client.chat.completions.create.side_effect = err
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    from bitgn_contest_agent.backend.base import TransientBackendError
+    with pytest.raises(TransientBackendError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+
+
+def test_next_step_other_400_still_raises_bad_request() -> None:
+    """Other 400s (genuine bad payloads) must surface as BadRequestError,
+    not be silently retried."""
+    import openai as _openai
+    fake_client = MagicMock()
+    fake_response = MagicMock(status_code=400)
+    fake_response.json = MagicMock(return_value={"error": "bad request"})
+    fake_response.text = '{"error": "bad request"}'
+    err = _openai.BadRequestError(
+        message="Error code: 400 - {'error': 'bad request'}",
+        response=fake_response,
+        body={"error": "bad request"},
+    )
+    fake_client.chat.completions.create.side_effect = err
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    with pytest.raises(_openai.BadRequestError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+
+
 def test_next_step_no_tool_calls_is_validation_error() -> None:
     """Content-only replies that cannot be salvaged (no JSON) surface as
     ValidationError so the agent's P3 critique retry kicks in."""
