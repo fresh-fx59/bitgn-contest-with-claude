@@ -346,43 +346,52 @@ class OpenAIToolCallingBackend(Backend):
 
         choice = completion.choices[0]
         tool_calls = getattr(choice.message, "tool_calls", None) or []
+        content = getattr(choice.message, "content", None) or ""
         if not tool_calls:
-            # Model returned content-only — treat as validation failure so
-            # the agent's P3 critique path can push it toward a tool call.
-            # Echo a short slice of the content so the critique message
-            # gives the model a specific reason to correct.
-            content_head = (getattr(choice.message, "content", None) or "")[:200]
-            raise ValidationError.from_exception_data(
-                "NextStep",
-                [
-                    {
-                        "type": "missing",
-                        "loc": ("function",),
-                        "input": {"hint": (
-                            "You replied with prose instead of a tool call. "
-                            "You MUST call exactly one tool per turn. "
-                            f"Your content started with: {content_head!r}"
-                        )},
-                    }
-                ],
-            )
-        call = tool_calls[0]
-        raw_args = call.function.arguments or "{}"
-        try:
-            args = _json.loads(raw_args)
-        except _json.JSONDecodeError as exc:
-            raise ValidationError.from_exception_data(
-                "NextStep",
-                [
-                    {
-                        "type": "json_invalid",
-                        "loc": ("function",),
-                        "input": raw_args,
-                        "ctx": {"error": str(exc)},
-                    }
-                ],
-            )
-        parsed = _build_next_step(call.function.name, args)
+            # LM Studio (and similar local servers) do not always honor
+            # tool_choice="required" — small models may emit the OpenAI
+            # tool shape {"name","arguments"} as free-text content, or
+            # even a NextStep-like JSON blob. Try to salvage either shape
+            # before giving up with a critique.
+            salvaged = _try_salvage_from_content(content)
+            if salvaged is not None:
+                parsed = salvaged
+            else:
+                content_head = content[:200]
+                raise ValidationError.from_exception_data(
+                    "NextStep",
+                    [
+                        {
+                            "type": "missing",
+                            "loc": ("function",),
+                            "input": {"hint": (
+                                "tool_calls missing: you replied with prose "
+                                "instead of a tool call. You MUST call "
+                                "exactly one tool per turn using the OpenAI "
+                                "tool_calls mechanism (not free text). "
+                                f"Your content started with: {content_head!r}"
+                            )},
+                        }
+                    ],
+                )
+        else:
+            call = tool_calls[0]
+            raw_args = call.function.arguments or "{}"
+            try:
+                args = _json.loads(raw_args)
+            except _json.JSONDecodeError as exc:
+                raise ValidationError.from_exception_data(
+                    "NextStep",
+                    [
+                        {
+                            "type": "json_invalid",
+                            "loc": ("function",),
+                            "input": raw_args,
+                            "ctx": {"error": str(exc)},
+                        }
+                    ],
+                )
+            parsed = _build_next_step(call.function.name, args)
 
         usage = getattr(completion, "usage", None)
         prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0

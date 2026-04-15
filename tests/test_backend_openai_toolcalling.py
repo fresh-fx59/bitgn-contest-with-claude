@@ -167,11 +167,12 @@ def test_next_step_happy_path_returns_result_with_tokens() -> None:
 
 
 def test_next_step_no_tool_calls_is_validation_error() -> None:
-    """Content-only replies (model didn't call any tool) must surface as
+    """Content-only replies that cannot be salvaged (no JSON) surface as
     ValidationError so the agent's P3 critique retry kicks in."""
     fake_client = MagicMock()
     msg = MagicMock()
     msg.tool_calls = []
+    msg.content = ""
     completion = MagicMock()
     completion.choices = [MagicMock(message=msg)]
     completion.usage = MagicMock(prompt_tokens=1, completion_tokens=0,
@@ -180,10 +181,11 @@ def test_next_step_no_tool_calls_is_validation_error() -> None:
     backend = OpenAIToolCallingBackend(
         client=fake_client, model="local-model", reasoning_effort="medium",
     )
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError) as ei:
         backend.next_step(
             [Message(role="user", content="t")], NextStep, 30.0,
         )
+    assert "tool_calls" in str(ei.value)
 
 
 def test_next_step_malformed_args_is_validation_error() -> None:
@@ -369,3 +371,52 @@ def test_salvage_prefers_name_arguments_shape_when_both_keys_present() -> None:
     assert ns is not None
     assert ns.function.tool == "read"
     assert ns.function.path == "A.md"
+
+
+def _mk_content_only_completion(*, content: str,
+                                prompt_tokens: int = 4,
+                                completion_tokens: int = 2) -> MagicMock:
+    msg = MagicMock()
+    msg.tool_calls = []
+    msg.content = content
+    completion = MagicMock()
+    completion.choices = [MagicMock(message=msg)]
+    completion.usage = MagicMock(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        completion_tokens_details=MagicMock(reasoning_tokens=0),
+    )
+    return completion
+
+
+def test_next_step_salvages_content_only_name_arguments_reply() -> None:
+    """When tool_calls is empty but content holds a bare {name,arguments}
+    object, the backend salvages it into a NextStep instead of raising."""
+    fake_client = MagicMock()
+    fake_client.chat.completions.create.return_value = \
+        _mk_content_only_completion(
+            content='{"name": "read", "arguments": {"path": "AGENTS.md"}}',
+        )
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    out = backend.next_step(
+        [Message(role="user", content="t")], NextStep, 30.0,
+    )
+    assert isinstance(out, NextStepResult)
+    assert out.parsed.function.tool == "read"
+    assert out.parsed.function.path == "AGENTS.md"
+    assert out.prompt_tokens == 4
+    assert out.completion_tokens == 2
+
+
+def test_next_step_raises_validation_error_when_salvage_fails() -> None:
+    """Empty content (no JSON to salvage) must still surface ValidationError."""
+    fake_client = MagicMock()
+    fake_client.chat.completions.create.return_value = \
+        _mk_content_only_completion(content="I don't know what to do.")
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    with pytest.raises(ValidationError):
+        backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
