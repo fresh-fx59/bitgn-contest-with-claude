@@ -61,14 +61,17 @@ def _mk_completion(*, tool_name: str, arguments: dict[str, Any] | str,
     return completion
 
 
-def test_tool_catalog_has_all_eleven_tools() -> None:
+def test_tool_catalog_includes_filesystem_and_preflight_tools() -> None:
     cat = build_tool_catalog()
     names = {t["function"]["name"] for t in cat}
-    assert names == {
+    expected = {
         "read", "write", "delete", "mkdir", "move",
         "list", "tree", "find", "search", "context",
+        "preflight_schema", "preflight_inbox", "preflight_finance",
+        "preflight_entity", "preflight_project", "preflight_doc_migration",
         "report_completion",
     }
+    assert names == expected
 
 
 def test_tool_catalog_every_tool_exposes_envelope_fields_as_properties() -> None:
@@ -163,7 +166,7 @@ def test_next_step_happy_path_returns_result_with_tokens() -> None:
     kwargs = fake_client.chat.completions.create.call_args.kwargs
     assert kwargs.get("tool_choice") == "required"
     assert kwargs.get("stream") in (None, False)
-    assert len(kwargs.get("tools")) == 11
+    assert len(kwargs.get("tools")) == len(build_tool_catalog())
 
 
 def test_next_step_no_tool_calls_is_validation_error() -> None:

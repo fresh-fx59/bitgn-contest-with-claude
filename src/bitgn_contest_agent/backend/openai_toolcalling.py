@@ -175,7 +175,7 @@ def _tool_spec_for_req(model_cls: type) -> Dict[str, Any]:
 def build_tool_catalog() -> List[Dict[str, Any]]:
     """Construct the full tool catalog sent on every request.
 
-    Covers the 10 ``Req_*`` action tools plus ``ReportTaskCompletion``.
+    Covers every ``Req_*`` action tool plus ``ReportTaskCompletion``.
     """
     catalog: List[Dict[str, Any]] = []
     for model_cls in REQ_MODELS:
@@ -349,11 +349,18 @@ def _repair_truncated_json(text: str) -> Dict[str, Any] | None:
     return _try(attempt)
 
 
-_VALID_TOOL_NAMES: frozenset[str] = frozenset({
-    "read", "write", "delete", "mkdir", "move",
-    "list", "tree", "find", "search", "context",
-    "report_completion",
-})
+def _collect_valid_tool_names() -> frozenset[str]:
+    names: List[str] = []
+    for model_cls in REQ_MODELS:
+        lit = model_cls.model_fields["tool"].annotation
+        names.extend(getattr(lit, "__args__", ()))
+    names.extend(
+        getattr(ReportTaskCompletion.model_fields["tool"].annotation, "__args__", ())
+    )
+    return frozenset(names)
+
+
+_VALID_TOOL_NAMES: frozenset[str] = _collect_valid_tool_names()
 
 
 def _try_salvage_from_content(content: str) -> NextStep | None:
