@@ -195,6 +195,35 @@ def test_next_step_model_reloaded_400_is_transient() -> None:
         )
 
 
+def test_next_step_model_crashed_400_is_transient() -> None:
+    """LM Studio returns 400 'The model has crashed without additional
+    information. (Exit code: null)' when the model slot dies (OOM or
+    server-side segfault). Like 'Model reloaded', it hits every in-flight
+    request at once — must be reclassified as transient so the retry loop
+    waits out the slot restart instead of killing the parallel cohort."""
+    import openai as _openai
+    fake_client = MagicMock()
+    fake_response = MagicMock(status_code=400)
+    crash_body = {
+        "error": "The model has crashed without additional information. (Exit code: null)"
+    }
+    fake_response.json = MagicMock(return_value=crash_body)
+    fake_response.text = json.dumps(crash_body)
+    err = _openai.BadRequestError(
+        message=f"Error code: 400 - {crash_body}",
+        response=fake_response,
+        body=crash_body,
+    )
+    fake_client.chat.completions.create.side_effect = err
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    with pytest.raises(TransientBackendError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+
+
 def test_next_step_other_400_still_raises_bad_request() -> None:
     """Other 400s (genuine bad payloads) must surface as BadRequestError,
     not be silently retried."""
