@@ -260,8 +260,13 @@ _VALID_TOOL_NAMES: frozenset[str] = frozenset({
 def _try_salvage_from_content(content: str) -> NextStep | None:
     """Attempt to build a NextStep from a content-only reply.
 
-    Shape 1: ``{"name": "<tool>", "arguments": {...}}`` — bare OpenAI tool
-    shape emitted as free text (liquid/lfm2 trained behavior).
+    Two shapes to handle:
+      1. ``{"name": "<tool>", "arguments": {...}}`` — bare OpenAI tool
+         shape emitted as free text (liquid/lfm2 trained behavior).
+      2. ``{"current_state": ..., "function": {"tool": ..., ...}}`` — the
+         full NextStep envelope that the OpenAIChatBackend expects.
+
+    Returns the parsed ``NextStep`` on success, ``None`` otherwise.
     """
     obj = _extract_first_json_object(content)
     if obj is None:
@@ -273,6 +278,11 @@ def _try_salvage_from_content(content: str) -> NextStep | None:
                 return _build_next_step(tool_name, obj["arguments"])
             except ValidationError:
                 return None
+    if "function" in obj and isinstance(obj["function"], dict):
+        try:
+            return NextStep.model_validate(obj)
+        except ValidationError:
+            return None
     return None
 
 

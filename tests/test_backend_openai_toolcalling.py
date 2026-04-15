@@ -305,3 +305,38 @@ def test_salvage_returns_none_on_empty_content() -> None:
 def test_salvage_returns_none_when_arguments_missing() -> None:
     content = '{"name": "read"}'
     assert _try_salvage_from_content(content) is None
+
+
+def test_salvage_parses_full_next_step_envelope_shape() -> None:
+    """gpt-oss-20b sometimes emits the full envelope as free text."""
+    payload = {
+        **_envelope_copy(),
+        "function": {"tool": "read", "path": "AGENTS.md"},
+    }
+    content = f"Sure thing:\n{json.dumps(payload)}\n"
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path == "AGENTS.md"
+    assert ns.current_state == "reading rules"
+
+
+def test_salvage_returns_none_for_envelope_missing_function_tool() -> None:
+    payload = {**_envelope_copy(), "function": {"tool": "read"}}  # no path
+    content = json.dumps(payload)
+    assert _try_salvage_from_content(content) is None
+
+
+def test_salvage_prefers_name_arguments_shape_when_both_keys_present() -> None:
+    """If content contains {name, arguments, function}, the name/arguments
+    branch wins (it's the one small models emit — the envelope key is
+    coincidental)."""
+    content = json.dumps({
+        "name": "read",
+        "arguments": {"path": "A.md"},
+        "function": {"tool": "write", "path": "B.md", "content": "x"},
+    })
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "read"
+    assert ns.function.path == "A.md"
