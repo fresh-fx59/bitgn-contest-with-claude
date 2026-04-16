@@ -264,6 +264,7 @@ class PcmAdapter:
           consumed by the routed-preflight dispatcher. Empty
           `WorkspaceSchema` if preflight_schema failed or was empty.
         """
+        from bitgn_contest_agent.adapter.pcm_tracing import pcm_origin
         from bitgn_contest_agent.preflight.schema import parse_schema_content
 
         bootstrap_content: list[str] = []
@@ -274,30 +275,31 @@ class PcmAdapter:
             ("context", Req_Context(tool="context")),
             ("preflight_schema", Req_PreflightSchema(tool="preflight_schema")),
         ]
-        for label, req in pre_cmds:
-            result = self.dispatch(req)
-            if result.ok:
-                session.identity_loaded = True
-                if label == "read_agents_md":
-                    session.rulebook_loaded = True
-                for ref in result.refs:
-                    session.seen_refs.add(ref)
-                if label == "preflight_schema" and result.content:
-                    bootstrap_content.append(
-                        "WORKSPACE SCHEMA (auto-discovered, use these roots "
-                        "when a preflight tool asks for inbox_root / "
-                        "entities_root / finance_roots / projects_root):\n"
-                        f"{result.content}"
-                    )
-                    schema_content = result.content
-            trace_writer.append_prepass(
-                cmd=label,
-                ok=result.ok,
-                bytes=result.bytes,
-                wall_ms=result.wall_ms,
-                error=result.error,
-                error_code=result.error_code,
-            )
+        with pcm_origin("prepass"):
+            for label, req in pre_cmds:
+                result = self.dispatch(req)
+                if result.ok:
+                    session.identity_loaded = True
+                    if label == "read_agents_md":
+                        session.rulebook_loaded = True
+                    for ref in result.refs:
+                        session.seen_refs.add(ref)
+                    if label == "preflight_schema" and result.content:
+                        bootstrap_content.append(
+                            "WORKSPACE SCHEMA (auto-discovered, use these roots "
+                            "when a preflight tool asks for inbox_root / "
+                            "entities_root / finance_roots / projects_root):\n"
+                            f"{result.content}"
+                        )
+                        schema_content = result.content
+                trace_writer.append_prepass(
+                    cmd=label,
+                    ok=result.ok,
+                    bytes=result.bytes,
+                    wall_ms=result.wall_ms,
+                    error=result.error,
+                    error_code=result.error_code,
+                )
         return PrepassResult(
             bootstrap_content=bootstrap_content,
             schema=parse_schema_content(schema_content),

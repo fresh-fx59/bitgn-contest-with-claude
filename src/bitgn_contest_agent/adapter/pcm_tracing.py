@@ -17,9 +17,48 @@ adapter would miss those.
 from __future__ import annotations
 
 import time
-from typing import Any, Optional
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Iterator, Optional
 
 from bitgn.vm import pcm_pb2
+
+
+# Phase attribution for pcm_op records. The agent loop sets this around
+# each logical phase (prepass, routed_preflight, step:N) so every op the
+# underlying PcmRuntimeClientSync sees inherits the label — including
+# ops made by preflight_* tools that call the runtime directly.
+_pcm_op_origin: ContextVar[Optional[str]] = ContextVar(
+    "pcm_op_origin", default=None,
+)
+
+
+@contextmanager
+def pcm_origin(label: str) -> Iterator[None]:
+    """Attribute all pcm_op records emitted in this block to `label`.
+
+    Nests cleanly via contextvars — resetting on exit restores whatever
+    the outer scope had set. Thread-safe because ContextVar is per-task
+    in asyncio and copied into new threads at fork time (not relevant
+    here since the agent is synchronous, but stated for the record).
+    """
+    token = _pcm_op_origin.set(label)
+    try:
+        yield
+    finally:
+        _pcm_op_origin.reset(token)
+
+
+def set_pcm_origin(label: str) -> None:
+    """Set the origin label for subsequent pcm_op emissions until the
+    next call (or the end of the current Context). Use this when the
+    code structure doesn't cleanly fit a `with` block — e.g. inside a
+    big agent-loop iteration where re-indenting the body would churn
+    300 lines. Each iteration overwrites before any op fires, so
+    attribution is still precise per-step. The final value leaks to
+    whatever runs after, which is fine as long as no PCM ops fire
+    post-loop."""
+    _pcm_op_origin.set(label)
 
 
 def _response_bytes(resp: Any) -> int:
@@ -194,6 +233,7 @@ class TracingPcmClient:
                 wall_ms=wall_ms,
                 ok=ok,
                 error_code=error_code,
+                origin=_pcm_op_origin.get(),
             )
         except Exception:
             # Tracing must never mask a real PCM error. Drop silently

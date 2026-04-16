@@ -27,6 +27,7 @@ from typing import List, Optional
 from pydantic import ValidationError
 
 from bitgn_contest_agent.adapter.pcm import PcmAdapter, ToolResult
+from bitgn_contest_agent.adapter.pcm_tracing import pcm_origin, set_pcm_origin
 from bitgn_contest_agent.arch_constants import (
     ArchCategory,
     ArchResult,
@@ -293,6 +294,13 @@ class AgentLoop:
         step_idx = 0  # visible in except block before first iteration
         try:
           for step_idx in range(1, self._max_steps + 1):
+            # Attribute all pcm_ops emitted below to this step number. The
+            # TracingPcmClient reads this var per-op so preflight tools
+            # dispatched inside a step inherit the label too. Leakage to
+            # post-loop code is harmless — nothing after the loop makes
+            # PCM calls.
+            set_pcm_origin(f"step:{step_idx}")
+
             if self._cancel_event is not None and self._cancel_event.is_set():
                 return self._finish_cancelled(totals, step_idx - 1)
 
@@ -708,12 +716,13 @@ class AgentLoop:
             dispatch_routed_preflight,
         )
 
-        outcome = dispatch_routed_preflight(
-            decision=decision,
-            schema=schema,
-            adapter=self._adapter,
-            skills_by_name=self._router.skills_by_name(),
-        )
+        with pcm_origin("routed_preflight"):
+            outcome = dispatch_routed_preflight(
+                decision=decision,
+                schema=schema,
+                adapter=self._adapter,
+                skills_by_name=self._router.skills_by_name(),
+            )
 
         query = (decision.extracted or {}).get("query", "")
         category = decision.category

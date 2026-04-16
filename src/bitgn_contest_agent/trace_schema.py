@@ -171,6 +171,13 @@ class TracePcmOp(_BaseRecord):
     wall_ms: int = 0
     ok: bool = True
     error_code: Optional[str] = None
+    # Attribution — which phase of the task emitted this op. Filled by
+    # a ContextVar set by the agent loop: "prepass" (identity bootstrap
+    # + preflight_schema internals), "routed_preflight" (router-picked
+    # preflight before the main loop), or "step:N" (inside LLM step N,
+    # including the terminal answer). Absent on traces written before
+    # attribution landed.
+    origin: Optional[str] = None
 
 
 class TraceArch(_BaseRecord):

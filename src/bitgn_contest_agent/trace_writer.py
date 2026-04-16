@@ -125,6 +125,7 @@ class TraceWriter:
         wall_ms: int,
         ok: bool,
         error_code: Optional[str] = None,
+        origin: Optional[str] = None,
     ) -> None:
         rec = TracePcmOp(
             op=op,
@@ -133,6 +134,7 @@ class TraceWriter:
             wall_ms=wall_ms,
             ok=ok,
             error_code=error_code,
+            origin=origin,
         )
         self._write(rec.model_dump(mode="json"))
 

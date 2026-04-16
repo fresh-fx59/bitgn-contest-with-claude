@@ -11,7 +11,11 @@ from unittest.mock import MagicMock
 import pytest
 from bitgn.vm import pcm_pb2
 
-from bitgn_contest_agent.adapter.pcm_tracing import TracingPcmClient
+from bitgn_contest_agent.adapter.pcm_tracing import (
+    TracingPcmClient,
+    pcm_origin,
+    set_pcm_origin,
+)
 from bitgn_contest_agent.trace_schema import TracePcmOp, load_jsonl
 from bitgn_contest_agent.trace_writer import TraceWriter
 
@@ -120,6 +124,59 @@ def test_wrapper_records_response_bytes_from_proto_bytesize(tmp_path):
     assert len(records) == 1
     assert records[0].bytes == big.ByteSize()
     assert records[0].bytes > 1000
+
+
+def test_pcm_origin_context_manager_tags_ops(tmp_path):
+    """Ops emitted inside `pcm_origin(label)` carry the label as origin.
+    Ops emitted outside any block have origin=None."""
+    runtime = MagicMock()
+    runtime.tree.return_value = pcm_pb2.TreeResponse()
+    runtime.read.return_value = pcm_pb2.ReadResponse()
+
+    writer = _mk_writer(tmp_path)
+    client = TracingPcmClient(runtime, writer=writer)
+
+    client.tree(pcm_pb2.TreeRequest(root="/"))  # no origin
+    with pcm_origin("prepass"):
+        client.read(pcm_pb2.ReadRequest(path="AGENTS.md"))
+        with pcm_origin("nested"):
+            client.read(pcm_pb2.ReadRequest(path="x.md"))
+        # After nested block, origin reverts to outer "prepass".
+        client.read(pcm_pb2.ReadRequest(path="y.md"))
+    client.read(pcm_pb2.ReadRequest(path="after.md"))  # origin=None again
+    writer.close()
+
+    records = [r for r in load_jsonl(writer.path) if isinstance(r, TracePcmOp)]
+    assert [(r.op, r.path, r.origin) for r in records] == [
+        ("tree", "/", None),
+        ("read", "AGENTS.md", "prepass"),
+        ("read", "x.md", "nested"),
+        ("read", "y.md", "prepass"),
+        ("read", "after.md", None),
+    ]
+
+
+def test_set_pcm_origin_overwrites_without_reset(tmp_path):
+    """`set_pcm_origin` is the agent-loop helper: each call replaces the
+    origin; there is no paired reset. Used when a `with` block would
+    require re-indenting a huge body (the main loop iteration)."""
+    runtime = MagicMock()
+    runtime.read.return_value = pcm_pb2.ReadResponse()
+
+    writer = _mk_writer(tmp_path)
+    client = TracingPcmClient(runtime, writer=writer)
+
+    set_pcm_origin("step:1")
+    client.read(pcm_pb2.ReadRequest(path="a.md"))
+    set_pcm_origin("step:2")
+    client.read(pcm_pb2.ReadRequest(path="b.md"))
+    writer.close()
+
+    records = [r for r in load_jsonl(writer.path) if isinstance(r, TracePcmOp)]
+    assert [(r.path, r.origin) for r in records] == [
+        ("a.md", "step:1"),
+        ("b.md", "step:2"),
+    ]
 
 
 def test_move_records_compose_from_and_to_as_path(tmp_path):
