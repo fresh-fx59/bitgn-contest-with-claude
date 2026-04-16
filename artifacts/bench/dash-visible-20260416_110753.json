@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.2.0",
+  "overall": {
+    "total_runs": 1,
+    "total_passes": 1,
+    "pass_rate": 1.0,
+    "runs_per_task": 1,
+    "pass_rate_median": 1.0,
+    "pass_rate_min": 1.0,
+    "pass_rate_ci_lower": 1.0,
+    "pass_rate_ci_upper": 1.0,
+    "total_input_tokens": 65483,
+    "total_output_tokens": 2316,
+    "total_reasoning_tokens": 862,
+    "trace_dir": "/home/claude-developer/bitgn-contest-with-claude/artifacts/smoke/dash-visible-20260416_110753/20260416_090754",
+    "divergence_count": 6,
+    "total_pcm_ops": 106,
+    "total_pcm_wall_ms": 12022
+  },
+  "tasks": {
+    "t000": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 10,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 65483,
+      "output_tokens": 2316,
+      "reasoning_tokens": 862,
+      "harness_url": "https://vm-03o5q094n5bdhssqfw.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4,
+        6,
+        7
+      ],
+      "step_texts": [
+        "Starting mandatory identity bootstrap before task-specific lookup.",
+        "Tree completed; now performing mandatory rulebook load.",
+        "Loaded top-level AGENTS.MD. Must complete bootstrap with context before task-specific lookup. Also AGENTS says inspect 99_system with tree before task work.",
+        "Completed required 99_system tree inspection; still need nested rulebook and mandatory context before entity lookup.",
+        "Now must run context to finish required identity bootstrap.",
+        "Identity bootstrap complete (root tree, AGENTS.MD, context). Proceeding to entity lane and loading nested rulebook before lookup.",
+        "Entered entities lane; need nested cast rulebook before searching person records.",
+        "Cast rulebook loaded; now resolving which canonical entity is described as the gaming friend.",
+        "Found entity match for gaming friend: lukas.md. Need canonical DoB field from that file.",
+        "Resolved the gaming friend to Lukas and extracted canonical birthday; ready to return formatted date."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 89141,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 106,
+      "pcm_wall_ms": 12022,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 90,
+        "context": 2,
+        "list": 8,
+        "search": 1,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 96,
+        "step": 10
+      }
+    }
+  }
+}

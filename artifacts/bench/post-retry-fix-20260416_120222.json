@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.2.0",
+  "overall": {
+    "total_runs": 1,
+    "total_passes": 1,
+    "pass_rate": 1.0,
+    "runs_per_task": 1,
+    "pass_rate_median": 1.0,
+    "pass_rate_min": 1.0,
+    "pass_rate_ci_lower": 1.0,
+    "pass_rate_ci_upper": 1.0,
+    "total_input_tokens": 42330,
+    "total_output_tokens": 1456,
+    "total_reasoning_tokens": 515,
+    "trace_dir": "/home/claude-developer/bitgn-contest-with-claude/artifacts/smoke/post-retry-fix-20260416_120222/20260416_100223",
+    "divergence_count": 5,
+    "total_pcm_ops": 103,
+    "total_pcm_wall_ms": 10505
+  },
+  "tasks": {
+    "t000": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 7,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 42330,
+      "output_tokens": 1456,
+      "reasoning_tokens": 515,
+      "harness_url": "https://vm-03o5veg1o21mli1qtk.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "step_texts": [
+        "Need to perform mandatory identity bootstrap before task-specific lookup.",
+        "Completed first bootstrap step (tree). Now must read root rulebook file before any task lookup.",
+        "Read root AGENTS.MD successfully. Must call context to complete identity bootstrap before task-specific read.",
+        "Identity bootstrap complete (tree, AGENTS.MD, context). Need folder-specific rules before reading entity record.",
+        "Entered 10_entities; next read nested rulebook in cast before opening specific entity file.",
+        "Ready to read canonical Renate record and extract birthday.",
+        "Found canonical birthday for Renate Hofer in entity record; can now return formatted result."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 61928,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 103,
+      "pcm_wall_ms": 10505,
+      "pcm_ops_by_op": {
+        "tree": 3,
+        "read": 89,
+        "context": 2,
+        "list": 8,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 96,
+        "step": 7
+      }
+    }
+  }
+}

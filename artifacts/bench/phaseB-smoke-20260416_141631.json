@@ -1,0 +1,80 @@
+{
+  "schema_version": "1.2.0",
+  "overall": {
+    "total_runs": 1,
+    "total_passes": 1,
+    "pass_rate": 1.0,
+    "runs_per_task": 1,
+    "pass_rate_median": 1.0,
+    "pass_rate_min": 1.0,
+    "pass_rate_ci_lower": 1.0,
+    "pass_rate_ci_upper": 1.0,
+    "total_input_tokens": 148638,
+    "total_output_tokens": 4041,
+    "total_reasoning_tokens": 980,
+    "trace_dir": "/home/claude-developer/bitgn-contest-with-claude/logs/20260416_121632",
+    "divergence_count": 4,
+    "total_pcm_ops": 62,
+    "total_pcm_wall_ms": 6505
+  },
+  "tasks": {
+    "t01": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 21,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 148638,
+      "output_tokens": 4041,
+      "reasoning_tokens": 980,
+      "harness_url": "https://vm-03o68ol7zj5dzhugxg.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "step_texts": [
+        "Need to follow mandatory identity bootstrap before task work: tree /, read AGENTS.md, then context. User asks to remove all captured cards and threads only.",
+        "Completed tree bootstrap step. Need to read AGENTS.md then context before deletions. Tree shows likely targets in 02_distill/cards and 02_distill/threads; must also obey delete discipline by reading each file before deleting.",
+        "Read AGENTS.md successfully. Must run context to complete identity bootstrap before any task actions. Need to honor deletion discipline by reading files before deletion.",
+        "Identity bootstrap completed (tree, AGENTS.md, context). AGENTS rulebook additionally says to read 90_memory/Soul.md at new session start; actual file appears as 90_memory/soul.md. Before deletion, satisfy that rule.",
+        "Need to delete only captured cards/threads and keep templates/other files untouched. Following deletion discipline: read each file before deleting.",
+        "Read 1 of 7 non-template target files. Continue required read-before-delete for all requested captured cards and threads.",
+        "2 of 7 files read for deletion. Continue reading all remaining candidates before any delete operation.",
+        "3 of 7 read. Continue sequentially.",
+        "4 of 7 read. Continue.",
+        "All 5 card files read. Need read 2 thread files before deletions.",
+        "6 of 7 targets read. Need final thread read then perform deletions one by one.",
+        "All target files have been read and confirmed. Ready to execute requested removals only. Switching to OUTCOME_OK while performing mutations.",
+        "Proceeding with remaining confirmed deletions only.",
+        "Continue deletions.",
+        "Cards deleted; now delete thread files.",
+        "Delete final thread file.",
+        "All requested files deleted. Need verification that only captured cards/threads were removed and templates remain.",
+        "Cards directory verified; now verify threads directory.",
+        "Task complete with verification. Prepare final report."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 139008,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 62,
+      "pcm_wall_ms": 6505,
+      "pcm_ops_by_op": {
+        "tree": 3,
+        "read": 38,
+        "context": 2,
+        "list": 11,
+        "delete": 7,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 41,
+        "step": 21
+      }
+    }
+  }
+}
