@@ -427,19 +427,73 @@ def _strip_harmony(content: str) -> Tuple[Optional[str], str]:
     return None, content
 
 
+# Terminal non-OK outcomes the model can reach without calling a tool.
+# OUTCOME_OK is deliberately excluded: claiming correctness requires a
+# committed answer in ``message``, and an envelope-only reply has none.
+# OUTCOME_ERR_INTERNAL is excluded because it's the internal-error sentinel
+# the harness assigns on its own — the model shouldn't claim it.
+_SALVAGE_TERMINAL_LEANINGS: frozenset[str] = frozenset({
+    "OUTCOME_DENIED_SECURITY",
+    "OUTCOME_NONE_CLARIFICATION",
+    "OUTCOME_NONE_UNSUPPORTED",
+})
+
+
+def _maybe_salvage_envelope_terminal(obj: Dict[str, Any]) -> NextStep | None:
+    """Synthesize a ``report_completion`` from an envelope-only reply.
+
+    Triggers only when ``obj`` has a NextStep envelope (``outcome_leaning``
+    present) with a terminal non-OK value, but no ``function`` or ``name``
+    key identifying which tool to call. The model already telegraphed
+    "I'm giving up with outcome X" — terminating the task here saves the
+    turn-budget it would otherwise burn on critique/retry loops.
+
+    Populates the six ``ReportTaskCompletion`` required fields from the
+    envelope's ``current_state`` / ``observation`` so the synthesized call
+    validates. Returns ``None`` for any other shape.
+    """
+    if "function" in obj or "name" in obj:
+        return None
+    leaning = obj.get("outcome_leaning")
+    if leaning not in _SALVAGE_TERMINAL_LEANINGS:
+        return None
+    reason = (
+        (isinstance(obj.get("current_state"), str) and obj["current_state"].strip())
+        or (isinstance(obj.get("observation"), str) and obj["observation"].strip())
+        or str(leaning)
+    )
+    merged: Dict[str, Any] = {
+        **{k: obj[k] for k in _ENVELOPE_FIELDS if k in obj},
+        "message": reason,
+        "grounding_refs": [],
+        "rulebook_notes": reason,
+        "outcome_justification": reason,
+        "completed_steps_laconic": [],
+        "outcome": leaning,
+    }
+    try:
+        return _build_next_step("report_completion", merged)
+    except ValidationError:
+        return None
+
+
 def _try_salvage_from_content(content: str) -> NextStep | None:
     """Attempt to build a NextStep from a content-only reply.
 
-    Three shapes to handle:
+    Four shapes to handle:
       1. gpt-oss harmony ``commentary to=functions.<TOOL>`` header with
          the JSON body being the bare arguments dict for ``<TOOL>``.
       2. ``{"name": "<tool>", "arguments": {...}}`` — bare OpenAI tool
          shape emitted as free text (liquid/lfm2 trained behavior).
       3. ``{"current_state": ..., "function": {"tool": ..., ...}}`` — the
          full NextStep envelope that the OpenAIChatBackend expects.
+      4. Envelope-only with a terminal non-OK ``outcome_leaning`` (no
+         ``function``/``name``): synthesize a ``report_completion`` from
+         the telegraphed outcome + reasoning. Saves the turn budget the
+         critique/retry loop would otherwise burn.
 
     Harmony headers (channel/final, with or without tool target) are
-    stripped before shapes 2 and 3 are tried.
+    stripped before shapes 2-4 are tried.
 
     Returns the parsed ``NextStep`` on success, ``None`` otherwise.
     """
@@ -474,7 +528,7 @@ def _try_salvage_from_content(content: str) -> NextStep | None:
                 return _build_next_step(tool_name, merged)
             except ValidationError:
                 return None
-    return None
+    return _maybe_salvage_envelope_terminal(obj)
 
 
 class OpenAIToolCallingBackend(Backend):

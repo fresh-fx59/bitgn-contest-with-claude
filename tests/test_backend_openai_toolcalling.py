@@ -838,3 +838,110 @@ def test_salvage_harmony_analysis_channel_then_commentary() -> None:
     assert ns is not None
     assert ns.function.tool == "read"
     assert ns.function.path == "AGENTS.md"
+
+
+# --- envelope-only terminal salvage --------------------------------------
+#
+# gpt-oss-20b / lfm2 occasionally emit the NextStep envelope as free text
+# with ``outcome_leaning`` set to a terminal non-OK value but NO ``function``
+# or ``name`` key. Without salvage, the agent critiques, retries, and often
+# burns through its turn budget ending in ``OUTCOME_ERR_INTERNAL``. Safer:
+# synthesize the ``report_completion`` the model already telegraphed. Only
+# non-OK terminals — claiming OK without a committed answer would fabricate
+# a pass.
+
+
+def test_salvage_envelope_only_none_unsupported_synthesizes_report() -> None:
+    content = json.dumps({
+        "current_state": "No inbox_root available, cannot proceed",
+        "plan_remaining_steps_brief": ["give up"],
+        "identity_verified": False,
+        "observation": "entities_root missing",
+        "outcome_leaning": "OUTCOME_NONE_UNSUPPORTED",
+    })
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "report_completion"
+    assert ns.function.outcome == "OUTCOME_NONE_UNSUPPORTED"
+    assert "inbox_root" in ns.function.message
+
+
+def test_salvage_envelope_only_none_clarification_synthesizes_report() -> None:
+    content = json.dumps({
+        "current_state": "ambiguous request",
+        "plan_remaining_steps_brief": ["ask"],
+        "identity_verified": False,
+        "observation": "need clarification",
+        "outcome_leaning": "OUTCOME_NONE_CLARIFICATION",
+    })
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "report_completion"
+    assert ns.function.outcome == "OUTCOME_NONE_CLARIFICATION"
+
+
+def test_salvage_envelope_only_denied_security_synthesizes_report() -> None:
+    content = json.dumps({
+        "current_state": "request blocked by policy",
+        "plan_remaining_steps_brief": ["refuse"],
+        "identity_verified": True,
+        "observation": "security filter triggered",
+        "outcome_leaning": "OUTCOME_DENIED_SECURITY",
+    })
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "report_completion"
+    assert ns.function.outcome == "OUTCOME_DENIED_SECURITY"
+
+
+def test_salvage_envelope_only_terminal_via_harmony_header() -> None:
+    inner = json.dumps({
+        "current_state": "No entities root available",
+        "plan_remaining_steps_brief": [],
+        "identity_verified": False,
+        "observation": "cannot proceed",
+        "outcome_leaning": "OUTCOME_NONE_UNSUPPORTED",
+    })
+    content = f'<|channel|>final <|constrain|>json<|message|>{inner}<|end|>'
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    assert ns.function.tool == "report_completion"
+    assert ns.function.outcome == "OUTCOME_NONE_UNSUPPORTED"
+
+
+def test_salvage_envelope_only_gathering_info_returns_none() -> None:
+    """Non-terminal leaning — no synthesis; let the critique path run."""
+    content = json.dumps({
+        "current_state": "still figuring out",
+        "plan_remaining_steps_brief": ["think more"],
+        "identity_verified": False,
+        "observation": "ambiguous",
+        "outcome_leaning": "GATHERING_INFORMATION",
+    })
+    assert _try_salvage_from_content(content) is None
+
+
+def test_salvage_envelope_only_outcome_ok_returns_none() -> None:
+    """OUTCOME_OK without a committed answer — synthesizing here would
+    fabricate a pass. Skip so the critique path runs."""
+    content = json.dumps({
+        "current_state": "done",
+        "plan_remaining_steps_brief": ["done"],
+        "identity_verified": True,
+        "observation": "finished",
+        "outcome_leaning": "OUTCOME_OK",
+    })
+    assert _try_salvage_from_content(content) is None
+
+
+def test_salvage_envelope_with_function_still_prefers_function_branch() -> None:
+    """Guard: when both function and terminal leaning are present, the
+    function-shape branch must win — terminal synthesis is the fallback."""
+    payload = {
+        **_envelope_copy(),
+        "outcome_leaning": "OUTCOME_NONE_UNSUPPORTED",
+        "function": {"tool": "read", "path": "AGENTS.md"},
+    }
+    ns = _try_salvage_from_content(json.dumps(payload))
+    assert ns is not None
+    assert ns.function.tool == "read"
