@@ -65,6 +65,11 @@ def build_parser() -> argparse.ArgumentParser:
                            help="run the fixed smoke subset with hardcoded parallelism (180s budget)")
     run_bench.add_argument("--max-inflight-llm", type=int, default=None,
                            help="max concurrent LLM calls across all parallel tasks")
+    run_bench.add_argument("--max-trials", type=int, default=None,
+                           help="cap the number of trials executed per leaderboard run "
+                                "(runs first N of the server's trial list; the rest are "
+                                "left unstarted so they consume no VM). Dashboard-visible "
+                                "cheap smoke.")
     run_bench.add_argument("--parallel-iterations", dest="parallel_iterations",
                            action="store_true", default=None,
                            help="run --runs iterations concurrently (default on for runs>1 non-smoke)")
@@ -555,6 +560,16 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
             rid, trial_ids = harness.start_run(name=LEADERBOARD_RUN_NAME)
             with leaderboard_run_ids_lock:
                 leaderboard_run_ids[run_index] = rid
+            # --max-trials truncates the trial list so the capped remainder
+            # is never start_trial'd (no VM, no wall-clock). submit_run(force)
+            # still finalizes the leaderboard entry with the partial result.
+            cap = getattr(args, "max_trials", None)
+            effective_trials = trial_ids if cap is None else trial_ids[: max(0, int(cap))]
+            if cap is not None:
+                logging.getLogger(__name__).info(
+                    "max_trials=%d: running %d of %d trials (leaderboard run %s)",
+                    cap, len(effective_trials), len(trial_ids), rid,
+                )
             return [
                 TaskSpec(
                     task_id=tid,  # placeholder until start_trial resolves the real id
@@ -562,7 +577,7 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
                     task_text="",
                     trial_id=tid,
                 )
-                for i, tid in enumerate(trial_ids)
+                for i, tid in enumerate(effective_trials)
             ]
 
         def finalize_iteration(run_index: int, _results: List[TaskExecutionResult]) -> None:
@@ -570,10 +585,16 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
                 rid = leaderboard_run_ids.get(run_index)
             if rid is None:
                 return
+            # --max-trials leaves some trials unstarted; the server
+            # considers such runs incomplete and requires force=True on
+            # submit. Full runs keep force=False (default) so a real
+            # incomplete run still fails loudly.
+            force_submit = getattr(args, "max_trials", None) is not None
             try:
-                state = harness.submit_run(rid)
+                state = harness.submit_run(rid, force=force_submit)
                 logging.getLogger(__name__).info(
-                    "submitted run run_id=%s state=%s", rid, state,
+                    "submitted run run_id=%s force=%s state=%s",
+                    rid, force_submit, state,
                 )
             except Exception as exc:
                 # SubmitRun failure must not lose the results we already
