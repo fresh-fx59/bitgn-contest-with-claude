@@ -292,6 +292,17 @@ class PcmAdapter:
                             f"{result.content}"
                         )
                         schema_content = result.content
+                schema_roots = None
+                if label == "preflight_schema" and result.ok and result.content:
+                    from bitgn_contest_agent.preflight.schema import parse_schema_content
+                    parsed = parse_schema_content(result.content)
+                    schema_roots = {
+                        "projects_root": parsed.projects_root,
+                        "finance_roots": list(parsed.finance_roots),
+                        "entities_root": parsed.entities_root,
+                        "inbox_root": parsed.inbox_root,
+                        "outbox_root": parsed.outbox_root,
+                    }
                 trace_writer.append_prepass(
                     cmd=label,
                     ok=result.ok,
@@ -299,6 +310,7 @@ class PcmAdapter:
                     wall_ms=result.wall_ms,
                     error=result.error,
                     error_code=result.error_code,
+                    schema_roots=schema_roots,
                 )
         return PrepassResult(
             bootstrap_content=bootstrap_content,
