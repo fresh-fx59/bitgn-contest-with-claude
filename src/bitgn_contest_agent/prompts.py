@@ -229,51 +229,6 @@ Unsupported-capability discipline:
 Never dump raw file contents back into your reasoning. Summarize.
 """
 
-PREFLIGHT_PROTOCOL = """
-## Preflight Shortcuts
-
-When you need to explore the working tree for a specific task shape,
-there are precomputed shortcuts that beat manual tree+search+read:
-
-USE WHEN you need to...                               → call
-──────────────────────────────────────────────────── ─────────────────
-discover where records of each kind live             preflight_schema
-(inbox, entities, finance, projects, outbox roots)
-
-find bills/invoices by vendor or line-item,          preflight_finance
-especially with spelling / spacing variants          (finance_roots,
-                                                      entities_root, query)
-
-resolve a person from an informal reference          preflight_entity
-(nickname, role like "infra counterpart",            (entities_root, query)
- relationship like "mother-in-law")
-
-list projects involving a specific person            preflight_project
-                                                     (projects_root,
-                                                      entities_root, query)
-
-process the next inbox item (usually touches         preflight_inbox
-finance + entity graphs)                             (inbox_root,
-                                                      entities_root,
-                                                      finance_roots)
-
-move documents and need the target system's          preflight_doc_migration
-destination + metadata conventions                   (source_paths,
-                                                      entities_root, query)
-
-Each tool returns a `summary` (treat as ground truth) and structured
-`data`. Preflight is a shortcut, not a gate — use it when the task
-shape matches a row above; skip it when it doesn't. Re-invoke later
-in the task if a search dead-ends.
-
-The `preflight_schema` result is already in your conversation (look
-for the WORKSPACE SCHEMA message) — you don't need to call it again
-unless you're re-grounding.
-"""
-
-_STATIC_SYSTEM_PROMPT = _STATIC_SYSTEM_PROMPT + PREFLIGHT_PROTOCOL
-
-
 def system_prompt() -> str:
     hint = os.environ.get("HINT", "").strip()
     if hint:

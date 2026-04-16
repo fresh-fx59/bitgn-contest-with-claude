@@ -142,12 +142,10 @@ FunctionUnion = Annotated[
         Req_Find,
         Req_Search,
         Req_Context,
-        Req_PreflightSchema,
-        Req_PreflightInbox,
-        Req_PreflightFinance,
-        Req_PreflightEntity,
-        Req_PreflightProject,
-        Req_PreflightDocMigration,
+        # Preflight tools are dispatched by the harness (routed_preflight.py)
+        # based on the router decision, not by the LLM. Their Req_Preflight*
+        # classes are intentionally omitted here but remain importable for
+        # the adapter + routed_preflight.
         ReportTaskCompletion,
     ],
     Field(discriminator="tool"),
