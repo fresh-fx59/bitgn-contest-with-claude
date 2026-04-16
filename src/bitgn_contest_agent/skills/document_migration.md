@@ -5,13 +5,13 @@ type: rigid
 category: document_migration
 matcher_patterns:
 classifier_hint: "Tasks asking to queue, migrate, or prepare documents for transfer to another system"
+preflight: preflight_doc_migration
+preflight_query_field: query
 ---
 
-## Step 0: Workspace exploration shortcut
+## Step 0: Pre-fetched context
 
-Task shape here = "queue documents for a named target system, where you need the exact destination directory and required metadata schema." That's exactly what `preflight_doc_migration(query=<target system or destination from the task>, source_paths=<list of document paths from the task>, entities_root=<from WORKSPACE SCHEMA>)` solves in one call — it resolves the target system's destination directory and the canonical metadata schema the migration queue expects, so you don't have to guess. The auto-discovered WORKSPACE SCHEMA message lists `entities_root` — copy that value directly.
-
-Use it before the search strategy below. Use the destination and metadata schema preflight returns directly — do NOT invent paths or fields it didn't confirm. If preflight is empty or ambiguous, fall back to reading workspace migration docs.
+A `PREFLIGHT` user message above (auto-dispatched by the router for this task shape) contains the canonical narrowing — the matching record(s), entity canonicalization, or destination resolution. Treat it as ground truth and start from those references. Fall through to the strategy below only if preflight returned nothing usable or the question needs more than what was pre-fetched.
 
 ## Search Strategy
 

@@ -9,17 +9,17 @@ matcher_patterns:
   - '(?i)total.*(invoice|receipt|bill).*ago'
   - '(?i)(invoice|receipt|bill).*charge.*total'
   - '(?i)(what was the total|total from).*\d+\s*days?\s*ago'
+preflight: preflight_finance
+preflight_query_field: query
 ---
 
 # Finance Lookup Strategy
 
 You are answering a question about a past financial transaction — a charge, invoice, receipt, or bill from a specific vendor or for a specific item.
 
-## Step 0: Workspace exploration shortcut
+## Step 0: Pre-fetched context
 
-Task shape here = "locate bills/invoices matching a vendor + line-item, often with spelling or spacing variants." That's exactly what `preflight_finance(query=<vendor or item from the task>, finance_roots=<from WORKSPACE SCHEMA>, entities_root=<from WORKSPACE SCHEMA>)` solves in one call — it canonicalizes the query and returns a filtered shortlist of candidate files, so you skip the tree+search loop for the initial narrowing. The auto-discovered WORKSPACE SCHEMA message lists `finance_roots` and `entities_root` — copy those values directly.
-
-Use it before Step 1. If preflight returns matches, skip the broad `search` in Step 2 and go straight to Step 3 (cross-validate + select). If the result is empty or ambiguous, fall back to the progressive search below.
+A `PREFLIGHT` user message above (auto-dispatched by the router for this task shape) contains the canonical narrowing — the matching record(s), entity canonicalization, or destination resolution. Treat it as ground truth and start from those references. Fall through to the strategy below only if preflight returned nothing usable or the question needs more than what was pre-fetched.
 
 ## Step 1: Anchor the Date
 

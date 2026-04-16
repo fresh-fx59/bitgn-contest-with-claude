@@ -10,17 +10,17 @@ matcher_patterns:
   - '(?i)price\s+of\s+.+\s+(on|in|from)\s+(the|my|a)\s+bill'
   - '(?i)bill\s+from\s+.+\s+(how many|number of|lines|quantity|price|date)'
 classifier_hint: "Tasks asking about specific fields on a bill: line count, purchased date, quantity, or price of items"
+preflight: preflight_finance
+preflight_query_field: query
 ---
 
 # Bill Query Strategy
 
 You are answering a question about a specific field on a bill or invoice record.
 
-## Step 0: Workspace exploration shortcut
+## Step 0: Pre-fetched context
 
-Task shape here = "pull a specific field from a specific vendor's bill." That's exactly what `preflight_finance(query=<vendor or item from the task>, finance_roots=<from WORKSPACE SCHEMA>, entities_root=<from WORKSPACE SCHEMA>)` solves in one call — it returns a shortlist of candidate bill/invoice files already filtered by vendor/item canonicalization, so you skip the tree+search loop. The auto-discovered WORKSPACE SCHEMA message lists `finance_roots` and `entities_root` — copy those values directly.
-
-Use it before the search strategy below. If the result is empty or ambiguous, fall back to the broader search.
+A `PREFLIGHT` user message above (auto-dispatched by the router for this task shape) contains the canonical narrowing — the matching record(s), entity canonicalization, or destination resolution. Treat it as ground truth and start from those references. Fall through to the strategy below only if preflight returned nothing usable or the question needs more than what was pre-fetched.
 
 ## Field Disambiguation
 
