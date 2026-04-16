@@ -128,6 +128,15 @@ class Router:
                 return c.skill.body
         return None
 
+    def skills_by_name(self) -> Dict[str, BitgnSkill]:
+        """Read-only mapping of skill name -> BitgnSkill.
+
+        Used by the harness-side routed_preflight dispatcher to look up
+        the matched skill's preflight binding (preflight + query field)
+        without reaching into the router's internal _compiled list.
+        """
+        return {c.skill.name: c.skill for c in self._compiled}
+
 
 def load_router(skills_dir: Path | str) -> Router:
     skills: List[BitgnSkill] = []

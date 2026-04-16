@@ -34,7 +34,8 @@ def test_agent_loop_injects_skill_body_when_router_hits() -> None:
 
     r = load_router(skills_dir=FIX)
     task_text = "Please TEST-ROUTE this"
-    messages = _build_initial_messages(task_text=task_text, router=r)
+    messages, decision = _build_initial_messages(task_text=task_text, router=r)
+    assert decision is not None and decision.skill_name == "test-valid"
     # Expected message sequence:
     #   [0] system (system_prompt)
     #   [1] user   (task_text)
@@ -59,7 +60,8 @@ def test_agent_loop_no_injection_on_unknown() -> None:
         "bitgn_contest_agent.classifier.classify",
         side_effect=RuntimeError("network"),
     ):
-        messages = _build_initial_messages(task_text=task_text, router=r)
+        messages, decision = _build_initial_messages(task_text=task_text, router=r)
+    assert decision is not None and decision.skill_name is None
     # Only system + task text; no skill injection.
     assert len(messages) == 2
     assert messages[0].role == "system"

@@ -155,9 +155,10 @@ def _build_initial_messages(
     task_text: str,
     router: Optional[Router] = None,
     task_id: str = "",
-) -> List[Message]:
+) -> tuple[List[Message], Optional[RoutingDecision]]:
     """Construct the initial messages for a task, including any router-
-    injected bitgn skill body.
+    injected bitgn skill body. Also returns the routing decision so the
+    caller can use it for harness-side preflight dispatch.
 
     Order:
       [0] system: system_prompt()
@@ -168,12 +169,17 @@ def _build_initial_messages(
     The system prompt and task-text messages stay bit-identical across
     tasks so the provider-side prompt cache remains hot. Skill and
     task-hint injections are appended as additional user messages.
+
+    Returns `(messages, decision)`. `decision` is None when no router
+    was supplied; otherwise it carries the category, skill name, and
+    extracted fields the routed-preflight dispatcher consumes.
     """
     messages: List[Message] = [
         Message(role="system", content=system_prompt()),
         Message(role="user", content=task_text),
     ]
 
+    decision: Optional[RoutingDecision] = None
     if router is not None:
         decision = router.route(task_text)
         if task_id:
@@ -210,7 +216,7 @@ def _build_initial_messages(
     if task_hint is not None:
         messages.append(Message(role="user", content=task_hint))
 
-    return messages
+    return messages, decision
 
 
 class AgentLoop:
@@ -245,7 +251,7 @@ class AgentLoop:
 
     def run(self, *, task_id: str, task_text: str) -> AgentLoopResult:
         session = Session()
-        messages: List[Message] = _build_initial_messages(
+        messages, decision = _build_initial_messages(
             task_text=task_text,
             router=self._router,
             task_id=task_id,
@@ -265,6 +271,16 @@ class AgentLoop:
         if bootstrap_content:
             for content in bootstrap_content:
                 messages.append(Message(role="user", content=content))
+
+        # Routed preflight — harness-side dispatch driven by the router
+        # decision. When the router picked a skill that has a preflight
+        # binding (frontmatter), dispatch it now (after prepass provides
+        # the WorkspaceSchema) and inject the canonical-narrowing user
+        # message before the first LLM step.
+        self._dispatch_routed_preflight(
+            decision=decision, prepass=prepass, messages=messages,
+        )
+
         self._writer.append_task(task_id=task_id, task_text=task_text)
 
         totals = _Totals()
@@ -667,6 +683,74 @@ class AgentLoop:
         )
 
     # -- helpers ---------------------------------------------------------
+
+    def _dispatch_routed_preflight(
+        self,
+        *,
+        decision: Optional[RoutingDecision],
+        prepass: object,
+        messages: List[Message],
+    ) -> None:
+        """Run the routed preflight (if any) and mutate `messages`.
+
+        No-op when router is disabled, decision is None, or the prepass
+        object is a legacy test mock lacking `schema`. Trace events are
+        written for every attempt that chose a tool; dispatch exceptions
+        are swallowed inside `dispatch_routed_preflight` itself.
+        """
+        if self._router is None or decision is None:
+            return
+        schema = getattr(prepass, "schema", None)
+        if schema is None:
+            return  # legacy mock — no typed schema available
+
+        from bitgn_contest_agent.routed_preflight import (
+            dispatch_routed_preflight,
+        )
+
+        outcome = dispatch_routed_preflight(
+            decision=decision,
+            schema=schema,
+            adapter=self._adapter,
+            skills_by_name=self._router.skills_by_name(),
+        )
+
+        if outcome.tool is not None:
+            result = outcome.result
+            self._writer.append_prepass(
+                cmd=f"routed_{outcome.tool}",
+                ok=bool(result.ok) if result is not None else False,
+                bytes=result.bytes if result is not None else 0,
+                wall_ms=result.wall_ms if result is not None else 0,
+                error=(
+                    outcome.error
+                    or (result.error if result is not None else None)
+                ),
+                error_code=(
+                    result.error_code if result is not None else None
+                ),
+            )
+
+        result = outcome.result
+        if (
+            result is not None
+            and result.ok
+            and result.content
+        ):
+            query = (decision.extracted or {}).get("query", "")
+            messages.append(
+                Message(
+                    role="user",
+                    content=(
+                        f"PREFLIGHT (auto-dispatched by router for "
+                        f"category={decision.category}, query={query!r}):\n"
+                        f"{result.content}\n\n"
+                        f"This is the canonical narrowing for this task. "
+                        f"Use these references first; widen the search "
+                        f"only if the answer is not derivable from them."
+                    ),
+                )
+            )
 
     def _call_backend_with_retry(
         self,
