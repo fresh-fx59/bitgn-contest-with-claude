@@ -35,6 +35,8 @@ class BitgnSkill:
     body: str
     variables: List[str] = field(default_factory=list)
     classifier_hint: Optional[str] = None
+    preflight: Optional[str] = None
+    preflight_query_field: str = "query"
 
 
 _REQUIRED_KEYS = ("name", "description", "type", "category", "matcher_patterns")
@@ -58,6 +60,8 @@ def load_skill(path: Path) -> BitgnSkill:
         matcher_patterns=list(parsed["matcher_patterns"]),
         variables=list(parsed.get("variables", [])),
         classifier_hint=parsed.get("classifier_hint"),
+        preflight=parsed.get("preflight"),
+        preflight_query_field=parsed.get("preflight_query_field", "query") or "query",
         body=body.strip() + "\n",
     )
 
