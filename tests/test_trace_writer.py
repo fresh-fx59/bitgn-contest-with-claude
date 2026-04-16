@@ -239,3 +239,37 @@ def test_append_arch_writes_record(tmp_path) -> None:
     assert len(records) == 1
     assert isinstance(records[0], TraceArch)
     assert records[0].rule == ValidatorT1Rule.MUTATION_GUARD
+
+
+def test_append_prepass_accepts_schema_roots_and_match_fields(tmp_path):
+    from bitgn_contest_agent.trace_writer import TraceWriter
+    path = tmp_path / "t.jsonl"
+    w = TraceWriter(path=path)
+    w.append_prepass(
+        cmd="preflight_schema",
+        ok=True,
+        bytes=100,
+        wall_ms=5,
+        schema_roots={
+            "projects_root": "40_projects",
+            "finance_roots": ["50_finance/invoices"],
+            "entities_root": "20_entities",
+            "inbox_root": "00_inbox",
+            "outbox_root": "60_outbox/outbox",
+        },
+    )
+    w.append_prepass(
+        cmd="routed_preflight_project",
+        ok=True,
+        bytes=200,
+        match_found=True,
+        match_file="40_projects/studio_parts_library/README.MD",
+    )
+    w.close()
+    lines = path.read_text().splitlines()
+    import json
+    r1 = json.loads(lines[0])
+    assert r1["schema_roots"]["projects_root"] == "40_projects"
+    r2 = json.loads(lines[1])
+    assert r2["match_found"] is True
+    assert r2["match_file"] == "40_projects/studio_parts_library/README.MD"

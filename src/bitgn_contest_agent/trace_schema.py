@@ -101,6 +101,12 @@ class TracePrepass(_BaseRecord):
     category: Optional[str] = None
     query: Optional[str] = None
     skipped_reason: Optional[str] = None
+    # Preflight observability fields (2026-04-16).
+    # Populated only on relevant cmds so post-run grep can confirm
+    # classifier + routed-preflight behavior without reading tool payloads.
+    schema_roots: Optional[dict[str, Any]] = None
+    match_found: Optional[bool] = None
+    match_file: Optional[str] = None
 
 
 class StepLLMStats(_BaseRecord):

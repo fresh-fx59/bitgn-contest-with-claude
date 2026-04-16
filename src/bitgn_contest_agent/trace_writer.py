@@ -58,6 +58,9 @@ class TraceWriter:
         category: Optional[str] = None,
         query: Optional[str] = None,
         skipped_reason: Optional[str] = None,
+        schema_roots: Optional[dict[str, Any]] = None,
+        match_found: Optional[bool] = None,
+        match_file: Optional[str] = None,
     ) -> None:
         rec = TracePrepass(
             cmd=cmd,
@@ -69,6 +72,9 @@ class TraceWriter:
             category=category,
             query=query,
             skipped_reason=skipped_reason,
+            schema_roots=schema_roots,
+            match_found=match_found,
+            match_file=match_file,
         )
         self._write(rec.model_dump(mode="json"))
 
