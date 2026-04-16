@@ -174,3 +174,54 @@ def test_dispatch_swallows_exception_and_returns_skip() -> None:
     assert out.tool == "preflight_finance"
     assert out.skipped_reason == "dispatch_exception"
     assert out.error == "boom"
+
+
+def test_dispatch_routes_unknown_to_preflight_unknown():
+    """When decision.skill_name is None (router returned UNKNOWN), the
+    dispatcher runs preflight_unknown rather than skipping with
+    reason='no_skill' — provided a backend is available."""
+    from bitgn_contest_agent.adapter.pcm import ToolResult as TR
+    from unittest.mock import patch
+
+    fake_backend = MagicMock()
+    schema = WorkspaceSchema(
+        entities_root="10_entities/cast",
+        projects_root="40_projects",
+        finance_roots=["50_finance/invoices"],
+        inbox_root="00_inbox",
+    )
+    decision = RoutingDecision(
+        category="UNKNOWN",
+        source="unknown",
+        confidence=0.0,
+        extracted={},
+        skill_name=None,
+        task_text="when was my ambient buddy born",
+    )
+    fake_result = TR(
+        ok=True,
+        content="scaffold content",
+        refs=(),
+        error=None,
+        error_code=None,
+        wall_ms=5,
+    )
+    with patch(
+        "bitgn_contest_agent.preflight.unknown.run_preflight_unknown",
+        return_value=fake_result,
+    ) as mock_run:
+        out = dispatch_routed_preflight(
+            decision=decision,
+            schema=schema,
+            adapter=MagicMock(),
+            skills_by_name={},
+            backend=fake_backend,
+        )
+
+    assert out.tool == "preflight_unknown"
+    assert out.result is not None and out.result.ok is True
+    mock_run.assert_called_once()
+    # verify the allowed_roots contains schema roots (hallucination guard input)
+    call_kwargs = mock_run.call_args.kwargs
+    assert "entities_root" in str(call_kwargs["req"].workspace_schema_summary) \
+        or "10_entities/cast" in call_kwargs["req"].allowed_roots

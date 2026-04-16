@@ -722,6 +722,7 @@ class AgentLoop:
                 schema=schema,
                 adapter=self._adapter,
                 skills_by_name=self._router.skills_by_name(),
+                backend=self._backend,
             )
 
         query = (decision.extracted or {}).get("query", "")

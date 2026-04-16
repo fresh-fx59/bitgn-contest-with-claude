@@ -51,6 +51,7 @@ def dispatch_routed_preflight(
     schema: WorkspaceSchema,
     adapter: Any,
     skills_by_name: Dict[str, BitgnSkill],
+    backend: Any = None,
 ) -> RoutedPreflightOutcome:
     """Dispatch the preflight tool bound to the decided skill, if any.
 
@@ -59,7 +60,11 @@ def dispatch_routed_preflight(
     AND `result.ok` is True.
     """
     if decision.skill_name is None:
-        return RoutedPreflightOutcome(skipped_reason="no_skill")
+        if backend is None:
+            return RoutedPreflightOutcome(skipped_reason="no_skill")
+        return _dispatch_unknown(
+            decision=decision, schema=schema, backend=backend,
+        )
 
     skill = skills_by_name.get(decision.skill_name)
     if skill is None or not skill.preflight:
@@ -171,3 +176,45 @@ _BUILDERS: Dict[str, Callable[..., _BuilderResult]] = {
     "preflight_doc_migration": _build_doc_migration,
     "preflight_inbox": _build_inbox,
 }
+
+
+def _dispatch_unknown(
+    *,
+    decision: RoutingDecision,
+    schema: WorkspaceSchema,
+    backend: Any,
+) -> RoutedPreflightOutcome:
+    from bitgn_contest_agent.preflight.unknown import run_preflight_unknown
+    from bitgn_contest_agent.schemas import Req_PreflightUnknown
+
+    allowed = [r for r in [
+        schema.entities_root, schema.projects_root, schema.inbox_root,
+        *schema.finance_roots,
+    ] if r]
+
+    # Compact summary — one line per root.
+    summary_lines: list[str] = []
+    if schema.entities_root:
+        summary_lines.append(f"entities_root={schema.entities_root}")
+    if schema.projects_root:
+        summary_lines.append(f"projects_root={schema.projects_root}")
+    if schema.inbox_root:
+        summary_lines.append(f"inbox_root={schema.inbox_root}")
+    if schema.finance_roots:
+        summary_lines.append(f"finance_roots={','.join(schema.finance_roots)}")
+
+    req = Req_PreflightUnknown(
+        task_text=decision.task_text,
+        workspace_schema_summary="; ".join(summary_lines),
+        allowed_roots=allowed,
+    )
+    try:
+        result = run_preflight_unknown(backend=backend, req=req)
+    except Exception as exc:  # noqa: BLE001 — never crash the agent
+        _LOG.warning("preflight_unknown raised: %s", exc)
+        return RoutedPreflightOutcome(
+            tool="preflight_unknown",
+            skipped_reason="dispatch_exception",
+            error=str(exc),
+        )
+    return RoutedPreflightOutcome(tool="preflight_unknown", result=result)

@@ -27,6 +27,7 @@ class RoutingDecision:
     confidence: float
     extracted: Dict[str, str] = field(default_factory=dict)
     skill_name: Optional[str] = None
+    task_text: str = ""
 
 
 _UNKNOWN = RoutingDecision(
@@ -79,6 +80,7 @@ class Router:
                     confidence=1.0,
                     extracted=extracted,
                     skill_name=c.skill.name,
+                    task_text=task_text,
                 )
 
         # Tier 2 — classifier LLM (shared module).
@@ -111,6 +113,7 @@ class Router:
                 confidence=confidence,
                 extracted={},
                 skill_name=None,
+                task_text=task_text,
             )
 
         skill = self._by_category[category]
@@ -120,6 +123,7 @@ class Router:
             confidence=confidence,
             extracted={k: str(v) for k, v in extracted.items()},
             skill_name=skill.name,
+            task_text=task_text,
         )
 
     def skill_body_for(self, skill_name: str) -> Optional[str]:
