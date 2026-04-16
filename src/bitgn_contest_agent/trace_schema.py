@@ -151,6 +151,28 @@ class TraceEvent(_BaseRecord):
     repeated_tuple: Optional[List[str]] = None
 
 
+class TracePcmOp(_BaseRecord):
+    """One raw PCM runtime call — logged by the tracing wrapper around
+    PcmRuntimeClientSync. Captures the same ops the BitGN dashboard
+    counts as "steps" (list/read/tree/find/search/context/write/...),
+    so a local trace can be diffed against the dashboard without the
+    pastebin dance. Order in the JSONL is chronological.
+
+    `op` is the client method name (list, read, tree, etc.). `path` is
+    the primary target extracted from the request (None for context/
+    answer where there is no single path). `bytes` is the protobuf
+    wire size of the response (ByteSize). Failed calls set ok=False
+    and populate error_code.
+    """
+    kind: Literal["pcm_op"] = "pcm_op"
+    op: str
+    path: Optional[str] = None
+    bytes: int = 0
+    wall_ms: int = 0
+    ok: bool = True
+    error_code: Optional[str] = None
+
+
 class TraceArch(_BaseRecord):
     kind: Literal["arch"] = "arch"
     at_step: Optional[int] = None      # None = pre-task (router)
@@ -189,7 +211,10 @@ class TraceOutcome(_BaseRecord):
     score_detail: Optional[List[str]] = None
 
 
-TraceRecord = Union[TraceMeta, TraceTask, TracePrepass, TraceStep, TraceEvent, TraceArch, TraceOutcome]
+TraceRecord = Union[
+    TraceMeta, TraceTask, TracePrepass, TraceStep, TraceEvent,
+    TraceArch, TracePcmOp, TraceOutcome,
+]
 
 
 _KIND_TO_MODEL: dict[str, type[_BaseRecord]] = {
@@ -199,6 +224,7 @@ _KIND_TO_MODEL: dict[str, type[_BaseRecord]] = {
     "step": TraceStep,
     "event": TraceEvent,
     "arch": TraceArch,
+    "pcm_op": TracePcmOp,
     "outcome": TraceOutcome,
 }
 

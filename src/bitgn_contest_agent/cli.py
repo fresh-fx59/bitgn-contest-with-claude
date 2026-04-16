@@ -22,6 +22,7 @@ import threading as _threading
 
 from bitgn_contest_agent import __version__
 from bitgn_contest_agent.adapter.pcm import PcmAdapter
+from bitgn_contest_agent.adapter.pcm_tracing import TracingPcmClient
 from bitgn_contest_agent.agent import AgentLoop, AgentLoopResult
 from bitgn_contest_agent.arch_constants import ArchCategory
 from bitgn_contest_agent.arch_log import (
@@ -199,13 +200,21 @@ def _run_single_task(
             started = harness.start_task(task.task_id)
         effective_task_id = started.task_id
 
+        # Wrap the runtime in a tracing proxy BEFORE constructing the
+        # adapter. Every PCM call (including those made by preflight_*
+        # tools that receive the runtime directly) then emits a pcm_op
+        # trace record — the same ops counted as "steps" on the BitGN
+        # dashboard. Writer is attached immediately after we know the
+        # final task_id.
+        tracing_runtime = TracingPcmClient(started.runtime_client)
         adapter = PcmAdapter(
-            runtime=started.runtime_client,
+            runtime=tracing_runtime,
             max_tool_result_bytes=cfg.max_tool_result_bytes,
         )
 
         trace_path = _trace_path(cfg, run_id, effective_task_id, run_index)
         writer = TraceWriter(path=trace_path)
+        tracing_runtime.set_writer(writer)
 
         # Per-task stderr log file + task-scoped ContextVar.
         task_log_path = trace_path.with_suffix(".log")

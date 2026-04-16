@@ -19,6 +19,7 @@ from bitgn_contest_agent.trace_schema import (
     TraceEvent,
     TraceMeta,
     TraceOutcome,
+    TracePcmOp,
     TracePrepass,
     TraceStep,
     TraceTask,
@@ -112,6 +113,26 @@ class TraceWriter:
             attempt=attempt,
             details=details,
             repeated_tuple=repeated_tuple,
+        )
+        self._write(rec.model_dump(mode="json"))
+
+    def append_pcm_op(
+        self,
+        *,
+        op: str,
+        path: Optional[str],
+        bytes: int,
+        wall_ms: int,
+        ok: bool,
+        error_code: Optional[str] = None,
+    ) -> None:
+        rec = TracePcmOp(
+            op=op,
+            path=path,
+            bytes=bytes,
+            wall_ms=wall_ms,
+            ok=ok,
+            error_code=error_code,
         )
         self._write(rec.model_dump(mode="json"))
 
