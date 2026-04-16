@@ -37,6 +37,10 @@ from bitgn_contest_agent.schemas import (
     Req_PreflightDocMigration,
 )
 
+from bitgn_contest_agent.arch_constants import ArchCategory
+from bitgn_contest_agent.arch_log import emit_arch
+from bitgn_contest_agent.format_validator import validate_yaml_frontmatter
+
 _LOG = logging.getLogger(__name__)
 
 
@@ -148,6 +152,27 @@ class PcmAdapter:
                 resp = self._runtime.read(pcm_pb2.ReadRequest(path=req.path))
                 return self._finish(start, resp, refs=(req.path,))
             if isinstance(req, Req_Write):
+                # Pre-write YAML guard — catches malformed frontmatter
+                # BEFORE persistence so the agent can fix-and-retry
+                # without accumulating a duplicate-write mutation that
+                # the grader flags. Post-write FORMAT_VALIDATOR remains
+                # as belt-and-suspenders for non-YAML format issues.
+                val = validate_yaml_frontmatter(req.content)
+                if not val.ok:
+                    emit_arch(
+                        category=ArchCategory.FORMAT_PRE_WRITE_REJECT,
+                        at_step=None,
+                        details=f"path={req.path} error={val.error}",
+                    )
+                    wall_ms = int((time.monotonic() - start) * 1000)
+                    return ToolResult(
+                        ok=False,
+                        content="",
+                        refs=(),
+                        error=f"YAML frontmatter parse error: {val.error}",
+                        error_code="FORMAT_INVALID",
+                        wall_ms=wall_ms,
+                    )
                 resp = self._runtime.write(
                     pcm_pb2.WriteRequest(path=req.path, content=req.content)
                 )
