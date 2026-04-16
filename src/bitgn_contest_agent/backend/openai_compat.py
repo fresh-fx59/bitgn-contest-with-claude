@@ -10,12 +10,14 @@ correctness risk.
 """
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Sequence, TypeVar
 
 import httpx
 import openai
 from openai import OpenAI
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
+
+_T = TypeVar("_T", bound=BaseModel)
 
 from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, TransientBackendError
 from bitgn_contest_agent.schemas import NextStep
@@ -224,4 +226,55 @@ class OpenAIChatBackend(Backend):
             raise
         except ValidationError:
             # Caller handles via P3 critique-injection retry.
+            raise
+
+    def call_structured(
+        self,
+        prompt: str,
+        response_schema: type[_T],
+        *,
+        timeout_sec: float = 30.0,
+    ) -> _T:
+        """One-shot structured call — delegates to the same two paths as
+        next_step (structured via beta.parse; streaming + manual validate
+        otherwise)."""
+        payload = [{"role": "user", "content": prompt}]
+        try:
+            if self._use_structured_output:
+                completion = self._client.beta.chat.completions.parse(
+                    model=self._model,
+                    messages=payload,
+                    response_format=response_schema,
+                    timeout=timeout_sec,
+                    extra_body={"reasoning": {"effort": self._reasoning_effort}},
+                )
+                parsed = completion.choices[0].message.parsed
+                if parsed is None:
+                    raw = completion.choices[0].message.content or ""
+                    parsed = response_schema.model_validate_json(raw)
+                return parsed
+            # Fallback: streaming + manual validate (same pattern as next_step).
+            stream = self._client.chat.completions.create(
+                model=self._model,
+                messages=payload,
+                stream=True,
+                stream_options={"include_usage": True},
+                timeout=timeout_sec,
+                extra_body={"reasoning": {"effort": self._reasoning_effort}},
+            )
+            parts: list[str] = []
+            for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                piece = getattr(delta, "content", None) if delta else None
+                if piece:
+                    parts.append(piece)
+            raw = _extract_json_object("".join(parts))
+            return response_schema.model_validate_json(raw)
+        except _TRANSIENT_EXCEPTIONS as exc:
+            raise TransientBackendError(str(exc)) from exc
+        except openai.APIError as exc:
+            if _is_transient_by_message(exc):
+                raise TransientBackendError(str(exc)) from exc
             raise

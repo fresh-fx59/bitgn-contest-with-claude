@@ -278,3 +278,34 @@ def test_next_step_returns_result_wrapper_with_tokens(mocker: Any) -> None:
     assert result.prompt_tokens == 10
     assert result.completion_tokens == 5
     assert result.reasoning_tokens == 2
+
+
+def test_call_structured_parses_response(mocker: Any) -> None:
+    """call_structured takes a prompt + Pydantic schema, returns an
+    instance of that schema. Uses the structured-output path when
+    enabled; falls back to streaming + manual validate otherwise."""
+    from pydantic import BaseModel
+
+    class _Shape(BaseModel):
+        verdict: str
+        ok: bool
+
+    fake_client = MagicMock()
+    fake_parsed = _Shape(verdict="yes", ok=True)
+    completion = MagicMock()
+    completion.choices = [
+        MagicMock(message=MagicMock(parsed=fake_parsed, content='{"verdict":"yes","ok":true}'))
+    ]
+    completion.usage = MagicMock(prompt_tokens=5, completion_tokens=3)
+    fake_client.beta.chat.completions.parse.return_value = completion
+
+    backend = OpenAIChatBackend(
+        client=fake_client,
+        model="gpt-5.3-codex",
+        reasoning_effort="medium",
+        use_structured_output=True,
+    )
+    out = backend.call_structured("test prompt", _Shape)
+    assert isinstance(out, _Shape)
+    assert out.verdict == "yes"
+    assert out.ok is True

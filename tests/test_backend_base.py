@@ -44,4 +44,7 @@ def test_backend_protocol_is_runtime_checkable() -> None:
                 reasoning_tokens=0,
             )
 
+        def call_structured(self, prompt, response_schema, *, timeout_sec=30.0):  # type: ignore[override]
+            return response_schema.model_construct()
+
     assert isinstance(Fake(), Backend)

@@ -7,9 +7,13 @@ file, not a refactor.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, Sequence, runtime_checkable
+from typing import Protocol, Sequence, TypeVar, runtime_checkable
+
+from pydantic import BaseModel
 
 from bitgn_contest_agent.schemas import NextStep
+
+_T = TypeVar("_T", bound=BaseModel)
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,4 +47,13 @@ class Backend(Protocol):
         response_schema: type[NextStep],
         timeout_sec: float,
     ) -> NextStepResult:
+        ...
+
+    def call_structured(
+        self, prompt: str, response_schema: type[_T], *, timeout_sec: float = 30.0,
+    ) -> _T:
+        """One-shot structured call — takes a text prompt and a Pydantic
+        schema, returns an instance of that schema. Used by preflight
+        tools that need LLM classification without the full message-list
+        plumbing of next_step."""
         ...
