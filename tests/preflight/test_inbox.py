@@ -40,3 +40,19 @@ def test_item_lists_all_bills_for_entity():
     item = items[0]
     # Juniper has aliases Juniper Systems + House Mesh → 2 bills expected.
     assert len(item["related_finance_files"]) == 2
+
+
+def test_inbox_item_includes_full_frontmatter():
+    """Every inbox item surfaces the full parsed frontmatter dict so
+    fields beyond inbox_type (priority, sender, due, status, ...) are
+    visible without re-reading the file."""
+    items = enumerate_inbox_from_fs(
+        root=FIXTURE,
+        inbox_root="00_inbox",
+        entities_root="20_entities",
+        finance_roots=["50_finance/purchases"],
+    )
+    assert len(items) >= 1
+    for it in items:
+        assert "frontmatter" in it
+        assert isinstance(it["frontmatter"], dict)

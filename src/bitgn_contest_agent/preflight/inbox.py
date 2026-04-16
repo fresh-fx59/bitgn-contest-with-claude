@@ -116,6 +116,7 @@ def enumerate_inbox_from_fs(
             "entity_ref": match["matched_alias"] if match else None,
             "entity_canonical": match["canonical"] if match else None,
             "related_finance_files": _bills_for_entity(match, finance_dirs) if match else [],
+            "frontmatter": fm,
         }
         items.append(item)
     return items
@@ -188,6 +189,7 @@ def run_preflight_inbox(client: Any, req: Req_PreflightInbox) -> ToolResult:
                 "entity_ref": match["matched_alias"] if match else None,
                 "entity_canonical": match["canonical"] if match else None,
                 "related_finance_files": sorted(related),
+                "frontmatter": fm,
             })
     except Exception as exc:
         return ToolResult(
