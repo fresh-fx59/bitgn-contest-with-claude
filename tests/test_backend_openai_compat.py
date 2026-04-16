@@ -280,6 +280,75 @@ def test_next_step_returns_result_wrapper_with_tokens(mocker: Any) -> None:
     assert result.reasoning_tokens == 2
 
 
+def test_unwrap_schema_envelope_strips_named_wrapper() -> None:
+    """cliproxyapi-backed gpt-5.4 occasionally wraps structured
+    responses in a `{"<SchemaName>": {...}}` envelope. Unwrap exactly
+    one level when the top-level dict has a single key matching the
+    schema class name."""
+    from pydantic import BaseModel
+
+    from bitgn_contest_agent.backend.openai_compat import _unwrap_schema_envelope
+
+    class Rsp_Shape(BaseModel):
+        verdict: str
+
+    raw = '{"Rsp_Shape": {"verdict": "yes"}}'
+    out = _unwrap_schema_envelope(raw, Rsp_Shape)
+    assert out == '{"verdict": "yes"}'
+
+
+def test_unwrap_schema_envelope_passes_through_when_not_wrapped() -> None:
+    """Bare objects and unrelated single-key objects must pass through
+    unchanged so legitimate shapes aren't corrupted."""
+    from pydantic import BaseModel
+
+    from bitgn_contest_agent.backend.openai_compat import _unwrap_schema_envelope
+
+    class Rsp_Shape(BaseModel):
+        verdict: str
+
+    # Bare object — already the right shape.
+    bare = '{"verdict": "yes"}'
+    assert _unwrap_schema_envelope(bare, Rsp_Shape) == bare
+    # Single-key dict where key name doesn't match schema — not a wrapper.
+    other = '{"unrelated": {"verdict": "yes"}}'
+    assert _unwrap_schema_envelope(other, Rsp_Shape) == other
+    # Non-JSON input — pass through.
+    assert _unwrap_schema_envelope("not json", Rsp_Shape) == "not json"
+
+
+def test_call_structured_unwraps_envelope_in_streaming_path() -> None:
+    """Regression guard for PROD smoke 2026-04-16: the fallback path
+    must peel a `{"Rsp_...": {...}}` envelope before Pydantic validation
+    or it fails with 'Field required' for every required field."""
+    from pydantic import BaseModel
+
+    class Rsp_Thing(BaseModel):
+        verdict: str
+        ok: bool
+
+    fake_client = MagicMock()
+    wrapped = '{"Rsp_Thing": {"verdict": "yes", "ok": true}}'
+    chunk = MagicMock()
+    chunk.choices = [MagicMock(delta=MagicMock(content=wrapped))]
+    chunk.usage = None
+    tail = MagicMock()
+    tail.choices = [MagicMock(delta=MagicMock(content=None))]
+    tail.usage = None
+    fake_client.chat.completions.create.return_value = iter([chunk, tail])
+
+    backend = OpenAIChatBackend(
+        client=fake_client,
+        model="gpt-5.3-codex",
+        reasoning_effort="medium",
+        use_structured_output=False,
+    )
+    out = backend.call_structured("p", Rsp_Thing)
+    assert isinstance(out, Rsp_Thing)
+    assert out.verdict == "yes"
+    assert out.ok is True
+
+
 def test_call_structured_parses_response(mocker: Any) -> None:
     """call_structured takes a prompt + Pydantic schema, returns an
     instance of that schema. Uses the structured-output path when

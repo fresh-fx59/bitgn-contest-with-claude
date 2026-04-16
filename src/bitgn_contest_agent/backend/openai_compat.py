@@ -10,6 +10,7 @@ correctness risk.
 """
 from __future__ import annotations
 
+import json
 from typing import Sequence, TypeVar
 
 import httpx
@@ -55,6 +56,32 @@ _TRANSIENT_MESSAGE_SUBSTRINGS: tuple[str, ...] = (
 def _is_transient_by_message(exc: BaseException) -> bool:
     msg = str(exc).lower()
     return any(sub in msg for sub in _TRANSIENT_MESSAGE_SUBSTRINGS)
+
+
+def _unwrap_schema_envelope(raw: str, schema: type[BaseModel]) -> str:
+    """Unwrap a `{"<SchemaName>": {...}}` envelope if the model wrapped
+    its structured response in one.
+
+    Observed on cliproxyapi-backed gpt-5.4 during streaming-fallback
+    mode for preflight_unknown (smoke test 2026-04-16): the model
+    emitted `{"Rsp_PreflightUnknown": {"likely_class": ..., ...}}`
+    instead of the bare object, and Pydantic rejected it for missing
+    required fields. Peel exactly one level when the top-level dict has
+    exactly one key whose name matches the schema class. Otherwise pass
+    through unchanged so legitimate single-key shapes aren't corrupted.
+    """
+    try:
+        obj = json.loads(raw)
+    except (ValueError, json.JSONDecodeError):
+        return raw
+    if (
+        isinstance(obj, dict)
+        and len(obj) == 1
+        and schema.__name__ in obj
+        and isinstance(obj[schema.__name__], dict)
+    ):
+        return json.dumps(obj[schema.__name__])
+    return raw
 
 
 def _extract_json_object(raw: str) -> str:
@@ -251,6 +278,7 @@ class OpenAIChatBackend(Backend):
                 parsed = completion.choices[0].message.parsed
                 if parsed is None:
                     raw = completion.choices[0].message.content or ""
+                    raw = _unwrap_schema_envelope(raw, response_schema)
                     parsed = response_schema.model_validate_json(raw)
                 return parsed
             # Fallback: streaming + manual validate (same pattern as next_step).
@@ -271,6 +299,7 @@ class OpenAIChatBackend(Backend):
                 if piece:
                     parts.append(piece)
             raw = _extract_json_object("".join(parts))
+            raw = _unwrap_schema_envelope(raw, response_schema)
             return response_schema.model_validate_json(raw)
         except _TRANSIENT_EXCEPTIONS as exc:
             raise TransientBackendError(str(exc)) from exc
