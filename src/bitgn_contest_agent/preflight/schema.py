@@ -70,6 +70,134 @@ class WorkspaceSchema:
         }
 
 
+def parse_record_metadata(text: str) -> dict[str, str]:
+    """Unified metadata reader for YAML frontmatter, markdown bullet
+    lists, and ASCII pipe tables. Returns lowercased-key dict. Returns
+    {} on unknown shapes — callers treat empty as "no classifiable
+    metadata" (fail-safe).
+
+    Scan order: YAML → bullet list → ASCII table. First non-empty wins.
+    """
+    yaml_md = _parse_frontmatter_yaml(text)
+    if yaml_md:
+        return yaml_md
+    bullet_md = _parse_bullet_list(text)
+    if bullet_md:
+        return bullet_md
+    return _parse_ascii_table(text)
+
+
+def _parse_frontmatter_yaml(text: str) -> dict[str, str]:
+    m = _FRONTMATTER_RE.match(text)
+    if not m:
+        return {}
+    body = m.group(1)
+    out: dict[str, str] = {}
+    for line in body.splitlines():
+        if ":" in line and not line.startswith(" "):
+            k, _, v = line.partition(":")
+            out[k.strip().lower()] = v.strip()
+    return out
+
+
+_BULLET_RE = re.compile(r"^-\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$")
+
+
+def _parse_bullet_list(text: str) -> dict[str, str]:
+    """Scan the top of the file for contiguous `- key: value` lines.
+
+    Skips leading blank lines, markdown headings (`# ...`), and any
+    unclosed YAML-frontmatter preamble (lines before bullets when the
+    file starts with `---` but has no closing `---`).
+    Stops at the first line that doesn't match the bullet pattern.
+    """
+    out: dict[str, str] = {}
+    started = False
+    in_frontmatter_preamble = False
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        if not started:
+            stripped = line.strip()
+            # `---` starts or ends a YAML preamble zone.
+            if stripped == "---":
+                # Second `---` closes the preamble; first opens it.
+                in_frontmatter_preamble = not in_frontmatter_preamble
+                continue
+            # A blank line after entering preamble mode means the closing
+            # `---` is absent (malformed frontmatter). Exit preamble mode
+            # so we can pick up bullet lines that follow.
+            if not stripped and in_frontmatter_preamble:
+                in_frontmatter_preamble = False
+                continue
+            # Skip blank lines, headings, and lines inside a preamble block.
+            if not stripped or stripped.startswith("#") or in_frontmatter_preamble:
+                continue
+            m = _BULLET_RE.match(line)
+            if not m:
+                # Not a bullet list file.
+                return {}
+            started = True
+            out[m.group(1).lower()] = m.group(2).strip()
+            continue
+        m = _BULLET_RE.match(line)
+        if m:
+            out[m.group(1).lower()] = m.group(2).strip()
+            continue
+        if line.strip() == "":
+            # Blank line ends the bullet block.
+            break
+        # Non-bullet, non-blank line → stop scanning.
+        break
+    return out
+
+
+def _parse_ascii_table(text: str) -> dict[str, str]:
+    """Parse a simple two-column markdown pipe table.
+
+    Expected shape:
+        | field | value |
+        | --- | --- |
+        | key1 | val1 |
+        | key2 | val2 |
+
+    Header row and separator row are skipped. Returns {} if no such
+    table exists at the top of the file.
+    """
+    out: dict[str, str] = {}
+    lines = text.splitlines()
+    # Find the first `| ... |` line.
+    start = None
+    for i, raw in enumerate(lines):
+        stripped = raw.strip()
+        if stripped.startswith("|") and stripped.endswith("|"):
+            start = i
+            break
+        if stripped and not stripped.startswith("#"):
+            # Non-heading, non-empty, non-table line → no table here.
+            return {}
+    if start is None:
+        return {}
+    # Skip header + separator if present.
+    rows = lines[start:]
+    if len(rows) < 3:
+        return {}
+    sep = rows[1].strip()
+    if not all(c in "|-: " for c in sep):
+        return {}
+    for raw in rows[2:]:
+        stripped = raw.strip()
+        if not (stripped.startswith("|") and stripped.endswith("|")):
+            break
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        key = cells[0].lower()
+        if not key:
+            continue
+        out[key] = cells[1]
+    return out
+
+
 def _parse_frontmatter(text: str) -> dict[str, str]:
     m = _FRONTMATTER_RE.match(text)
     if not m:
