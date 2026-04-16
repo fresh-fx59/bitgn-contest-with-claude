@@ -1105,3 +1105,196 @@ def test_next_step_returns_none_reasoning_when_absent() -> None:
     # tool_calls are still structured (we had one native tool_call).
     assert out.tool_calls is not None
     assert out.tool_calls[0]["id"] == "call_xyz"
+
+
+# --- salvage_miss log preview + circuit breaker --------------------------
+#
+# Items 1 and 2: when the model gets stuck in a content-only envelope
+# loop, the log preview must capture 800 chars (was 200) for debugging,
+# and after N consecutive salvage_miss events on the same backend
+# instance we synthesize a terminal ``report_completion`` instead of
+# burning the full step budget on critique/retry.
+
+
+def test_salvage_miss_log_preview_at_800_chars(caplog) -> None:
+    """The post-mortem log preview must capture 800 chars of content,
+    up from the former 200, so we can see what the model emitted
+    without truncation when nothing is salvageable."""
+    import logging as _logging
+    long_prose = "x" * 900  # non-JSON, >800 chars
+    fake_client = MagicMock()
+    fake_client.chat.completions.create.return_value = \
+        _mk_content_only_completion(content=long_prose)
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    with caplog.at_level(
+        _logging.WARNING,
+        logger="bitgn_contest_agent.backend.openai_toolcalling",
+    ):
+        with pytest.raises(ValidationError):
+            backend.next_step(
+                [Message(role="user", content="t")], NextStep, 30.0,
+            )
+    salvage_records = [r for r in caplog.records if "salvage_miss" in r.message]
+    assert salvage_records, "expected a salvage_miss warning to be emitted"
+    record = salvage_records[0]
+    # The first positional arg is the content preview.
+    content_head = record.args[0]
+    assert isinstance(content_head, str)
+    assert len(content_head) == 800
+    assert "content[:800]" in record.message
+
+
+def test_circuit_breaker_fires_after_three_consecutive_misses() -> None:
+    """Three consecutive salvage_miss events on the same backend must
+    synthesize a terminal OUTCOME_NONE_UNSUPPORTED report_completion on
+    the third turn rather than raising."""
+    fake_client = MagicMock()
+    fake_client.chat.completions.create.return_value = \
+        _mk_content_only_completion(content="I don't know what to do.")
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    # First miss → ValidationError.
+    with pytest.raises(ValidationError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+    # Second miss → ValidationError.
+    with pytest.raises(ValidationError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+    # Third miss → synthesized terminal.
+    out = backend.next_step(
+        [Message(role="user", content="t")], NextStep, 30.0,
+    )
+    assert isinstance(out, NextStepResult)
+    assert out.parsed.function.tool == "report_completion"
+    assert out.parsed.function.outcome == "OUTCOME_NONE_UNSUPPORTED"
+    assert out.parsed.outcome_leaning == "OUTCOME_NONE_UNSUPPORTED"
+    assert out.tool_calls is None
+
+
+def test_circuit_breaker_resets_on_successful_salvage() -> None:
+    """miss → miss → successful salvage → miss must NOT fire the
+    breaker: the successful parse resets the counter."""
+    fake_client = MagicMock()
+    unsalvageable = _mk_content_only_completion(
+        content="I don't know what to do.",
+    )
+    salvageable = _mk_content_only_completion(
+        content='{"name": "read", "arguments": {"path": "AGENTS.md"}}',
+    )
+    fake_client.chat.completions.create.side_effect = [
+        unsalvageable,
+        unsalvageable,
+        salvageable,
+        unsalvageable,
+    ]
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    # Two misses.
+    with pytest.raises(ValidationError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+    with pytest.raises(ValidationError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+    # Successful salvage resets the counter.
+    out = backend.next_step(
+        [Message(role="user", content="t")], NextStep, 30.0,
+    )
+    assert out.parsed.function.tool == "read"
+    # A subsequent miss must raise (fresh count=1), NOT synthesize.
+    with pytest.raises(ValidationError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+
+
+def test_circuit_breaker_resets_on_successful_tool_call() -> None:
+    """miss → miss → native tool_call → miss → miss must NOT fire the
+    breaker on the final miss: successful native tool_calls also reset
+    the counter."""
+    fake_client = MagicMock()
+    unsalvageable = _mk_content_only_completion(
+        content="I don't know what to do.",
+    )
+    native_tool_call = _mk_completion(
+        tool_name="read",
+        arguments={**_envelope_copy(), "path": "AGENTS.md"},
+    )
+    fake_client.chat.completions.create.side_effect = [
+        unsalvageable,
+        unsalvageable,
+        native_tool_call,
+        unsalvageable,
+        unsalvageable,
+    ]
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    with pytest.raises(ValidationError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+    with pytest.raises(ValidationError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+    # Native tool_call resets.
+    out = backend.next_step(
+        [Message(role="user", content="t")], NextStep, 30.0,
+    )
+    assert out.parsed.function.tool == "read"
+    # Two fresh misses — neither trips the breaker.
+    with pytest.raises(ValidationError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+    with pytest.raises(ValidationError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+
+
+# --- harmony v13 <|constrain|>function: {"tool": ...} shape --------------
+#
+# Item 3: a new harmony shape seen in PROD task t009 where the tool name
+# lives inside a JSON preamble after ``<|constrain|>function:``.
+
+
+def test_harmony_strips_constrain_function_shape() -> None:
+    """v13 harmony shape: tool name is embedded in a JSON preamble after
+    ``<|constrain|>function:``. Stripper must capture the tool and peel
+    off the header/preamble so the body is the real arguments JSON."""
+    content = (
+        '<|channel|>final<|constrain|>function: '
+        '{"tool": "write", "path": "/tmp/x"}<|message|>'
+        '{"content":"hi","path":"/tmp/x"}<|end|>'
+    )
+    tool, body = _strip_harmony(content)
+    assert tool == "write"
+    assert body == '{"content":"hi","path":"/tmp/x"}'
+
+
+def test_harmony_constrain_function_rejects_unknown_tool() -> None:
+    """Unknown tool name in the preamble must NOT match the new regex —
+    fall through to the bare-constrain / final-header path, yielding
+    tool=None and a body that doesn't include the harmony header."""
+    content = (
+        '<|channel|>final<|constrain|>function: '
+        '{"tool": "notarealtool", "path": "/tmp/x"}<|message|>'
+        '{"content":"hi"}<|end|>'
+    )
+    tool, body = _strip_harmony(content)
+    assert tool is None
+    # Body must not still carry the <|message|> sentinel or the preamble.
+    assert "<|message|>" not in body
+    assert "<|constrain|>" not in body
+    assert body == '{"content":"hi"}'

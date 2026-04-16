@@ -364,6 +364,19 @@ def _collect_valid_tool_names() -> frozenset[str]:
 _VALID_TOOL_NAMES: frozenset[str] = _collect_valid_tool_names()
 
 
+# Threshold for the salvage-miss circuit breaker in ``next_step``.
+#
+# When the model returns a content-only envelope loop (neither native
+# ``tool_calls`` nor any JSON shape that ``_try_salvage_from_content`` can
+# recover), we raise a ValidationError which becomes a critique on the
+# next turn. A well-behaved model uses that critique; a stuck model
+# ignores it. Two retries is the typical critique-retry budget before
+# the step is a lost cause, so on the third consecutive miss we stop
+# burning turns and synthesize a terminal
+# ``report_completion(OUTCOME_NONE_UNSUPPORTED)`` instead.
+_SALVAGE_MISS_CIRCUIT_BREAKER_THRESHOLD: int = 3
+
+
 # gpt-oss harmony channel headers leak when LM Studio's parser doesn't
 # route them. Shapes observed in v9-v12 PROD logs:
 #
@@ -384,6 +397,16 @@ _HARMONY_FUNCTIONS_HEADER = _re.compile(
     r".*?<\|message\|>",
     _re.IGNORECASE | _re.DOTALL,
 )
+# v13 shape seen in PROD task t009 (2026-04-15):
+#   <|channel|>...<|constrain|>function: {"tool": "write", ...}<|message|>{body}
+# The tool name lives inside a JSON-ish preamble keyed by "tool". Match
+# AFTER ``_HARMONY_FUNCTIONS_HEADER`` (more specific: requires "tool":
+# inside the preamble) but BEFORE the bare ``<|constrain|><TOOL>`` form.
+_HARMONY_CONSTRAIN_FUNCTION_HEADER = _re.compile(
+    r"<\|constrain\|>function:\s*\{.*?\"tool\"\s*:\s*"
+    r"\"(?P<tool>[A-Za-z_][A-Za-z0-9_]*)\".*?<\|message\|>",
+    _re.IGNORECASE | _re.DOTALL,
+)
 _HARMONY_CONSTRAIN_TOOL_HEADER = _re.compile(
     r"<\|channel\|>.*?<\|constrain\|>(?P<tool>[A-Za-z_][A-Za-z0-9_]*)"
     r"<\|message\|>",
@@ -399,18 +422,25 @@ _HARMONY_END = _re.compile(r"<\|(?:end|return|call)\|>\s*$")
 def _strip_harmony(content: str) -> Tuple[Optional[str], str]:
     """Return ``(tool_name, body)`` after stripping gpt-oss harmony tags.
 
-    Tries, in order: an explicit ``to=functions.<TOOL>`` header, a bare
-    ``<|constrain|><TOOL><|message|>`` header where <TOOL> is a known
-    valid tool name (not e.g. ``json``), then a generic channel header
-    with no tool target. ``tool_name`` is the captured target (or
-    ``None``); ``body`` is the content with the matched header and any
-    trailing ``<|end|>`` / ``<|return|>`` / ``<|call|>`` sentinel
-    stripped. If no header matched, ``body`` is returned unchanged.
+    Tries, in order: an explicit ``to=functions.<TOOL>`` header, a
+    ``<|constrain|>function: {"tool": "<TOOL>", ...}<|message|>`` JSON
+    preamble (v13 shape), a bare ``<|constrain|><TOOL><|message|>``
+    header where <TOOL> is a known valid tool name (not e.g. ``json``),
+    then a generic channel header with no tool target. ``tool_name`` is
+    the captured target (or ``None``); ``body`` is the content with the
+    matched header and any trailing ``<|end|>`` / ``<|return|>`` /
+    ``<|call|>`` sentinel stripped. If no header matched, ``body`` is
+    returned unchanged.
     """
     if not content:
         return None, content
     m = _HARMONY_FUNCTIONS_HEADER.search(content)
     if m is not None:
+        body = content[m.end():]
+        body = _HARMONY_END.sub("", body).rstrip()
+        return m.group("tool"), body
+    m = _HARMONY_CONSTRAIN_FUNCTION_HEADER.search(content)
+    if m is not None and m.group("tool") in _VALID_TOOL_NAMES:
         body = content[m.end():]
         body = _HARMONY_END.sub("", body).rstrip()
         return m.group("tool"), body
@@ -586,6 +616,11 @@ class OpenAIToolCallingBackend(Backend):
         self._model = model
         self._reasoning_effort = reasoning_effort
         self._tools = build_tool_catalog()
+        # Per-backend-instance counter for the salvage-miss circuit
+        # breaker. Scope is one ``OpenAIToolCallingBackend`` instance;
+        # the agent lifecycle builds a fresh backend per task so this
+        # does NOT leak across tasks.
+        self._consecutive_salvage_misses: int = 0
 
     @classmethod
     def from_config(
@@ -676,6 +711,12 @@ class OpenAIToolCallingBackend(Backend):
                         },
                     }
                 tool_calls_raw.append(dumped)
+        usage = getattr(completion, "usage", None)
+        prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+        completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+        details = getattr(usage, "completion_tokens_details", None)
+        reasoning_tokens = getattr(details, "reasoning_tokens", 0) or 0
+
         if not tool_calls:
             # LM Studio (and similar local servers) do not always honor
             # tool_choice="required" — small models may emit the OpenAI
@@ -685,21 +726,68 @@ class OpenAIToolCallingBackend(Backend):
             salvaged = _try_salvage_from_content(content)
             if salvaged is not None:
                 parsed = salvaged
+                # Successful salvage resets the circuit breaker.
+                self._consecutive_salvage_misses = 0
             else:
-                content_head = content[:200]
+                self._consecutive_salvage_misses += 1
+                if (
+                    self._consecutive_salvage_misses
+                    >= _SALVAGE_MISS_CIRCUIT_BREAKER_THRESHOLD
+                ):
+                    misses = self._consecutive_salvage_misses
+                    _LOG.warning(
+                        "circuit_breaker_fired: consecutive salvage "
+                        "misses=%d, synthesizing OUTCOME_NONE_UNSUPPORTED "
+                        "terminal",
+                        misses,
+                    )
+                    breaker_message = (
+                        f"Circuit breaker: {misses} consecutive "
+                        "salvage_miss; model not emitting parseable tool "
+                        "calls."
+                    )
+                    synthesized = _build_next_step(
+                        "report_completion",
+                        {
+                            **_ENVELOPE_DEFAULTS,
+                            "outcome": "OUTCOME_NONE_UNSUPPORTED",
+                            "outcome_leaning": "OUTCOME_NONE_UNSUPPORTED",
+                            "message": breaker_message,
+                            "grounding_refs": [],
+                            "rulebook_notes": breaker_message,
+                            "outcome_justification": breaker_message,
+                            "completed_steps_laconic": [],
+                        },
+                    )
+                    # Reset counter so a subsequent retry at a higher
+                    # layer (new backend instance or not) doesn't stay
+                    # permanently tripped.
+                    self._consecutive_salvage_misses = 0
+                    return NextStepResult(
+                        parsed=synthesized,
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        reasoning_tokens=reasoning_tokens,
+                        reasoning=None,
+                        tool_calls=None,
+                    )
+                content_head = content[:800]
                 # Log raw content preview so post-mortem can see what the
                 # model sent. ValidationError below is the caller-visible
-                # signal; this log is the debug trail.
+                # signal; this log is the debug trail. Keep the critique
+                # hint at 200 chars — it goes back to the model and we
+                # don't want to waste its context window.
                 _LOG.warning(
                     "salvage_miss: content-only reply, no JSON object found; "
-                    "content[:200]=%r",
+                    "content[:800]=%r",
                     content_head,
                 )
+                hint_head = content[:200]
                 hint = (
                     "tool_calls missing: you replied with prose instead of "
                     "a tool call. You MUST call exactly one tool per turn "
                     "using the OpenAI tool_calls mechanism (not free text). "
-                    f"Your content started with: {content_head!r}"
+                    f"Your content started with: {hint_head!r}"
                 )
                 raise ValidationError.from_exception_data(
                     "NextStep",
@@ -707,7 +795,7 @@ class OpenAIToolCallingBackend(Backend):
                         {
                             "type": "value_error",
                             "loc": ("function",),
-                            "input": content_head,
+                            "input": hint_head,
                             "ctx": {"error": ValueError(hint)},
                         }
                     ],
@@ -730,12 +818,9 @@ class OpenAIToolCallingBackend(Backend):
                     ],
                 )
             parsed = _build_next_step(call.function.name, args)
+            # Successful native tool_call resets the circuit breaker.
+            self._consecutive_salvage_misses = 0
 
-        usage = getattr(completion, "usage", None)
-        prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
-        completion_tokens = getattr(usage, "completion_tokens", 0) or 0
-        details = getattr(usage, "completion_tokens_details", None)
-        reasoning_tokens = getattr(details, "reasoning_tokens", 0) or 0
         return NextStepResult(
             parsed=parsed,
             prompt_tokens=prompt_tokens,
