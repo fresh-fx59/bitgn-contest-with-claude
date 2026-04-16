@@ -11,7 +11,7 @@ correctness risk.
 from __future__ import annotations
 
 import json
-from typing import Sequence, TypeVar
+from typing import Any, Dict, List, Sequence, TypeVar
 
 import httpx
 import openai
@@ -22,6 +22,27 @@ _T = TypeVar("_T", bound=BaseModel)
 
 from bitgn_contest_agent.backend.base import Backend, Message, NextStepResult, TransientBackendError
 from bitgn_contest_agent.schemas import NextStep
+
+
+def _build_payload(messages: Sequence[Message]) -> List[Dict[str, Any]]:
+    """Flatten ``Message`` sequence into the chat-completions wire shape.
+
+    The CoT-preservation design moves the T24 cliproxyapi/Codex constraint
+    (tool results must ride as ``role="user"`` to sidestep the
+    ``function_call_output`` translator that demands a matching ``call_id``)
+    from the agent loop into this backend. ``reasoning`` and ``tool_calls``
+    on the incoming ``Message`` are intentionally ignored — this backend
+    never populates them, and frontier models handle CoT internally.
+    """
+    payload: List[Dict[str, Any]] = []
+    for m in messages:
+        if m.role == "tool":
+            payload.append(
+                {"role": "user", "content": f"Tool result:\n{m.content or ''}"}
+            )
+        else:
+            payload.append({"role": m.role, "content": m.content or ""})
+    return payload
 
 
 _TRANSIENT_EXCEPTIONS: tuple[type[Exception], ...] = (
@@ -176,7 +197,7 @@ class OpenAIChatBackend(Backend):
         response_schema: type[NextStep],
         timeout_sec: float,
     ) -> NextStepResult:
-        payload = [{"role": m.role, "content": m.content} for m in messages]
+        payload = _build_payload(messages)
         try:
             if self._use_structured_output:
                 completion = self._client.beta.chat.completions.parse(

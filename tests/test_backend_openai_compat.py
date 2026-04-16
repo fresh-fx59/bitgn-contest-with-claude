@@ -14,6 +14,7 @@ import pytest
 from bitgn_contest_agent.backend.base import Message, NextStepResult, TransientBackendError
 from bitgn_contest_agent.backend.openai_compat import (
     OpenAIChatBackend,
+    _build_payload,
     _extract_json_object,
 )
 from bitgn_contest_agent.schemas import NextStep
@@ -266,6 +267,19 @@ def test_extract_json_object_handles_braces_inside_strings() -> None:
 
 def test_extract_json_object_returns_original_when_no_braces() -> None:
     assert _extract_json_object("plain text") == "plain text"
+
+
+def test_chat_backend_translates_tool_role_to_user() -> None:
+    """Spec 2026-04-16-gpt-oss-cot-preservation-design §Architecture:
+    the T24 cliproxyapi/Codex constraint moves from the agent loop into
+    this backend. ``Message(role="tool", content="result")`` must translate
+    to ``{"role":"user","content":"Tool result:\\nresult"}`` on the wire so
+    cliproxyapi doesn't try to emit a ``function_call_output`` item with a
+    missing ``call_id`` (the T24 BadRequest we originally worked around by
+    wrapping tool results as user messages inline in the agent loop)."""
+    msgs = [Message(role="tool", content="result")]
+    payload = _build_payload(msgs)
+    assert payload == [{"role": "user", "content": "Tool result:\nresult"}]
 
 
 def test_next_step_returns_result_wrapper_with_tokens(mocker: Any) -> None:

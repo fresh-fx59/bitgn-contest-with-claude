@@ -597,32 +597,57 @@ class AgentLoop:
 
             # Feed the tool result back to the planner.
             #
-            # T24 observation: cliproxyapi translates OpenAI chat-completions
-            # into Codex /v1/responses items. A `role="tool"` message is
-            # mapped to a `function_call_output` item that requires a
-            # matching `call_id`, but our assistant messages are plain JSON
-            # content — not OpenAI `tool_calls` — so cliproxyapi emits an
-            # empty call_id string and Codex rejects the request with
-            # `Invalid 'input[N].call_id': empty string`. Wrap the tool
-            # result in a `role="user"` message so it round-trips as plain
-            # text, sidestepping the function-call translation entirely.
-            messages.append(
-                Message(
-                    role="assistant",
-                    content=step_obj.model_dump_json(),
-                )
-            )
+            # When the backend returned structured ``tool_calls`` on the
+            # assistant turn (OpenAIToolCallingBackend native path), replay
+            # the canonical OpenAI assistant-with-tool_calls shape so
+            # LM Studio's gpt-oss chat template reinjects the preserved
+            # chain-of-thought into the next turn. Otherwise (salvage path
+            # for local models, or the chat backend that never sets
+            # ``tool_calls``) fall back to the legacy content-only shape.
+            #
+            # Tool results are emitted uniformly as ``role="tool"``; each
+            # backend's payload builder maps that to its wire shape
+            # (native tool role for toolcalling backend; ``role="user"``
+            # with the ``Tool result:\n`` prefix for the chat/cliproxyapi
+            # backend, per the T24 workaround).
             tool_body = (
                 tool_result.content
                 if tool_result.ok
                 else f"ERROR ({tool_result.error_code}): {tool_result.error}"
             )
-            messages.append(
-                Message(
-                    role="user",
-                    content=f"Tool result:\n{tool_body}",
+            if step_result.tool_calls:
+                messages.append(
+                    Message(
+                        role="assistant",
+                        content=None,
+                        tool_calls=step_result.tool_calls,
+                        reasoning=step_result.reasoning,
+                    )
                 )
-            )
+                tool_call_id = step_result.tool_calls[0].get("id")
+                messages.append(
+                    Message(
+                        role="tool",
+                        content=tool_body,
+                        tool_call_id=tool_call_id,
+                    )
+                )
+            else:
+                # Salvage path: no native tool_call_id. Preserve the legacy
+                # content-only shape so nothing downstream assumes we have
+                # structured tool_calls to replay.
+                messages.append(
+                    Message(
+                        role="assistant",
+                        content=step_obj.model_dump_json(),
+                    )
+                )
+                messages.append(
+                    Message(
+                        role="user",
+                        content=f"Tool result:\n{tool_body}",
+                    )
+                )
 
             # Format validation hook — catch YAML errors after writes.
             if getattr(fn, "tool", "") == "write" and tool_result.ok:

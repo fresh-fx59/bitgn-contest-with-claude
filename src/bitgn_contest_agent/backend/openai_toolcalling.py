@@ -531,6 +531,47 @@ def _try_salvage_from_content(content: str) -> NextStep | None:
     return _maybe_salvage_envelope_terminal(obj)
 
 
+def _build_payload(messages: Sequence[Message]) -> List[Dict[str, Any]]:
+    """Convert provider-agnostic ``Message`` sequence into the OpenAI wire shape.
+
+    Branches by message shape per the CoT-preservation design:
+
+    - ``role == "assistant"`` with ``tool_calls`` set → canonical
+      OpenAI/LM Studio assistant-with-tool_calls payload:
+      ``{"role": "assistant", "content": None, "tool_calls": [...], "reasoning": ...}``.
+      The ``reasoning`` key is omitted when ``None`` so non-reasoning
+      providers don't see a surprise field.
+    - ``role == "tool"`` → ``{"role": "tool", "tool_call_id": <id>, "content": <result>}``.
+    - Anything else (including salvage-path assistant turns that have
+      ``content`` but no ``tool_calls``) → ``{"role": role, "content": content or ""}``.
+
+    Replaces the inline ``[{"role": m.role, "content": m.content} for m in messages]``
+    comprehension that used to live at the top of ``next_step``.
+    """
+    payload: List[Dict[str, Any]] = []
+    for m in messages:
+        if m.role == "assistant" and m.tool_calls is not None:
+            entry: Dict[str, Any] = {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": m.tool_calls,
+            }
+            if m.reasoning is not None:
+                entry["reasoning"] = m.reasoning
+            payload.append(entry)
+        elif m.role == "tool":
+            payload.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": m.tool_call_id,
+                    "content": m.content or "",
+                }
+            )
+        else:
+            payload.append({"role": m.role, "content": m.content or ""})
+    return payload
+
+
 class OpenAIToolCallingBackend(Backend):
     """Backend that uses native OpenAI tool-calling instead of free-text JSON."""
 
@@ -567,7 +608,7 @@ class OpenAIToolCallingBackend(Backend):
         response_schema: type[NextStep],
         timeout_sec: float,
     ) -> NextStepResult:
-        payload = [{"role": m.role, "content": m.content} for m in messages]
+        payload = _build_payload(messages)
         try:
             completion = self._client.chat.completions.create(
                 model=self._model,
@@ -597,6 +638,44 @@ class OpenAIToolCallingBackend(Backend):
         choice = completion.choices[0]
         tool_calls = getattr(choice.message, "tool_calls", None) or []
         content = getattr(choice.message, "content", None) or ""
+        # LM Studio 0.3.23+ surfaces gpt-oss CoT on ``message.reasoning``.
+        # Fall back to ``model_dump()`` if the attribute is missing (older
+        # SDK paths or pydantic-model messages where the field isn't in
+        # the attribute namespace but appears in the dict form).
+        reasoning_text: Optional[str] = getattr(choice.message, "reasoning", None)
+        if reasoning_text is None:
+            dump_fn = getattr(choice.message, "model_dump", None)
+            if callable(dump_fn):
+                try:
+                    reasoning_text = dump_fn().get("reasoning")
+                except Exception:  # noqa: BLE001 - defensive, never mask a response
+                    reasoning_text = None
+        tool_calls_raw: Optional[List[Dict[str, Any]]] = None
+        if tool_calls:
+            tool_calls_raw = []
+            for tc in tool_calls:
+                dumped: Optional[Dict[str, Any]] = None
+                dump_fn = getattr(tc, "model_dump", None)
+                if callable(dump_fn):
+                    try:
+                        maybe = dump_fn()
+                    except Exception:  # noqa: BLE001 - defensive
+                        maybe = None
+                    if isinstance(maybe, dict):
+                        dumped = maybe
+                if dumped is None:
+                    # Fallback for attribute-style shapes (e.g. test doubles
+                    # that don't provide a real ``model_dump``).
+                    fn = getattr(tc, "function", None)
+                    dumped = {
+                        "id": getattr(tc, "id", None),
+                        "type": getattr(tc, "type", "function"),
+                        "function": {
+                            "name": getattr(fn, "name", None),
+                            "arguments": getattr(fn, "arguments", None),
+                        },
+                    }
+                tool_calls_raw.append(dumped)
         if not tool_calls:
             # LM Studio (and similar local servers) do not always honor
             # tool_choice="required" — small models may emit the OpenAI
@@ -662,4 +741,6 @@ class OpenAIToolCallingBackend(Backend):
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             reasoning_tokens=reasoning_tokens,
+            reasoning=reasoning_text,
+            tool_calls=tool_calls_raw,
         )

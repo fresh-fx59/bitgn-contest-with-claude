@@ -21,6 +21,7 @@ from bitgn_contest_agent.backend.base import (
 from bitgn_contest_agent.backend.openai_toolcalling import (
     OpenAIToolCallingBackend,
     _build_next_step,
+    _build_payload,
     _extract_first_json_object,
     _strip_harmony,
     _try_salvage_from_content,
@@ -945,3 +946,162 @@ def test_salvage_envelope_with_function_still_prefers_function_branch() -> None:
     ns = _try_salvage_from_content(json.dumps(payload))
     assert ns is not None
     assert ns.function.tool == "read"
+
+
+# --- CoT-preservation payload builder + NextStepResult capture -----------
+#
+# Spec 2026-04-16-gpt-oss-cot-preservation-design §Architecture: the
+# toolcalling backend must (a) emit the canonical OpenAI assistant-with-
+# tool_calls wire shape so LM Studio renders the prior CoT back into the
+# gpt-oss chat template, and (b) surface ``reasoning`` + structured
+# ``tool_calls`` on NextStepResult so the agent loop can replay them on
+# the next turn.
+
+
+def test_payload_builder_emits_canonical_assistant_tool_call_shape() -> None:
+    tool_calls = [
+        {
+            "id": "call_abc",
+            "type": "function",
+            "function": {"name": "read", "arguments": '{"path":"x"}'},
+        }
+    ]
+    msgs = [
+        Message(
+            role="assistant",
+            content=None,
+            tool_calls=tool_calls,
+            reasoning="cot-text",
+        )
+    ]
+    payload = _build_payload(msgs)
+    assert payload == [
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": tool_calls,
+            "reasoning": "cot-text",
+        }
+    ]
+
+
+def test_payload_builder_omits_reasoning_when_none() -> None:
+    tool_calls = [
+        {
+            "id": "call_abc",
+            "type": "function",
+            "function": {"name": "read", "arguments": "{}"},
+        }
+    ]
+    msgs = [
+        Message(
+            role="assistant",
+            content=None,
+            tool_calls=tool_calls,
+            reasoning=None,
+        )
+    ]
+    payload = _build_payload(msgs)
+    assert payload == [
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": tool_calls,
+        }
+    ]
+    assert "reasoning" not in payload[0]
+
+
+def test_payload_builder_emits_tool_role_with_call_id() -> None:
+    msgs = [Message(role="tool", content="result", tool_call_id="abc")]
+    payload = _build_payload(msgs)
+    assert payload == [
+        {"role": "tool", "tool_call_id": "abc", "content": "result"}
+    ]
+
+
+def test_payload_builder_falls_back_on_salvage_path() -> None:
+    """Salvage path records assistant turn as ``content=<json>`` with no
+    ``tool_calls`` — the payload builder must drop into the else branch
+    rather than emit an assistant-with-tool_calls shape."""
+    msgs = [Message(role="assistant", content='{"a":1}')]
+    payload = _build_payload(msgs)
+    assert payload == [{"role": "assistant", "content": '{"a":1}'}]
+
+
+def test_next_step_captures_reasoning_and_tool_calls_into_result() -> None:
+    """Mock a completion with ``message.reasoning`` and one tool_call —
+    NextStepResult.reasoning must carry the CoT and .tool_calls must hold
+    the structured tool_call list for the agent loop to replay."""
+    tc = MagicMock()
+    tc.function.name = "read"
+    tc.function.arguments = json.dumps({**_envelope_copy(), "path": "AGENTS.md"})
+    tc.model_dump = MagicMock(return_value={
+        "id": "call_xyz",
+        "type": "function",
+        "function": {"name": "read", "arguments": tc.function.arguments},
+    })
+    msg = MagicMock()
+    msg.tool_calls = [tc]
+    msg.reasoning = "thinking about reading AGENTS.md"
+    msg.content = None
+    completion = MagicMock()
+    completion.choices = [MagicMock(message=msg)]
+    completion.usage = MagicMock(
+        prompt_tokens=3, completion_tokens=4,
+        completion_tokens_details=MagicMock(reasoning_tokens=1),
+    )
+    fake_client = MagicMock()
+    fake_client.chat.completions.create.return_value = completion
+
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    out = backend.next_step(
+        [Message(role="user", content="t")], NextStep, 30.0,
+    )
+    assert isinstance(out, NextStepResult)
+    assert out.reasoning == "thinking about reading AGENTS.md"
+    assert out.tool_calls is not None
+    assert len(out.tool_calls) == 1
+    assert out.tool_calls[0]["id"] == "call_xyz"
+    assert out.tool_calls[0]["function"]["name"] == "read"
+
+
+def test_next_step_returns_none_reasoning_when_absent() -> None:
+    """When ``choice.message`` has no ``reasoning`` attribute (pre-0.3.23
+    LM Studio, or any non-reasoning model), NextStepResult.reasoning must
+    surface as ``None`` — not a falsy mock, not an empty string."""
+    # Use ``spec`` to lock the attribute namespace; without this a bare
+    # MagicMock would auto-fabricate ``reasoning`` as a child MagicMock.
+    tc = MagicMock()
+    tc.function.name = "read"
+    tc.function.arguments = json.dumps({**_envelope_copy(), "path": "AGENTS.md"})
+    tc.model_dump = MagicMock(return_value={
+        "id": "call_xyz",
+        "type": "function",
+        "function": {"name": "read", "arguments": tc.function.arguments},
+    })
+    msg = MagicMock(spec=["tool_calls", "content", "model_dump"])
+    msg.tool_calls = [tc]
+    msg.content = None
+    msg.model_dump = MagicMock(return_value={})  # no 'reasoning' key
+    completion = MagicMock()
+    completion.choices = [MagicMock(message=msg)]
+    completion.usage = MagicMock(
+        prompt_tokens=1, completion_tokens=1,
+        completion_tokens_details=MagicMock(reasoning_tokens=0),
+    )
+    fake_client = MagicMock()
+    fake_client.chat.completions.create.return_value = completion
+
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    out = backend.next_step(
+        [Message(role="user", content="t")], NextStep, 30.0,
+    )
+    assert out.reasoning is None
+    # tool_calls are still structured (we had one native tool_call).
+    assert out.tool_calls is not None
+    assert out.tool_calls[0]["id"] == "call_xyz"

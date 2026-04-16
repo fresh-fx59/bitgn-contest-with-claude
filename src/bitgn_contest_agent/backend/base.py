@@ -18,8 +18,11 @@ _T = TypeVar("_T", bound=BaseModel)
 
 @dataclass(frozen=True, slots=True)
 class Message:
-    role: str           # "system" | "user" | "assistant" | "tool"
-    content: str
+    role: str                                 # "system" | "user" | "assistant" | "tool"
+    content: str | None = None                # nullable on assistant-with-tool_calls turns
+    reasoning: str | None = None              # gpt-oss CoT to replay on next turn
+    tool_calls: list[dict] | None = None      # raw tool_calls from prior assistant turn
+    tool_call_id: str | None = None           # pairs tool-result to its originating call
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +32,8 @@ class NextStepResult:
     prompt_tokens: int
     completion_tokens: int
     reasoning_tokens: int
+    reasoning: str | None = None
+    tool_calls: list[dict] | None = None
 
 
 class TransientBackendError(Exception):
