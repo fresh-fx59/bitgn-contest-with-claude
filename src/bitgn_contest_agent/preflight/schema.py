@@ -198,91 +198,46 @@ def _parse_ascii_table(text: str) -> dict[str, str]:
     return out
 
 
-def _parse_frontmatter(text: str) -> dict[str, str]:
-    m = _FRONTMATTER_RE.match(text)
-    if not m:
-        return {}
-    body = m.group(1)
-    out: dict[str, str] = {}
-    for line in body.splitlines():
-        if ":" in line and not line.startswith(" "):
-            k, _, v = line.partition(":")
-            out[k.strip().lower()] = v.strip()
-    return out
+# Back-compat shim — inbox.py, entity.py, doc_migration.py, finance.py,
+# and project.py still import this name. Safe to delete after Task 5
+# rewires all callers to use parse_record_metadata directly.
+_parse_frontmatter = parse_record_metadata
+
+
+_RECORD_TYPE_TO_ROLE = {
+    "project": "projects",
+    "invoice": "finance",
+    "bill": "finance",
+    "receipt": "finance",
+    "purchase": "finance",
+    "inbound_email": "inbox",
+    "inbox": "inbox",
+    "outbound_email": "outbox",
+    "outbox": "outbox",
+    "person": "entities",
+    "entity": "entities",
+    "cast": "entities",
+}
 
 
 def _classify_dir(frontmatters: list[dict[str, str]]) -> list[str]:
-    """Return a list of role labels this directory's contents match.
+    """Return role labels the directory's records match.
 
-    A directory can have multiple roles only if more than one signature
-    trips the threshold — in practice each dir gets one dominant role.
+    Threshold: ≥30% of records share a role. Records without a
+    recognized `record_type` contribute no vote. DEV-shape records
+    using `record_type` field names map identically to PROD-shape
+    records — no separate path needed.
     """
     if not frontmatters:
         return []
     n = len(frontmatters)
-
-    def frac(pred) -> float:
-        return sum(1 for fm in frontmatters if pred(fm)) / n
-
-    roles = []
-    if frac(lambda fm: "inbox_type" in fm or "inbox_kind" in fm) >= _MATCH_THRESHOLD:
-        roles.append("inbox")
-    if frac(lambda fm: "aliases" in fm or ("role" in fm and "relationship" not in fm) or "relationship" in fm) >= _MATCH_THRESHOLD:
-        roles.append("entities")
-    if frac(lambda fm: "vendor" in fm or "eur_total" in fm or "line_items" in fm) >= _MATCH_THRESHOLD:
-        roles.append("finance")
-    if frac(lambda fm: "project" in fm and ("start_date" in fm or "members" in fm)) >= _MATCH_THRESHOLD:
-        roles.append("projects")
-    if frac(lambda fm: "to" in fm and "subject" in fm) >= _MATCH_THRESHOLD:
-        roles.append("outbox")
-    return roles
-
-
-def _classify_dir_by_content(contents: list[str]) -> list[str]:
-    """Fallback classifier for PAC1 PROD-style workspaces where records
-    use markdown bullet lists or ASCII `| record_type | ... |` tables
-    instead of YAML frontmatter.
-
-    Runs on the raw file content and looks for canonical field markers
-    that appear verbatim in the dataset. Returns the same role labels
-    `_classify_dir` produces.
-    """
-    if not contents:
-        return []
-    n = len(contents)
-
-    def frac(pred) -> float:
-        return sum(1 for c in contents if pred(c)) / n
-
-    roles = []
-    if frac(lambda c: "record_type" in c and "inbox" in c) >= _MATCH_THRESHOLD:
-        roles.append("inbox")
-    if frac(lambda c: "- alias:" in c or "- relationship:" in c or "- aliases:" in c) >= _MATCH_THRESHOLD:
-        roles.append("entities")
-    if frac(
-        lambda c: (
-            ("record_type" in c and "invoice" in c)
-            or ("record_type" in c and "bill" in c)
-            or "eur_total" in c
-            or "| vendor" in c
-        )
-    ) >= _MATCH_THRESHOLD:
-        roles.append("finance")
-    if frac(
-        lambda c: (
-            ("record_type" in c and "project" in c)
-            or ("project" in c and ("- members:" in c or "- start_date:" in c))
-        )
-    ) >= _MATCH_THRESHOLD:
-        roles.append("projects")
-    if frac(
-        lambda c: (
-            ("record_type" in c and ("outbox" in c or "message" in c))
-            or ("- to:" in c and "- subject:" in c)
-        )
-    ) >= _MATCH_THRESHOLD:
-        roles.append("outbox")
-    return roles
+    counts: dict[str, int] = {}
+    for fm in frontmatters:
+        rt = (fm.get("record_type") or "").strip().lower()
+        role = _RECORD_TYPE_TO_ROLE.get(rt)
+        if role:
+            counts[role] = counts.get(role, 0) + 1
+    return [role for role, c in counts.items() if c / n >= _MATCH_THRESHOLD]
 
 
 def discover_schema_from_fs(root: Path) -> WorkspaceSchema:
@@ -303,7 +258,7 @@ def discover_schema_from_fs(root: Path) -> WorkspaceSchema:
         for f in md_files[:50]:  # cap per dir for speed
             try:
                 text = f.read_text(encoding="utf-8", errors="replace")
-                frontmatters.append(_parse_frontmatter(text))
+                frontmatters.append(parse_record_metadata(text))
             except OSError as exc:
                 schema.errors.append(f"read failed {f}: {exc}")
 
@@ -368,17 +323,12 @@ def run_preflight_schema(client: Any, workspace_ctx: Any) -> ToolResult:
                 if e.name.endswith(".md") and not e.is_dir
             ][:50]
             frontmatters = []
-            raw_contents: list[str] = []
             for name in md_names:
                 read_resp = client.read(
                     pcm_pb2.ReadRequest(path=f"{d}/{name}")
                 )
-                frontmatters.append(_parse_frontmatter(read_resp.content))
-                raw_contents.append(read_resp.content)
+                frontmatters.append(parse_record_metadata(read_resp.content))
             roles = _classify_dir(frontmatters)
-            if not roles:
-                # Fall back to content-based classification for PAC1 PROD.
-                roles = _classify_dir_by_content(raw_contents)
             for role in roles:
                 if role == "inbox" and schema.inbox_root is None:
                     schema.inbox_root = d
