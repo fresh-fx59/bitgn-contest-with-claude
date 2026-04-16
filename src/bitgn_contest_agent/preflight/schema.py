@@ -199,3 +199,48 @@ def run_preflight_schema(client: Any, workspace_ctx: Any) -> ToolResult:
         error_code=None,
         wall_ms=0,
     )
+
+
+def parse_schema_content(content: Optional[str]) -> WorkspaceSchema:
+    """Reverse of build_response — parse a preflight_schema content
+    string back into a typed WorkspaceSchema. Returns an empty
+    WorkspaceSchema on any parse failure (treat as 'no roots discovered').
+    """
+    if not content:
+        return WorkspaceSchema()
+    try:
+        import json as _json
+        envelope = _json.loads(content)
+    except (ValueError, TypeError):
+        return WorkspaceSchema()
+    if not isinstance(envelope, dict):
+        return WorkspaceSchema()
+    data = envelope.get("data")
+    if not isinstance(data, dict):
+        return WorkspaceSchema()
+
+    def _s(v):
+        return v if isinstance(v, str) and v else None
+
+    finance_raw = data.get("finance_roots") or []
+    if isinstance(finance_raw, str):
+        finance_roots = [finance_raw]
+    elif isinstance(finance_raw, list):
+        finance_roots = [str(x) for x in finance_raw if isinstance(x, str) and x]
+    else:
+        finance_roots = []
+
+    errors_raw = data.get("errors") or []
+    errors = [str(e) for e in errors_raw] if isinstance(errors_raw, list) else []
+
+    return WorkspaceSchema(
+        inbox_root=_s(data.get("inbox_root")),
+        entities_root=_s(data.get("entities_root")),
+        finance_roots=finance_roots,
+        projects_root=_s(data.get("projects_root")),
+        outbox_root=_s(data.get("outbox_root")),
+        rulebook_root=_s(data.get("rulebook_root")),
+        workflows_root=_s(data.get("workflows_root")),
+        schemas_root=_s(data.get("schemas_root")),
+        errors=errors,
+    )
