@@ -21,6 +21,17 @@ from bitgn_contest_agent.router import (
 FIX = Path(__file__).parent / "fixtures" / "router_skills"
 
 
+def test_classifier_system_prompt_requests_query_field() -> None:
+    """The tier2 classifier prompt must instruct the model to populate
+    extracted.query with a short canonical identifier from the task —
+    used by the post-router preflight dispatcher."""
+    from bitgn_contest_agent.router import _classifier_system_prompt
+    sys_prompt = _classifier_system_prompt([("FINANCE_LOOKUP", "finance task")])
+    lower = sys_prompt.lower()
+    assert "query" in lower, "classifier prompt must mention `query`"
+    assert "extracted" in lower, "classifier prompt must mention `extracted`"
+
+
 def test_empty_skill_dir_returns_unknown() -> None:
     r = load_router(skills_dir=FIX / "nonexistent")
     decision = r.route("irrelevant task text")

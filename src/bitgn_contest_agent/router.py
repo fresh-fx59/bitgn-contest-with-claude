@@ -164,6 +164,11 @@ def _classifier_system_prompt(skill_meta: list[tuple[str, str]]) -> str:
     """Build the system prompt for the pre-task tier-2 classifier.
 
     skill_meta: [(category, hint_or_description), ...]
+
+    The `extracted.query` field is consumed by the post-router preflight
+    dispatcher: it picks the matching `preflight_*` tool for the chosen
+    category and uses `query` as its primary search string. A noisy or
+    missing query degrades to no preflight (skill body fall-through).
     """
     lines = [f"  - {cat}: {hint}" for cat, hint in skill_meta]
     lines.append("  - UNKNOWN: task does not match any known category")
@@ -174,6 +179,13 @@ def _classifier_system_prompt(skill_meta: list[tuple[str, str]]) -> str:
         "\n"
         "Return ONLY a JSON object of the form:\n"
         '  {"category": "<one of above>", "confidence": <0.0-1.0>, '
-        '"extracted": {"target_name": "<optional>"}}\n'
+        '"extracted": {"query": "<short canonical identifier from the task>"}}\n'
+        "\n"
+        'The "query" field should be a short string with the most specific '
+        "identifier the task hinges on — a vendor name, item description, "
+        'person reference, project hint, or destination system. Omit "query" '
+        "only if the task has no such identifier (e.g. inbox tasks like "
+        '"take the next inbox item").\n'
+        "\n"
         "No prose. No markdown fences."
     )
