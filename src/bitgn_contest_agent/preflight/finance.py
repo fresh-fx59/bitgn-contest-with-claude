@@ -1,6 +1,6 @@
 """preflight_finance — canonicalizes a finance query against entity
-aliases and returns matching purchase/invoice files with extracted
-metadata (vendor, date, total, line_items).
+aliases and returns matching purchase/invoice files with full parsed
+frontmatter.
 """
 from __future__ import annotations
 
@@ -32,20 +32,14 @@ def run_finance_from_fs(
     if match:
         bill_paths = _bills_for_entity(match, finance_dirs)
     else:
-        # Fallback: match by query directly against vendor field
-        q_norm = normalize_name(query)
+        # No entity match — emit ALL invoices so service-line-style
+        # queries (e.g. "staff follow-up support") have data to filter.
         bill_paths = []
         for d in finance_dirs:
             if not d.exists():
                 continue
-            for f in d.rglob("*.md"):
-                try:
-                    text = f.read_text(encoding="utf-8", errors="replace")
-                except OSError:
-                    continue
-                fm = _parse_frontmatter(text)
-                if q_norm and q_norm in normalize_name(fm.get("vendor", "")):
-                    bill_paths.append(str(f))
+            for f in sorted(d.rglob("*.md")):
+                bill_paths.append(str(f))
     files_meta = []
     for bp in bill_paths:
         try:
@@ -53,13 +47,7 @@ def run_finance_from_fs(
         except OSError:
             continue
         fm = _parse_frontmatter(text)
-        files_meta.append({
-            "path": bp,
-            "vendor": fm.get("vendor", ""),
-            "date": fm.get("date", ""),
-            "total": fm.get("eur_total", ""),
-            "line_items": fm.get("line_items", ""),
-        })
+        files_meta.append({"path": bp, "frontmatter": fm})
     return {
         "canonical_entity": match["canonical"] if match else None,
         "aliases_matched": [match["matched_alias"]] if match else [],
@@ -89,29 +77,40 @@ def run_preflight_finance(client: Any, req: Req_PreflightFinance) -> ToolResult:
                 "frontmatter": fm,
             })
         match = _match_entity(req.query, entities)
-        alias_norms = [normalize_name(a) for a in (match["aliases"] if match else [req.query]) if a]
 
         files_meta = []
-        for froot in req.finance_roots:
-            try:
-                fresp = client.list(pcm_pb2.ListRequest(name=froot))
-            except Exception:
-                continue
-            for fe in fresp.entries:
-                if not fe.name.endswith(".md"):
+        if match:
+            # Filter by vendor-alias match (existing behaviour).
+            alias_norms = [normalize_name(a) for a in match["aliases"] if a]
+            for froot in req.finance_roots:
+                try:
+                    fresp = client.list(pcm_pb2.ListRequest(name=froot))
+                except Exception:
                     continue
-                fp = f"{froot}/{fe.name}"
-                fr = client.read(pcm_pb2.ReadRequest(path=fp))
-                ffm = _parse_frontmatter(fr.content)
-                vendor = normalize_name(ffm.get("vendor", ""))
-                if vendor and any(a in vendor or vendor in a for a in alias_norms if a):
-                    files_meta.append({
-                        "path": fp,
-                        "vendor": ffm.get("vendor", ""),
-                        "date": ffm.get("date", ""),
-                        "total": ffm.get("eur_total", ""),
-                        "line_items": ffm.get("line_items", ""),
-                    })
+                for fe in fresp.entries:
+                    if not fe.name.endswith(".md"):
+                        continue
+                    fp = f"{froot}/{fe.name}"
+                    fr = client.read(pcm_pb2.ReadRequest(path=fp))
+                    ffm = _parse_frontmatter(fr.content)
+                    vendor = normalize_name(ffm.get("vendor", ""))
+                    if vendor and any(a in vendor or vendor in a for a in alias_norms if a):
+                        files_meta.append({"path": fp, "frontmatter": ffm})
+        else:
+            # No entity match — emit every invoice so service-line-style
+            # queries have data.
+            for froot in req.finance_roots:
+                try:
+                    fresp = client.list(pcm_pb2.ListRequest(name=froot))
+                except Exception:
+                    continue
+                for fe in sorted(fresp.entries, key=lambda x: x.name):
+                    if not fe.name.endswith(".md"):
+                        continue
+                    fp = f"{froot}/{fe.name}"
+                    fr = client.read(pcm_pb2.ReadRequest(path=fp))
+                    ffm = _parse_frontmatter(fr.content)
+                    files_meta.append({"path": fp, "frontmatter": ffm})
         data = {
             "canonical_entity": match["canonical"] if match else None,
             "aliases_matched": [match["matched_alias"]] if match else [],
@@ -128,7 +127,7 @@ def run_preflight_finance(client: Any, req: Req_PreflightFinance) -> ToolResult:
         f"Query '{req.query}' → entity '{data['canonical_entity']}' "
         f"({len(data['finance_files'])} finance file(s))."
         if data["canonical_entity"] else
-        f"Query '{req.query}' → no entity match. {len(data['finance_files'])} direct vendor match(es)."
+        f"Query '{req.query}' → no entity match. {len(data['finance_files'])} invoice(s) returned (all invoices fallback)."
     )
     return ToolResult(
         ok=True,

@@ -25,16 +25,37 @@ def test_finance_returns_file_metadata():
         query="Juniper Systems",
     )
     f = out["finance_files"][0]
-    assert "vendor" in f
     assert "path" in f
+    assert "frontmatter" in f
+    assert f["frontmatter"].get("vendor")
 
 
-def test_finance_empty_on_unknown_query():
+def test_finance_file_record_includes_full_frontmatter():
+    """Every invoice record surfaces the full parsed frontmatter dict,
+    not a cherry-picked subset. Regression guard for t008 service_line."""
     out = run_finance_from_fs(
         root=FIXTURE,
         finance_roots=["50_finance/purchases"],
         entities_root="20_entities",
-        query="NonExistentVendor XYZ",
+        query="Juniper Systems",
+    )
+    f = out["finance_files"][0]
+    assert "frontmatter" in f
+    assert isinstance(f["frontmatter"], dict)
+    assert "vendor" in f["frontmatter"]
+
+
+def test_finance_no_entity_match_returns_all_invoices():
+    """When the query doesn't match any entity alias, the preflight
+    returns all invoices so the agent can filter (e.g., by service_line)
+    in-prompt rather than doing cold-start tree/search."""
+    out = run_finance_from_fs(
+        root=FIXTURE,
+        finance_roots=["50_finance/purchases"],
+        entities_root="20_entities",
+        query="staff follow-up support",
     )
     assert out["canonical_entity"] is None
-    assert out["finance_files"] == []
+    assert len(out["finance_files"]) > 0
+    for f in out["finance_files"]:
+        assert "frontmatter" in f and isinstance(f["frontmatter"], dict)
