@@ -715,10 +715,18 @@ class AgentLoop:
             skills_by_name=self._router.skills_by_name(),
         )
 
-        if outcome.tool is not None:
+        query = (decision.extracted or {}).get("query", "")
+        category = decision.category
+
+        # Trace every routed-preflight attempt — even the ones skipped
+        # before dispatch (e.g. missing_roots, missing_query). Retrospective
+        # analysis needs the reason to explain why a task fell through
+        # to manual tree+search exploration.
+        if outcome.tool is not None or outcome.skipped_reason is not None:
             result = outcome.result
+            tool_label = outcome.tool or "unknown"
             self._writer.append_prepass(
-                cmd=f"routed_{outcome.tool}",
+                cmd=f"routed_{tool_label}",
                 ok=bool(result.ok) if result is not None else False,
                 bytes=result.bytes if result is not None else 0,
                 wall_ms=result.wall_ms if result is not None else 0,
@@ -729,6 +737,9 @@ class AgentLoop:
                 error_code=(
                     result.error_code if result is not None else None
                 ),
+                category=category,
+                query=query or None,
+                skipped_reason=outcome.skipped_reason,
             )
 
         result = outcome.result
@@ -737,13 +748,12 @@ class AgentLoop:
             and result.ok
             and result.content
         ):
-            query = (decision.extracted or {}).get("query", "")
             messages.append(
                 Message(
                     role="user",
                     content=(
                         f"PREFLIGHT (auto-dispatched by router for "
-                        f"category={decision.category}, query={query!r}):\n"
+                        f"category={category}, query={query!r}):\n"
                         f"{result.content}\n\n"
                         f"This is the canonical narrowing for this task. "
                         f"Use these references first; widen the search "

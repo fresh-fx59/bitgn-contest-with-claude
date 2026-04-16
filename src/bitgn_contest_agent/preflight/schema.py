@@ -110,6 +110,53 @@ def _classify_dir(frontmatters: list[dict[str, str]]) -> list[str]:
     return roles
 
 
+def _classify_dir_by_content(contents: list[str]) -> list[str]:
+    """Fallback classifier for PAC1 PROD-style workspaces where records
+    use markdown bullet lists or ASCII `| record_type | ... |` tables
+    instead of YAML frontmatter.
+
+    Runs on the raw file content and looks for canonical field markers
+    that appear verbatim in the dataset. Returns the same role labels
+    `_classify_dir` produces.
+    """
+    if not contents:
+        return []
+    n = len(contents)
+
+    def frac(pred) -> float:
+        return sum(1 for c in contents if pred(c)) / n
+
+    roles = []
+    if frac(lambda c: "record_type" in c and "inbox" in c) >= _MATCH_THRESHOLD:
+        roles.append("inbox")
+    if frac(lambda c: "- alias:" in c or "- relationship:" in c or "- aliases:" in c) >= _MATCH_THRESHOLD:
+        roles.append("entities")
+    if frac(
+        lambda c: (
+            ("record_type" in c and "invoice" in c)
+            or ("record_type" in c and "bill" in c)
+            or "eur_total" in c
+            or "| vendor" in c
+        )
+    ) >= _MATCH_THRESHOLD:
+        roles.append("finance")
+    if frac(
+        lambda c: (
+            ("record_type" in c and "project" in c)
+            or ("project" in c and ("- members:" in c or "- start_date:" in c))
+        )
+    ) >= _MATCH_THRESHOLD:
+        roles.append("projects")
+    if frac(
+        lambda c: (
+            ("record_type" in c and ("outbox" in c or "message" in c))
+            or ("- to:" in c and "- subject:" in c)
+        )
+    ) >= _MATCH_THRESHOLD:
+        roles.append("outbox")
+    return roles
+
+
 def discover_schema_from_fs(root: Path) -> WorkspaceSchema:
     """Filesystem-based discovery — used for local tests and as the
     core implementation that the PCM-backed version wraps.
@@ -162,20 +209,48 @@ def run_preflight_schema(client: Any, workspace_ctx: Any) -> ToolResult:
 
     schema = WorkspaceSchema()
     try:
-        # Tree walk from root. Depth cap prevents runaway on big workspaces.
-        req = pcm_pb2.TreeRequest(path="", max_depth=4)
-        tree_resp = client.Tree(req)
-        dirs = sorted({entry.path.rsplit("/", 1)[0] for entry in tree_resp.entries if entry.path.endswith(".md")})
+        # Tree walk from root. TreeResponse.root is a recursive TreeEntry
+        # with (name, is_dir, children). Walk it to collect directories
+        # that contain .md files, then list+read each to classify.
+        tree_resp = client.tree(pcm_pb2.TreeRequest(root="/"))
+        dirs: list[str] = []
+
+        def _walk(entry, prefix: str) -> None:
+            path = (
+                f"{prefix}/{entry.name}".lstrip("/")
+                if entry.name
+                else prefix.lstrip("/")
+            )
+            if entry.is_dir:
+                has_md = any(
+                    c.name.endswith(".md") and not c.is_dir
+                    for c in entry.children
+                )
+                if has_md and path:
+                    dirs.append(path)
+                for c in entry.children:
+                    _walk(c, path)
+
+        _walk(tree_resp.root, "")
+        dirs.sort()
         for d in dirs:
-            if not d:
-                continue
-            list_resp = client.List(pcm_pb2.ListRequest(path=d))
-            md_names = [e.name for e in list_resp.entries if e.name.endswith(".md")][:50]
+            list_resp = client.list(pcm_pb2.ListRequest(name=d))
+            md_names = [
+                e.name for e in list_resp.entries
+                if e.name.endswith(".md") and not e.is_dir
+            ][:50]
             frontmatters = []
+            raw_contents: list[str] = []
             for name in md_names:
-                read_resp = client.Read(pcm_pb2.ReadRequest(path=f"{d}/{name}"))
+                read_resp = client.read(
+                    pcm_pb2.ReadRequest(path=f"{d}/{name}")
+                )
                 frontmatters.append(_parse_frontmatter(read_resp.content))
+                raw_contents.append(read_resp.content)
             roles = _classify_dir(frontmatters)
+            if not roles:
+                # Fall back to content-based classification for PAC1 PROD.
+                roles = _classify_dir_by_content(raw_contents)
             for role in roles:
                 if role == "inbox" and schema.inbox_root is None:
                     schema.inbox_root = d

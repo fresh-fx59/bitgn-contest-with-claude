@@ -54,6 +54,9 @@ class TraceWriter:
         wall_ms: int = 0,
         error: Optional[str] = None,
         error_code: Optional[str] = None,
+        category: Optional[str] = None,
+        query: Optional[str] = None,
+        skipped_reason: Optional[str] = None,
     ) -> None:
         rec = TracePrepass(
             cmd=cmd,
@@ -62,6 +65,9 @@ class TraceWriter:
             wall_ms=wall_ms,
             error=error,
             error_code=error_code,
+            category=category,
+            query=query,
+            skipped_reason=skipped_reason,
         )
         self._write(rec.model_dump(mode="json"))
 

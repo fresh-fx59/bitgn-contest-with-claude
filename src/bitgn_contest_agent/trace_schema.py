@@ -95,6 +95,12 @@ class TracePrepass(_BaseRecord):
     wall_ms: int = 0
     error: Optional[str] = None
     error_code: Optional[str] = None
+    # Routed-preflight diagnostics (only populated for `routed_*` events).
+    # Let retrospective analysis tie a skipped/empty routed preflight back
+    # to the router decision that produced it.
+    category: Optional[str] = None
+    query: Optional[str] = None
+    skipped_reason: Optional[str] = None
 
 
 class StepLLMStats(_BaseRecord):
