@@ -13,11 +13,25 @@ from bitgn.vm import pcm_pb2
 
 from bitgn_contest_agent.adapter.pcm_tracing import (
     TracingPcmClient,
+    _pcm_op_origin,
     pcm_origin,
     set_pcm_origin,
 )
 from bitgn_contest_agent.trace_schema import TracePcmOp, load_jsonl
 from bitgn_contest_agent.trace_writer import TraceWriter
+
+
+@pytest.fixture(autouse=True)
+def _reset_pcm_origin():
+    """`set_pcm_origin` deliberately has no paired reset (it's used in
+    the agent loop where re-indenting 300 lines would churn the diff),
+    which means any test — or any full-suite run that touched the
+    agent loop earlier — leaks origin state into subsequent tests.
+    Reset the ContextVar before every test so these tests observe
+    origin=None unless they explicitly set one."""
+    token = _pcm_op_origin.set(None)
+    yield
+    _pcm_op_origin.reset(token)
 
 
 def _mk_writer(tmp_path: Path) -> TraceWriter:

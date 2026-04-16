@@ -1,10 +1,17 @@
 """Compute bench summary artifacts for a benchmark run directory.
 
+Schema v1.2 (additive over v1.1): adds pcm_op aggregates — per-task
+`pcm_ops`, `pcm_wall_ms`, `pcm_ops_by_op`, `pcm_ops_by_origin`, plus
+overall `total_pcm_ops` and `total_pcm_wall_ms`. Surfaces the PCM
+runtime pressure the dashboard counts as "steps" so "which tasks burn
+op budget in prepass?" is answerable from the summary alone, without
+parsing per-trace JSONL.
+
 Schema v1.1 (additive over v1.0): extends overall and per-task records with
 multi-run aggregates, token usage, harness_url, and divergence counts.
-v1.0 consumers reading v1.1 output must tolerate unknown keys (Pydantic
-ConfigDict(extra="ignore")); v1.1 consumers reading v1.0 input fill missing
-fields with defaults.
+
+Older consumers tolerate unknown keys (Pydantic ConfigDict(extra="ignore"));
+newer consumers reading older input fill missing fields via load_summary.
 """
 from __future__ import annotations
 
@@ -12,6 +19,7 @@ import argparse
 import json
 import statistics
 from collections import defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable
 
@@ -21,26 +29,73 @@ from bitgn_contest_agent.trace_schema import (
     TraceArch,
     TraceMeta,
     TraceOutcome,
+    TracePcmOp,
     TraceStep,
     load_jsonl,
 )
 
 
 FROZEN_SCHEMA_KEYS = ("schema_version", "overall", "tasks")
-BENCH_SUMMARY_SCHEMA_VERSION = "1.1.0"
+BENCH_SUMMARY_SCHEMA_VERSION = "1.2.0"
+
+
+def _origin_bucket(origin: str | None) -> str:
+    """Collapse fine-grained origin labels into summary buckets.
+
+    `step:1`, `step:2`, ..., `step:N` all map to "step" so the summary
+    is comparable across tasks with different step counts (otherwise
+    a 15-step task has 15 origin keys and a 3-step task has 3, making
+    aggregation over `tasks[*].pcm_ops_by_origin` awkward).
+
+    `None` maps to "other" for traces written before attribution
+    landed or for code paths that forget to set the origin.
+    """
+    if origin is None:
+        return "other"
+    if origin.startswith("step:"):
+        return "step"
+    return origin
 
 
 def _iter_jsonl_files(logs_dir: Path) -> Iterable[Path]:
     return sorted(Path(logs_dir).rglob("*.jsonl"))
 
 
-def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, list[int], list[str], int, bool] | None:
+@dataclass(slots=True)
+class _RunStats:
+    """Per-run trace-extraction output.
+
+    Holds everything `summarize` needs from a single JSONL file so that
+    the aggregation loop reads like business logic rather than tuple
+    index arithmetic. Grew from a 9-tuple once pcm_op stats pushed the
+    field count past what positional returns could carry legibly.
+    """
+    task_id: str
+    score: float
+    steps: int
+    meta: TraceMeta
+    outcome: TraceOutcome
+    divergence_steps: list[int]
+    step_texts: list[str]
+    step_wall_ms_sum: int
+    arch_present: bool
+    pcm_ops: int = 0
+    pcm_wall_ms: int = 0
+    pcm_ops_by_op: dict[str, int] = field(default_factory=dict)
+    pcm_ops_by_origin: dict[str, int] = field(default_factory=dict)
+
+
+def _extract_run(path: Path) -> _RunStats | None:
     meta: TraceMeta | None = None
     outcome: TraceOutcome | None = None
     divergence_steps: list[int] = []
     step_texts: list[str] = []
     step_wall_ms_sum: int = 0
     arch_present: bool = False
+    pcm_ops_count: int = 0
+    pcm_wall_ms_total: int = 0
+    pcm_by_op: dict[str, int] = defaultdict(int)
+    pcm_by_origin: dict[str, int] = defaultdict(int)
     try:
         for rec in load_jsonl(path):
             if isinstance(rec, TraceMeta):
@@ -57,6 +112,11 @@ def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, 
                 step_wall_ms_sum += rec.wall_ms
             elif isinstance(rec, TraceArch):
                 arch_present = True
+            elif isinstance(rec, TracePcmOp):
+                pcm_ops_count += 1
+                pcm_wall_ms_total += rec.wall_ms
+                pcm_by_op[rec.op] += 1
+                pcm_by_origin[_origin_bucket(rec.origin)] += 1
             elif isinstance(rec, TraceOutcome):
                 outcome = rec
     except (ValueError, json.JSONDecodeError):
@@ -66,12 +126,25 @@ def _extract_run(path: Path) -> tuple[str, float, int, TraceMeta, TraceOutcome, 
     score = float(outcome.score) if outcome.score is not None else (
         1.0 if (outcome.reported == "OUTCOME_OK" and outcome.terminated_by == "report_completion") else 0.0
     )
-    return meta.task_id, score, outcome.total_steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum, arch_present
+    return _RunStats(
+        task_id=meta.task_id,
+        score=score,
+        steps=outcome.total_steps,
+        meta=meta,
+        outcome=outcome,
+        divergence_steps=divergence_steps,
+        step_texts=step_texts,
+        step_wall_ms_sum=step_wall_ms_sum,
+        arch_present=arch_present,
+        pcm_ops=pcm_ops_count,
+        pcm_wall_ms=pcm_wall_ms_total,
+        pcm_ops_by_op=dict(pcm_by_op),
+        pcm_ops_by_origin=dict(pcm_by_origin),
+    )
 
 
 def summarize(*, logs_dir: Path) -> Dict[str, Any]:
-    # by_task maps task_id -> list of (score, steps, meta, outcome, divergence_steps, step_texts, wall_ms_sum, arch_present) per run
-    by_task: dict[str, list[tuple[float, int, TraceMeta, TraceOutcome, list[int], list[str], int, bool]]] = defaultdict(list)
+    by_task: dict[str, list[_RunStats]] = defaultdict(list)
     total_runs = 0
     total_passes = 0
 
@@ -79,60 +152,77 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
         run = _extract_run(path)
         if run is None:
             continue
-        task_id, score, steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum, arch_present = run
-        by_task[task_id].append((score, steps, meta, outcome, divergence_steps, step_texts, step_wall_ms_sum, arch_present))
+        by_task[run.task_id].append(run)
         total_runs += 1
-        if score >= 1.0:
+        if run.score >= 1.0:
             total_passes += 1
 
     tasks_out: dict[str, dict[str, Any]] = {}
     total_input_tokens = 0
     total_output_tokens = 0
     total_reasoning_tokens = 0
+    total_pcm_ops = 0
+    total_pcm_wall_ms = 0
 
     for task_id, entries in sorted(by_task.items()):
         runs = len(entries)
-        passes = sum(1 for e in entries if e[0] >= 1.0)
-        med_steps = int(statistics.median(e[1] for e in entries)) if entries else 0
-        passes_per_run = [1 if e[0] >= 1.0 else 0 for e in entries]
+        passes = sum(1 for e in entries if e.score >= 1.0)
+        med_steps = int(statistics.median(e.steps for e in entries)) if entries else 0
+        passes_per_run = [1 if e.score >= 1.0 else 0 for e in entries]
 
         # Token sums from TraceOutcome
-        task_input = sum(e[3].total_prompt_tokens for e in entries)
-        task_output = sum(e[3].total_completion_tokens for e in entries)
-        task_reasoning = sum(e[3].total_reasoning_tokens for e in entries)
+        task_input = sum(e.outcome.total_prompt_tokens for e in entries)
+        task_output = sum(e.outcome.total_completion_tokens for e in entries)
+        task_reasoning = sum(e.outcome.total_reasoning_tokens for e in entries)
 
         total_input_tokens += task_input
         total_output_tokens += task_output
         total_reasoning_tokens += task_reasoning
 
-        harness_url = (entries[0][2].harness_url or "") if entries else ""
+        harness_url = (entries[0].meta.harness_url or "") if entries else ""
 
         # Divergence: union of step indices across all runs, sorted and deduped
-        divergence_all = sorted(set().union(*[set(e[4]) for e in entries]))
+        divergence_all = sorted(set().union(*[set(e.divergence_steps) for e in entries]))
 
         # step_texts: union across runs (de-duped, order-preserving via dict)
         seen_texts: dict[str, None] = {}
         for e in entries:
-            for txt in e[5]:  # step_texts
+            for txt in e.step_texts:
                 if txt and txt not in seen_texts:
                     seen_texts[txt] = None
         step_texts_all = list(seen_texts.keys())
 
         # last_outcome: from the final entry's outcome.reported
-        last_entry_outcome = entries[-1][3] if entries else None
+        last_entry_outcome = entries[-1].outcome if entries else None
         last_outcome = (last_entry_outcome.reported if last_entry_outcome and last_entry_outcome.reported else "OUTCOME_OK")
 
         # last_latency_ms: wall_ms sum of the final entry
-        last_latency_ms = entries[-1][6] if entries else 0
+        last_latency_ms = entries[-1].step_wall_ms_sum if entries else 0
 
         # timed_out: True if ANY run was cancelled/timed out
         timed_out = any(
-            (e[3].terminated_by == "cancel") or (e[3].error_kind == "CANCELLED")
+            (e.outcome.terminated_by == "cancel") or (e.outcome.error_kind == "CANCELLED")
             for e in entries
         )
 
         # category: no source yet — default to "other"
         category = "other"
+
+        # pcm_op aggregates (v1.2): summed across runs so multi-run
+        # tasks surface cumulative op pressure, matching the existing
+        # token-sum convention.
+        pcm_ops_total = sum(e.pcm_ops for e in entries)
+        pcm_wall_ms_total = sum(e.pcm_wall_ms for e in entries)
+        pcm_by_op: dict[str, int] = defaultdict(int)
+        pcm_by_origin: dict[str, int] = defaultdict(int)
+        for e in entries:
+            for op, n in e.pcm_ops_by_op.items():
+                pcm_by_op[op] += n
+            for origin, n in e.pcm_ops_by_origin.items():
+                pcm_by_origin[origin] += n
+
+        total_pcm_ops += pcm_ops_total
+        total_pcm_wall_ms += pcm_wall_ms_total
 
         tasks_out[task_id] = {
             "runs": runs,
@@ -152,7 +242,12 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
             "timed_out": timed_out,
             "category": category,
             # arch-logging additive field
-            "arch_present": any(e[7] for e in entries),
+            "arch_present": any(e.arch_present for e in entries),
+            # v1.2 additive — pcm_op stats
+            "pcm_ops": pcm_ops_total,
+            "pcm_wall_ms": pcm_wall_ms_total,
+            "pcm_ops_by_op": dict(pcm_by_op),
+            "pcm_ops_by_origin": dict(pcm_by_origin),
         }
 
     # aggregate_runs expects a list of per-run summary dicts. In Phase 1 every
@@ -163,7 +258,7 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
     task_summaries = []
     for task_id, entries in by_task.items():
         runs = len(entries)
-        passes = sum(1 for e in entries if e[0] >= 1.0)
+        passes = sum(1 for e in entries if e.score >= 1.0)
         task_summaries.append({"overall": {"pass_rate": passes / runs if runs else 0.0}})
 
     agg = aggregate_runs(task_summaries, seed=12345)
@@ -188,16 +283,22 @@ def summarize(*, logs_dir: Path) -> Dict[str, Any]:
             "total_reasoning_tokens": total_reasoning_tokens,
             "trace_dir": str(Path(logs_dir).resolve()),
             "divergence_count": sum(len(t["divergence_steps"]) for t in tasks_out.values()),
+            # v1.2 additive — pcm_op totals
+            "total_pcm_ops": total_pcm_ops,
+            "total_pcm_wall_ms": total_pcm_wall_ms,
         },
         "tasks": tasks_out,
     }
 
 
 def load_summary(raw: Dict[str, Any]) -> Dict[str, Any]:
-    """Upcast a v1.0 or v1.1 bench_summary dict to the v1.1 shape.
+    """Upcast a v1.0, v1.1, or v1.2 bench_summary dict to the v1.2 shape.
 
-    v1.0 files are missing the additive fields; this fills them with
-    sensible defaults so callers can always assume v1.1 structure.
+    Older files are missing additive fields; this fills them with
+    sensible defaults so callers can always assume the current (v1.2)
+    structure. The returned `schema_version` preserves whatever the
+    input carried — callers that branch on version should key off that,
+    not assume the return is v1.2.
     """
     overall = dict(raw.get("overall", {}))
     pass_rate = overall.get("pass_rate", 0.0)
@@ -213,6 +314,9 @@ def load_summary(raw: Dict[str, Any]) -> Dict[str, Any]:
     overall.setdefault("total_reasoning_tokens", 0)
     overall.setdefault("trace_dir", "")
     overall.setdefault("divergence_count", 0)
+    # v1.2 defaults
+    overall.setdefault("total_pcm_ops", 0)
+    overall.setdefault("total_pcm_wall_ms", 0)
 
     tasks = {}
     for task_id, task_data in raw.get("tasks", {}).items():
@@ -228,6 +332,11 @@ def load_summary(raw: Dict[str, Any]) -> Dict[str, Any]:
         t.setdefault("last_latency_ms", 0)
         t.setdefault("timed_out", False)
         t.setdefault("category", "other")
+        # v1.2 defaults
+        t.setdefault("pcm_ops", 0)
+        t.setdefault("pcm_wall_ms", 0)
+        t.setdefault("pcm_ops_by_op", {})
+        t.setdefault("pcm_ops_by_origin", {})
         tasks[task_id] = t
 
     return {
