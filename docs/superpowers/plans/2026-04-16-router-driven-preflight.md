@@ -15,9 +15,8 @@
 ## File Structure
 
 **Create:**
-- `src/bitgn_contest_agent/workspace_schema.py` — `WorkspaceSchema` dataclass + `parse_schema_summary()`
 - `src/bitgn_contest_agent/routed_preflight.py` — `dispatch_routed_preflight()` + category→tool table sourced from skill frontmatter
-- `tests/test_workspace_schema.py`
+- `tests/test_workspace_schema_parse.py`
 - `tests/test_routed_preflight.py`
 
 **Modify:**
@@ -41,143 +40,140 @@
 
 ## Task Breakdown
 
-### Task 1: WorkspaceSchema dataclass + parser
+### Task 1: Add `parse_schema_content()` next to existing WorkspaceSchema
 
 **Files:**
-- Create: `src/bitgn_contest_agent/workspace_schema.py`
-- Create: `tests/test_workspace_schema.py`
+- Modify: `src/bitgn_contest_agent/preflight/schema.py` (add parser function)
+- Create: `tests/test_workspace_schema_parse.py`
 
-**Background:** `preflight_schema` returns a JSON-ish summary string today (look at `src/bitgn_contest_agent/preflight/schema.py` to confirm shape). We need to parse that once, store the discovered roots typed, and pass it to the routed preflight dispatcher. Roots needed: `inbox_root: str | None`, `entities_root: str | None`, `finance_roots: list[str]`, `projects_root: str | None`. Use `dataclass(frozen=True)`.
+**Background:** A `WorkspaceSchema` dataclass already exists at `src/bitgn_contest_agent/preflight/schema.py:29` with fields `inbox_root`, `entities_root`, `finance_roots: list[str]`, `projects_root`, `outbox_root`, `rulebook_root`, `workflows_root`, `schemas_root`, `errors`. `preflight_schema` builds its content via `build_response(summary, data)` from `preflight/response.py` — JSON of shape `{"summary": str, "data": <as_data() dict>}`. We just need a reverse parser that takes the content string and reconstructs a `WorkspaceSchema`. NO new dataclass — extend the existing module.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/test_workspace_schema.py
-"""Tests for WorkspaceSchema parsing."""
+# tests/test_workspace_schema_parse.py
+"""Tests for parse_schema_content — reconstructs WorkspaceSchema from the
+preflight_schema response content string."""
 from __future__ import annotations
 
-from bitgn_contest_agent.workspace_schema import WorkspaceSchema, parse_schema_summary
+from bitgn_contest_agent.preflight.schema import (
+    WorkspaceSchema,
+    parse_schema_content,
+)
 
 
-def test_parse_full_schema():
-    summary = (
-        '{"inbox_root": "/10_inbox", "entities_root": "/30_entities", '
-        '"finance_roots": ["/50_finance/purchases", "/50_finance/invoices"], '
-        '"projects_root": "/40_projects"}'
+def test_parse_full_content_round_trip():
+    """Round-trip via the actual build_response shape."""
+    from bitgn_contest_agent.preflight.response import build_response
+    src = WorkspaceSchema(
+        inbox_root="10_inbox",
+        entities_root="30_entities",
+        finance_roots=["50_finance/purchases", "50_finance/invoices"],
+        projects_root="40_projects",
+        outbox_root="20_outbox",
     )
-    schema = parse_schema_summary(summary)
-    assert schema.inbox_root == "/10_inbox"
-    assert schema.entities_root == "/30_entities"
-    assert schema.finance_roots == ("/50_finance/purchases", "/50_finance/invoices")
-    assert schema.projects_root == "/40_projects"
+    content = build_response(summary=src.summary(), data=src.as_data())
+    out = parse_schema_content(content)
+    assert out.inbox_root == "10_inbox"
+    assert out.entities_root == "30_entities"
+    assert out.finance_roots == ["50_finance/purchases", "50_finance/invoices"]
+    assert out.projects_root == "40_projects"
+    assert out.outbox_root == "20_outbox"
 
 
-def test_parse_partial_schema():
-    summary = '{"finance_roots": ["/50_finance"]}'
-    schema = parse_schema_summary(summary)
-    assert schema.inbox_root is None
-    assert schema.entities_root is None
-    assert schema.finance_roots == ("/50_finance",)
-    assert schema.projects_root is None
+def test_parse_partial_content():
+    content = '{"summary": "...", "data": {"finance_roots": ["50_finance"]}}'
+    out = parse_schema_content(content)
+    assert out.inbox_root is None
+    assert out.entities_root is None
+    assert out.finance_roots == ["50_finance"]
+    assert out.projects_root is None
 
 
 def test_parse_invalid_returns_empty():
-    schema = parse_schema_summary("not json at all")
-    assert schema.inbox_root is None
-    assert schema.entities_root is None
-    assert schema.finance_roots == ()
-    assert schema.projects_root is None
+    out = parse_schema_content("not json at all")
+    assert out == WorkspaceSchema()
 
 
 def test_parse_none_returns_empty():
-    schema = parse_schema_summary(None)
-    assert schema == WorkspaceSchema()
+    out = parse_schema_content(None)
+    assert out == WorkspaceSchema()
+
+
+def test_parse_missing_data_key_returns_empty():
+    out = parse_schema_content('{"summary": "no data"}')
+    assert out == WorkspaceSchema()
 ```
 
 - [ ] **Step 2: Run test to verify failure**
 
 ```
-.venv/bin/pytest tests/test_workspace_schema.py -v
+.venv/bin/pytest tests/test_workspace_schema_parse.py -v
 ```
-Expected: 4 FAILs with `ModuleNotFoundError: bitgn_contest_agent.workspace_schema`.
+Expected: 5 FAILs with `ImportError: cannot import name 'parse_schema_content'`.
 
-- [ ] **Step 3: Implement `workspace_schema.py`**
+- [ ] **Step 3: Add `parse_schema_content` to `preflight/schema.py`**
+
+Append to `src/bitgn_contest_agent/preflight/schema.py` (after the existing `run_preflight_schema`):
 
 ```python
-# src/bitgn_contest_agent/workspace_schema.py
-"""Typed view of the workspace roots discovered by preflight_schema.
-
-The preflight_schema preflight tool returns a JSON-ish summary listing
-the canonical roots for inbox / entities / finance / projects. We parse
-it once at prepass time so downstream code (routed preflight dispatch,
-arch logging) can pass typed root paths without re-reading the summary
-each time.
-"""
-from __future__ import annotations
-
-import json
-from dataclasses import dataclass, field
-from typing import Optional, Tuple
-
-
-@dataclass(frozen=True)
-class WorkspaceSchema:
-    inbox_root: Optional[str] = None
-    entities_root: Optional[str] = None
-    finance_roots: Tuple[str, ...] = ()
-    projects_root: Optional[str] = None
-
-
-def parse_schema_summary(summary: Optional[str]) -> WorkspaceSchema:
-    """Parse the preflight_schema summary string into a WorkspaceSchema.
-
-    Returns an empty WorkspaceSchema on any parse failure. Callers
-    should treat that as 'no preflight roots discovered' and skip
-    routed preflight dispatch for tasks needing roots.
+def parse_schema_content(content: Optional[str]) -> WorkspaceSchema:
+    """Reverse of build_response — parse a preflight_schema content
+    string back into a typed WorkspaceSchema. Returns an empty
+    WorkspaceSchema on any parse failure (treat as 'no roots discovered').
     """
-    if not summary:
+    if not content:
         return WorkspaceSchema()
     try:
-        data = json.loads(summary)
-    except (json.JSONDecodeError, TypeError):
+        import json as _json
+        envelope = _json.loads(content)
+    except (ValueError, TypeError):
         return WorkspaceSchema()
+    if not isinstance(envelope, dict):
+        return WorkspaceSchema()
+    data = envelope.get("data")
     if not isinstance(data, dict):
         return WorkspaceSchema()
-    finance_raw = data.get("finance_roots") or ()
+
+    def _s(v):
+        return v if isinstance(v, str) and v else None
+
+    finance_raw = data.get("finance_roots") or []
     if isinstance(finance_raw, str):
-        finance_roots: Tuple[str, ...] = (finance_raw,)
-    elif isinstance(finance_raw, (list, tuple)):
-        finance_roots = tuple(str(x) for x in finance_raw)
+        finance_roots = [finance_raw]
+    elif isinstance(finance_raw, list):
+        finance_roots = [str(x) for x in finance_raw if isinstance(x, str) and x]
     else:
-        finance_roots = ()
+        finance_roots = []
+
+    errors_raw = data.get("errors") or []
+    errors = [str(e) for e in errors_raw] if isinstance(errors_raw, list) else []
+
     return WorkspaceSchema(
-        inbox_root=_str_or_none(data.get("inbox_root")),
-        entities_root=_str_or_none(data.get("entities_root")),
+        inbox_root=_s(data.get("inbox_root")),
+        entities_root=_s(data.get("entities_root")),
         finance_roots=finance_roots,
-        projects_root=_str_or_none(data.get("projects_root")),
+        projects_root=_s(data.get("projects_root")),
+        outbox_root=_s(data.get("outbox_root")),
+        rulebook_root=_s(data.get("rulebook_root")),
+        workflows_root=_s(data.get("workflows_root")),
+        schemas_root=_s(data.get("schemas_root")),
+        errors=errors,
     )
-
-
-def _str_or_none(v: object) -> Optional[str]:
-    if isinstance(v, str) and v:
-        return v
-    return None
 ```
-
-**Verify the actual `preflight_schema` summary shape first** by reading `src/bitgn_contest_agent/preflight/schema.py` and any test that exercises it. If the real summary uses different keys or wrapping (e.g. `{"summary": "...", "data": {"roots": {...}}}`), adjust `parse_schema_summary` to extract from the right path. Add a test fixture using the actual real summary string.
 
 - [ ] **Step 4: Run tests to verify pass**
 
 ```
-.venv/bin/pytest tests/test_workspace_schema.py -v
+.venv/bin/pytest tests/test_workspace_schema_parse.py -v
 ```
-Expected: 4 PASS.
+Expected: 5 PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/bitgn_contest_agent/workspace_schema.py tests/test_workspace_schema.py
-git commit -m "feat(preflight): add WorkspaceSchema dataclass + parser"
+git add src/bitgn_contest_agent/preflight/schema.py tests/test_workspace_schema_parse.py
+git commit -m "feat(preflight): add parse_schema_content for harness-side reuse"
 ```
 
 ---
@@ -425,13 +421,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from bitgn_contest_agent.preflight.schema import WorkspaceSchema
 from bitgn_contest_agent.router import RoutingDecision
 from bitgn_contest_agent.routed_preflight import (
     RoutedPreflightOutcome,
     dispatch_routed_preflight,
 )
 from bitgn_contest_agent.skills import BitgnSkill
-from bitgn_contest_agent.workspace_schema import WorkspaceSchema
 
 
 def _skill(category, preflight=None, query_field="query"):
@@ -617,6 +613,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+from bitgn_contest_agent.preflight.schema import WorkspaceSchema
 from bitgn_contest_agent.router import RoutingDecision
 from bitgn_contest_agent.schemas import (
     Req_PreflightDocMigration,
@@ -626,7 +623,6 @@ from bitgn_contest_agent.schemas import (
     Req_PreflightProject,
 )
 from bitgn_contest_agent.skills import BitgnSkill
-from bitgn_contest_agent.workspace_schema import WorkspaceSchema
 
 _LOG = logging.getLogger(__name__)
 
@@ -717,7 +713,7 @@ def _build_finance(*, query: str, schema: WorkspaceSchema):
     req = Req_PreflightFinance(
         tool="preflight_finance",
         query=query,
-        finance_roots=list(schema.finance_roots),
+        finance_roots=list(schema.finance_roots),  # already list[str]
         entities_root=schema.entities_root,
     )
     return req, None
@@ -773,7 +769,7 @@ def _build_inbox(*, query: str, schema: WorkspaceSchema):
         tool="preflight_inbox",
         inbox_root=schema.inbox_root,
         entities_root=schema.entities_root,
-        finance_roots=list(schema.finance_roots),
+        finance_roots=list(schema.finance_roots),  # already list[str]
     )
     return req, None
 
@@ -834,7 +830,7 @@ def test_run_prepass_returns_empty_schema_on_preflight_failure(monkeypatch, ...)
     # make preflight_schema return ok=False
     ...
     out = adapter.run_prepass(session=session, trace_writer=writer)
-    from bitgn_contest_agent.workspace_schema import WorkspaceSchema
+    from bitgn_contest_agent.preflight.schema import WorkspaceSchema
     assert out.schema == WorkspaceSchema()
 ```
 
@@ -849,11 +845,14 @@ Expected: FAIL — return is currently a list.
 
 - [ ] **Step 3: Implement the change in `pcm.py`**
 
-Add at the top of pcm.py:
+Add at the top of pcm.py (with existing imports):
 
 ```python
-from dataclasses import dataclass, field as _dc_field
-from bitgn_contest_agent.workspace_schema import WorkspaceSchema, parse_schema_summary
+from dataclasses import dataclass
+from bitgn_contest_agent.preflight.schema import (
+    WorkspaceSchema,
+    parse_schema_content,
+)
 
 
 @dataclass
@@ -897,11 +896,11 @@ def run_prepass(self, *, session: Any, trace_writer: Any) -> PrepassResult:
         )
     return PrepassResult(
         bootstrap_content=bootstrap_content,
-        schema=parse_schema_summary(schema_summary),
+        schema=parse_schema_content(schema_summary),
     )
 ```
 
-**If the `preflight_schema` ToolResult `content` is the full `{"summary": ..., "data": ...}` blob,** parse `summary` from there. Read the actual content shape by examining `src/bitgn_contest_agent/preflight/schema.py` first and adjusting `parse_schema_summary` accordingly (Task 1 may need a follow-up edit).
+Confirmed against current code: `preflight_schema`'s `result.content` is the full `{"summary": ..., "data": ...}` JSON envelope (built by `build_response`), and `parse_schema_content` (Task 1) reads `data.*` directly.
 
 - [ ] **Step 4: Run tests to verify pass**
 
