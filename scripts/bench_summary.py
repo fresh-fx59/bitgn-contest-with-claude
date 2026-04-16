@@ -25,6 +25,7 @@ from typing import Any, Dict, Iterable
 
 from bitgn_contest_agent.bench.aggregate import aggregate_runs
 from bitgn_contest_agent.bench.divergence import is_divergent_step
+from bitgn_contest_agent.adapter.pcm_tracing import origin_bucket
 from bitgn_contest_agent.trace_schema import (
     TraceArch,
     TraceMeta,
@@ -37,24 +38,6 @@ from bitgn_contest_agent.trace_schema import (
 
 FROZEN_SCHEMA_KEYS = ("schema_version", "overall", "tasks")
 BENCH_SUMMARY_SCHEMA_VERSION = "1.2.0"
-
-
-def _origin_bucket(origin: str | None) -> str:
-    """Collapse fine-grained origin labels into summary buckets.
-
-    `step:1`, `step:2`, ..., `step:N` all map to "step" so the summary
-    is comparable across tasks with different step counts (otherwise
-    a 15-step task has 15 origin keys and a 3-step task has 3, making
-    aggregation over `tasks[*].pcm_ops_by_origin` awkward).
-
-    `None` maps to "other" for traces written before attribution
-    landed or for code paths that forget to set the origin.
-    """
-    if origin is None:
-        return "other"
-    if origin.startswith("step:"):
-        return "step"
-    return origin
 
 
 def _iter_jsonl_files(logs_dir: Path) -> Iterable[Path]:
@@ -116,7 +99,7 @@ def _extract_run(path: Path) -> _RunStats | None:
                 pcm_ops_count += 1
                 pcm_wall_ms_total += rec.wall_ms
                 pcm_by_op[rec.op] += 1
-                pcm_by_origin[_origin_bucket(rec.origin)] += 1
+                pcm_by_origin[origin_bucket(rec.origin)] += 1
             elif isinstance(rec, TraceOutcome):
                 outcome = rec
     except (ValueError, json.JSONDecodeError):

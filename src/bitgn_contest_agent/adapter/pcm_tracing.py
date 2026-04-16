@@ -61,6 +61,29 @@ def set_pcm_origin(label: str) -> None:
     _pcm_op_origin.set(label)
 
 
+def origin_bucket(origin: Optional[str]) -> str:
+    """Collapse fine-grained origin labels into summary buckets.
+
+    `step:1`, `step:2`, ..., `step:N` all map to "step" so cross-task
+    aggregates compare apples to apples — otherwise a 15-step task has
+    15 origin keys and a 3-step task has 3, making
+    `tasks[*].pcm_ops_by_origin` awkward to roll up.
+
+    `None` maps to "other" so traces from before attribution landed
+    (or off-path code that forgets to set origin) still account for
+    their ops rather than vanishing from the bucket breakdown.
+
+    This function is the canonical bucketing rule — both bench_summary
+    and failure_report import it so their origin categories always
+    agree.
+    """
+    if origin is None:
+        return "other"
+    if origin.startswith("step:"):
+        return "step"
+    return origin
+
+
 def _response_bytes(resp: Any) -> int:
     """Wire-byte size of a proto response. Matches how the dashboard
     would measure payload size. Returns 0 on non-proto objects."""

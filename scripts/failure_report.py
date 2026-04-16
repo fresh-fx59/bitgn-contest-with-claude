@@ -38,6 +38,9 @@ _repo_root = _here.parent.parent
 if str(_repo_root / "src") not in sys.path:
     sys.path.insert(0, str(_repo_root / "src"))
 
+import heapq  # noqa: E402 — for top-N expensive pcm_ops
+
+from bitgn_contest_agent.adapter.pcm_tracing import origin_bucket  # noqa: E402
 from bitgn_contest_agent.arch_constants import (  # noqa: E402
     ArchCategory,
     ArchResult,
@@ -46,10 +49,18 @@ from bitgn_contest_agent.trace_schema import (  # noqa: E402
     TraceArch,
     TraceMeta,
     TraceOutcome,
+    TracePcmOp,
     TraceStep,
     TraceTask,
     load_jsonl,
 )
+
+
+# Number of slowest pcm_ops to surface per failing task. Five is enough
+# to see both the prepass workspace-walk hotspots (typically 2-3 slow
+# reads) and the step-phase hot loop (1-2 expensive reads or answer),
+# without turning every digest into a log dump.
+PCM_TOP_N = 5
 
 
 @dataclass
@@ -78,6 +89,13 @@ class FailureDigest:
     t1_rules_fired: Counter = field(default_factory=Counter)
     # where the final write lived (if any)
     final_mutation_count: int = 0
+    # pcm_op aggregates — surfaces runtime-layer pressure that can
+    # otherwise only be seen by running `jq .kind=="pcm_op"` against
+    # the trace file. `pcm_top_ops` holds the PCM_TOP_N slowest ops
+    # by wall_ms (TracePcmOp instances, descending).
+    pcm_ops_total: int = 0
+    pcm_ops_by_origin: Counter = field(default_factory=Counter)
+    pcm_top_ops: list[TracePcmOp] = field(default_factory=list)
 
 
 def _digest_trace(path: Path) -> Optional[FailureDigest]:
@@ -86,6 +104,15 @@ def _digest_trace(path: Path) -> Optional[FailureDigest]:
     outcome: Optional[TraceOutcome] = None
     last_step: Optional[TraceStep] = None
     arch_records: list[TraceArch] = []
+    pcm_ops_total: int = 0
+    pcm_ops_by_origin: Counter = Counter()
+    # Min-heap of (wall_ms, insertion_index, pcm_op). Insertion index
+    # is a tiebreaker so heapq doesn't try to compare TracePcmOp
+    # instances when two ops share a wall_ms value. Keeping the heap
+    # size capped at PCM_TOP_N avoids retaining every record for large
+    # traces (100+ ops common).
+    pcm_top_heap: list[tuple[int, int, TracePcmOp]] = []
+    pcm_seq: int = 0
     try:
         for rec in load_jsonl(path):
             if isinstance(rec, TraceMeta):
@@ -98,6 +125,15 @@ def _digest_trace(path: Path) -> Optional[FailureDigest]:
                 last_step = rec
             elif isinstance(rec, TraceArch):
                 arch_records.append(rec)
+            elif isinstance(rec, TracePcmOp):
+                pcm_ops_total += 1
+                pcm_ops_by_origin[origin_bucket(rec.origin)] += 1
+                entry = (rec.wall_ms, pcm_seq, rec)
+                pcm_seq += 1
+                if len(pcm_top_heap) < PCM_TOP_N:
+                    heapq.heappush(pcm_top_heap, entry)
+                else:
+                    heapq.heappushpop(pcm_top_heap, entry)
     except Exception as exc:  # noqa: BLE001 — resilient to partial traces
         print(f"# skip {path.name}: {exc}", file=sys.stderr)
         return None
@@ -110,6 +146,10 @@ def _digest_trace(path: Path) -> Optional[FailureDigest]:
         model=meta.model,
         agent_commit=meta.agent_commit,
     )
+    d.pcm_ops_total = pcm_ops_total
+    d.pcm_ops_by_origin = pcm_ops_by_origin
+    # Descending wall_ms so consumers see slowest first.
+    d.pcm_top_ops = [op for (_ms, _seq, op) in sorted(pcm_top_heap, reverse=True)]
     if outcome is not None:
         d.score = outcome.score
         d.score_detail = list(outcome.score_detail or [])
@@ -236,6 +276,21 @@ def _render_md(d: FailureDigest) -> str:
                 lines.append(f"    - {r}")
     else:
         lines.append("- **validator activity**: (none recorded)")
+
+    if d.pcm_ops_total:
+        origin_str = ", ".join(
+            f"{bucket}={count}"
+            for bucket, count in sorted(d.pcm_ops_by_origin.items())
+        )
+        lines.append(f"- **pcm_ops**: {d.pcm_ops_total} ({origin_str})")
+        lines.append(f"- **top pcm_ops** (by wall_ms):")
+        for op in d.pcm_top_ops:
+            path_str = f" {op.path}" if op.path else ""
+            origin_str = f" origin={op.origin}" if op.origin else ""
+            err = f" error={op.error_code}" if not op.ok else ""
+            lines.append(
+                f"  - {op.op}{path_str} — {op.wall_ms}ms{origin_str}{err}"
+            )
     lines.append("")
     return "\n".join(lines)
 
@@ -272,6 +327,21 @@ def _render_json(digests: list[FailureDigest]) -> str:
                     "corrected_count": d.corrected_count,
                     "reject_reasons": d.reject_reasons,
                     "mismatch_reasons": d.mismatch_reasons,
+                },
+                "pcm_ops": {
+                    "total": d.pcm_ops_total,
+                    "by_origin": dict(d.pcm_ops_by_origin),
+                    "top": [
+                        {
+                            "op": op.op,
+                            "path": op.path,
+                            "wall_ms": op.wall_ms,
+                            "origin": op.origin,
+                            "ok": op.ok,
+                            "error_code": op.error_code,
+                        }
+                        for op in d.pcm_top_ops
+                    ],
                 },
             }
         )
