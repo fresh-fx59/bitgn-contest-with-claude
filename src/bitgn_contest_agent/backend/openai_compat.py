@@ -35,6 +35,26 @@ _TRANSIENT_EXCEPTIONS: tuple[type[Exception], ...] = (
 )
 
 
+# Message-substring fallback: cliproxyapi (our localhost LLM proxy) can
+# flatten an upstream socket error into a bare `openai.APIError` (the base
+# class), rather than the narrower `APIConnectionError` that the SDK raises
+# when it sees the socket error directly. Pattern-match the message so
+# those blips still hit the P2 backoff retry.
+# Verified from PROD t009 2026-04-15 crash:
+#   "APIError: read tcp [...]:53210->[...]:443: read: connection reset by peer"
+_TRANSIENT_MESSAGE_SUBSTRINGS: tuple[str, ...] = (
+    "connection reset",
+    "econnreset",
+    "broken pipe",
+    "epipe",
+)
+
+
+def _is_transient_by_message(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return any(sub in msg for sub in _TRANSIENT_MESSAGE_SUBSTRINGS)
+
+
 def _extract_json_object(raw: str) -> str:
     """Pull the first top-level JSON object out of a model reply.
 
@@ -196,6 +216,12 @@ class OpenAIChatBackend(Backend):
             )
         except _TRANSIENT_EXCEPTIONS as exc:
             raise TransientBackendError(str(exc)) from exc
+        except openai.APIError as exc:
+            # Fallback for proxy-flattened socket errors — see
+            # _TRANSIENT_MESSAGE_SUBSTRINGS comment above.
+            if _is_transient_by_message(exc):
+                raise TransientBackendError(str(exc)) from exc
+            raise
         except ValidationError:
             # Caller handles via P3 critique-injection retry.
             raise

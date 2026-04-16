@@ -173,6 +173,59 @@ def test_httpx_readtimeout_from_stream_iteration_is_remapped_to_transient() -> N
         backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
 
 
+def test_proxy_flattened_connection_reset_is_remapped_to_transient() -> None:
+    """cliproxyapi can surface upstream socket drops as bare openai.APIError
+    (the base class) rather than the narrower APIConnectionError that the
+    SDK raises when it sees the error directly. The backend must still
+    recognise these as transient so P2 backoff can retry. Regression guard
+    for PROD t009 2026-04-15 crash that terminated the run with
+    INTERNAL_CRASH instead of retrying."""
+    import openai
+
+    fake_client = MagicMock()
+    # Mirror the actual production error shape — bare APIError with a
+    # message that describes a socket-level reset.
+    fake_client.beta.chat.completions.parse.side_effect = openai.APIError(
+        message=(
+            "read tcp [2a02:c207:2308:5355::1]:53210->"
+            "[2a06:98c1:310b::ac40:9bd1]:443: read: connection reset by peer"
+        ),
+        request=MagicMock(),
+        body=None,
+    )
+    backend = OpenAIChatBackend(
+        client=fake_client,
+        model="gpt-5.3-codex",
+        reasoning_effort="medium",
+        use_structured_output=True,
+    )
+    with pytest.raises(TransientBackendError):
+        backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
+
+
+def test_plain_api_error_without_transient_marker_propagates() -> None:
+    """Only socket-class APIError messages are upgraded to transient; an
+    auth or validation-shape APIError must still propagate so the agent
+    loop's INTERNAL_CRASH path sees it. Guards against accidentally
+    swallowing real bugs into a retry loop."""
+    import openai
+
+    fake_client = MagicMock()
+    fake_client.beta.chat.completions.parse.side_effect = openai.APIError(
+        message="invalid api key",
+        request=MagicMock(),
+        body=None,
+    )
+    backend = OpenAIChatBackend(
+        client=fake_client,
+        model="gpt-5.3-codex",
+        reasoning_effort="medium",
+        use_structured_output=True,
+    )
+    with pytest.raises(openai.APIError):
+        backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
+
+
 def test_extract_json_object_strips_markdown_fences() -> None:
     raw = '```json\n{"tool":"tree","root":"/"}\n```'
     assert _extract_json_object(raw) == '{"tool":"tree","root":"/"}'
