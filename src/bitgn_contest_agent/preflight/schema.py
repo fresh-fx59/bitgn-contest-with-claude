@@ -7,6 +7,7 @@ signature only.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -209,8 +210,7 @@ def parse_schema_content(content: Optional[str]) -> WorkspaceSchema:
     if not content:
         return WorkspaceSchema()
     try:
-        import json as _json
-        envelope = _json.loads(content)
+        envelope = json.loads(content)
     except (ValueError, TypeError):
         return WorkspaceSchema()
     if not isinstance(envelope, dict):
@@ -231,7 +231,7 @@ def parse_schema_content(content: Optional[str]) -> WorkspaceSchema:
         finance_roots = []
 
     errors_raw = data.get("errors") or []
-    errors = [str(e) for e in errors_raw] if isinstance(errors_raw, list) else []
+    errors = [str(e) for e in errors_raw if isinstance(e, str) and e] if isinstance(errors_raw, list) else []
 
     return WorkspaceSchema(
         inbox_root=_s(data.get("inbox_root")),
