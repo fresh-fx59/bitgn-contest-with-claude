@@ -652,6 +652,7 @@ class OpenAIToolCallingBackend(Backend):
                 tool_choice="required",
                 timeout=timeout_sec,
                 max_tokens=4096,
+                extra_body={"reasoning": {"effort": self._reasoning_effort}},
             )
         except _TRANSIENT_EXCEPTIONS as exc:
             raise TransientBackendError(str(exc)) from exc

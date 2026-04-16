@@ -169,6 +169,10 @@ def test_next_step_happy_path_returns_result_with_tokens() -> None:
     assert kwargs.get("tool_choice") == "required"
     assert kwargs.get("stream") in (None, False)
     assert len(kwargs.get("tools")) == len(build_tool_catalog())
+    # LM Studio's nested reasoning-effort convention — without this, the
+    # server silently falls back to the GUI-configured effort (observed as
+    # <10 reasoning_tokens/turn on the 22/104 PROD baseline).
+    assert kwargs.get("extra_body") == {"reasoning": {"effort": "medium"}}
 
 
 def test_next_step_model_reloaded_400_is_transient() -> None:
