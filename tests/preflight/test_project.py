@@ -1,12 +1,21 @@
-from pathlib import Path
+"""preflight_project tests — FS-based and PCM-mocked.
 
-from bitgn_contest_agent.preflight.project import run_project_from_fs
+Covers DEV layout (flat `.md`) and PROD layout (`<slug>/README.MD`).
+"""
+from pathlib import Path
+from unittest.mock import MagicMock
+
+from bitgn_contest_agent.preflight.project import (
+    run_preflight_project,
+    run_project_from_fs,
+)
+from bitgn_contest_agent.schemas import Req_PreflightProject
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "tiny_ws"
 
 
-def test_project_resolves_name_to_record():
+def test_fs_project_resolves_name():
     out = run_project_from_fs(
         root=FIXTURE,
         projects_root="30_projects",
@@ -17,7 +26,7 @@ def test_project_resolves_name_to_record():
     assert out["project"]["name"] == "Health Baseline"
 
 
-def test_project_returns_start_date():
+def test_fs_project_returns_start_date():
     out = run_project_from_fs(
         root=FIXTURE,
         projects_root="30_projects",
@@ -27,7 +36,7 @@ def test_project_returns_start_date():
     assert out["project"]["start_date"] == "2025-11-14"
 
 
-def test_project_no_match_returns_none():
+def test_fs_no_match_returns_none():
     out = run_project_from_fs(
         root=FIXTURE,
         projects_root="30_projects",
@@ -35,3 +44,92 @@ def test_project_no_match_returns_none():
         query="Nonexistent Project",
     )
     assert out["project"] is None
+
+
+# -- PCM-backed tests (the function used in prod) -----------------------
+
+
+def _mk_runtime_for_prod_layout():
+    """Simulate PROD layout: <projects_root>/<slug>/README.MD with
+    bullet-list metadata."""
+    runtime = MagicMock()
+    slug_entry = MagicMock(is_dir=True)
+    slug_entry.name = "studio_parts_library"  # attribute, not ctor arg
+    runtime.list.return_value = MagicMock(entries=[slug_entry])
+
+    def _read(req):
+        if req.path == "40_projects/studio_parts_library/README.MD":
+            return MagicMock(content=(
+                "# Studio Parts Library\n"
+                "\n"
+                "- record_type: project\n"
+                "- project: Studio Parts Library\n"
+                "- start_date: 2026-04-21\n"
+                "- members: alice, bob\n"
+            ))
+        if req.path == "40_projects/studio_parts_library/README.md":
+            raise FileNotFoundError(req.path)
+        return MagicMock(content="")
+
+    runtime.read.side_effect = _read
+    return runtime
+
+
+def _summary_line(envelope: str) -> str:
+    """Extract the summary field from a build_response envelope."""
+    import json
+    return json.loads(envelope)["summary"]
+
+
+def test_pcm_prod_layout_returns_match_with_refs():
+    runtime = _mk_runtime_for_prod_layout()
+    req = Req_PreflightProject(
+        tool="preflight_project",
+        projects_root="40_projects",
+        entities_root="20_entities",
+        query="Studio Parts Library",
+    )
+    result = run_preflight_project(runtime, req)
+    assert result.ok is True
+    assert result.refs == ("40_projects/studio_parts_library/README.MD",)
+    # Summary must cite the file, not leak the start_date.
+    assert "Studio Parts Library" in result.content
+    assert "40_projects/studio_parts_library/README.MD" in result.content
+    assert "2026-04-21" not in _summary_line(result.content)
+
+
+def test_pcm_prod_layout_no_match_returns_empty_refs():
+    runtime = _mk_runtime_for_prod_layout()
+    req = Req_PreflightProject(
+        tool="preflight_project",
+        projects_root="40_projects",
+        entities_root="20_entities",
+        query="Nothing Here",
+    )
+    result = run_preflight_project(runtime, req)
+    assert result.ok is True
+    assert result.refs == ()
+    assert "no project match" in _summary_line(result.content).lower()
+
+
+def test_pcm_dev_layout_flat_md_still_works():
+    """DEV layout: flat <projects_root>/*.md. Must still match."""
+    runtime = MagicMock()
+    flat_entry = MagicMock(is_dir=False)
+    flat_entry.name = "health.md"
+    runtime.list.return_value = MagicMock(entries=[flat_entry])
+    runtime.read.return_value = MagicMock(content=(
+        "---\n"
+        "project: Health Baseline\n"
+        "start_date: 2025-11-14\n"
+        "---\n"
+    ))
+    req = Req_PreflightProject(
+        tool="preflight_project",
+        projects_root="30_projects",
+        entities_root="20_entities",
+        query="Health Baseline",
+    )
+    result = run_preflight_project(runtime, req)
+    assert result.ok is True
+    assert result.refs == ("30_projects/health.md",)

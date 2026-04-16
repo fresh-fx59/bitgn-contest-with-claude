@@ -735,6 +735,14 @@ class AgentLoop:
         if outcome.tool is not None or outcome.skipped_reason is not None:
             result = outcome.result
             tool_label = outcome.tool or "unknown"
+            match_found = None
+            match_file = None
+            if result is not None and result.ok:
+                # Non-empty refs ≡ preflight found something to cite.
+                # Empty refs ≡ query ran but no match.
+                match_found = bool(result.refs)
+                if result.refs:
+                    match_file = result.refs[0]
             self._writer.append_prepass(
                 cmd=f"routed_{tool_label}",
                 ok=bool(result.ok) if result is not None else False,
@@ -750,6 +758,8 @@ class AgentLoop:
                 category=category,
                 query=query or None,
                 skipped_reason=outcome.skipped_reason,
+                match_found=match_found,
+                match_file=match_file,
             )
 
         result = outcome.result
