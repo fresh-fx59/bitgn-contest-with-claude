@@ -188,3 +188,39 @@ REQ_MODELS: tuple[type[BaseModel], ...] = (
     Req_PreflightProject,
     Req_PreflightDocMigration,
 )
+
+
+class Req_PreflightUnknown(BaseModel):
+    """Fires when the router returns UNKNOWN (no bound skill). The
+    preflight classifies the task and emits a structured investigation
+    scaffold so the agent doesn't cold-start exploration.
+    """
+    tool: Literal["preflight_unknown"] = "preflight_unknown"
+    task_text: str
+    workspace_schema_summary: str
+    # Allowed roots constrain the LLM's recommended_roots — it can only
+    # point at paths that actually exist in the workspace schema. This
+    # is the hallucination guard.
+    allowed_roots: list[str] = Field(default_factory=list)
+
+
+class UnknownRecommendedRoot(BaseModel):
+    path: str
+    why: str
+
+
+class Rsp_PreflightUnknown(BaseModel):
+    """Structured scaffold the preflight emits for the agent."""
+    likely_class: Literal[
+        "entity_attribute_lookup",
+        "inbox_processing",
+        "security_refusal",
+        "cleanup_receipts",
+        "ambiguous_referent",
+        "other",
+    ]
+    clarification_risk_flagged: bool
+    clarification_risk_why: str = ""
+    recommended_roots: list[UnknownRecommendedRoot] = Field(default_factory=list)
+    investigation_plan: list[str] = Field(default_factory=list)
+    known_pitfalls: list[str] = Field(default_factory=list)

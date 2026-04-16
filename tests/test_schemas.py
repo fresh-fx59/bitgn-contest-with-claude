@@ -89,3 +89,34 @@ def test_req_models_are_discriminated_by_tool_field() -> None:
             f"{model.__name__}.tool must be Literal['...'], got "
             f"{tool_field.annotation}"
         )
+
+
+def test_req_preflight_unknown_roundtrip():
+    from bitgn_contest_agent.schemas import Req_PreflightUnknown
+    req = Req_PreflightUnknown(
+        tool="preflight_unknown",
+        task_text="When was my ambient AI buddy born?",
+        workspace_schema_summary="entities_root=10_entities/cast/, projects_root=40_projects/, ...",
+        allowed_roots=["10_entities/cast/", "40_projects/", "50_finance/invoices/"],
+    )
+    assert req.tool == "preflight_unknown"
+    js = req.model_dump_json()
+    rt = Req_PreflightUnknown.model_validate_json(js)
+    assert rt.task_text == req.task_text
+
+
+def test_rsp_preflight_unknown_roundtrip():
+    from bitgn_contest_agent.schemas import Rsp_PreflightUnknown, UnknownRecommendedRoot
+    rsp = Rsp_PreflightUnknown(
+        likely_class="entity_attribute_lookup",
+        clarification_risk_flagged=True,
+        clarification_risk_why="descriptor may be ambiguous",
+        recommended_roots=[
+            UnknownRecommendedRoot(path="10_entities/cast/", why="task references a person"),
+        ],
+        investigation_plan=["enumerate candidates", "verify unique match"],
+        known_pitfalls=["descriptor is not a unique-name match"],
+    )
+    js = rsp.model_dump_json()
+    rt = Rsp_PreflightUnknown.model_validate_json(js)
+    assert rt.likely_class == "entity_attribute_lookup"
