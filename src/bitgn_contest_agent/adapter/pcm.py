@@ -56,6 +56,20 @@ class ToolResult:
         return len(self.content.encode("utf-8", errors="replace"))
 
 
+@dataclass(frozen=True, slots=True)
+class PrepassResult:
+    """Return shape of `PcmAdapter.run_prepass`.
+
+    `bootstrap_content` is the list of strings the agent loop appends as
+    additional user messages (today: only the WORKSPACE SCHEMA payload).
+    `schema` is the typed parse of the `preflight_schema` JSON envelope —
+    consumed by the routed-preflight dispatcher to fill root args. On
+    any preflight_schema failure the schema is the empty WorkspaceSchema.
+    """
+    bootstrap_content: list[str]
+    schema: "WorkspaceSchema"
+
+
 def _response_to_text(resp: Any) -> str:
     """Extract a printable representation of any pcm_pb2 response.
 
@@ -234,7 +248,7 @@ class PcmAdapter:
                 wall_ms=wall_ms,
             )
 
-    def run_prepass(self, *, session: Any, trace_writer: Any) -> list[str]:
+    def run_prepass(self, *, session: Any, trace_writer: Any) -> PrepassResult:
         """Best-effort identity bootstrap.
 
         Attempts tree(/), read(AGENTS.md), context(), preflight_schema().
@@ -243,13 +257,17 @@ class PcmAdapter:
         is task-local, and the trace writer captures every attempt for
         the analyzer.
 
-        Returns a list of content strings that the caller (agent loop)
-        should inject into the conversation as additional user messages.
-        Currently contains only the preflight_schema summary (on success)
-        so downstream skill bodies can reference discovered roots
-        (finance_roots, entities_root, …) without a separate LLM step.
+        Returns a `PrepassResult` carrying:
+        - `bootstrap_content`: list of strings the caller injects as
+          additional user messages (today: WORKSPACE SCHEMA payload).
+        - `schema`: typed parse of the preflight_schema JSON envelope,
+          consumed by the routed-preflight dispatcher. Empty
+          `WorkspaceSchema` if preflight_schema failed or was empty.
         """
+        from bitgn_contest_agent.preflight.schema import parse_schema_content
+
         bootstrap_content: list[str] = []
+        schema_content: str | None = None
         pre_cmds = [
             ("tree", Req_Tree(tool="tree", root="/")),
             ("read_agents_md", Req_Read(tool="read", path="AGENTS.md")),
@@ -271,6 +289,7 @@ class PcmAdapter:
                         "entities_root / finance_roots / projects_root):\n"
                         f"{result.content}"
                     )
+                    schema_content = result.content
             trace_writer.append_prepass(
                 cmd=label,
                 ok=result.ok,
@@ -279,7 +298,10 @@ class PcmAdapter:
                 error=result.error,
                 error_code=result.error_code,
             )
-        return bootstrap_content
+        return PrepassResult(
+            bootstrap_content=bootstrap_content,
+            schema=parse_schema_content(schema_content),
+        )
 
     # -- helpers ----------------------------------------------------------
 

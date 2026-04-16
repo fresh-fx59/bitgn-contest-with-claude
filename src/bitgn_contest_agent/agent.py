@@ -251,15 +251,19 @@ class AgentLoop:
             task_id=task_id,
         )
 
-        # Pre-pass (best effort). The adapter may return extra user-message
+        # Pre-pass (best effort). The adapter returns extra user-message
         # content (currently the preflight_schema summary) that must be
         # injected into the conversation so skill bodies can reference
         # discovered workspace roots without a separate LLM step.
-        bootstrap = self._adapter.run_prepass(
+        prepass = self._adapter.run_prepass(
             session=session, trace_writer=self._writer
         )
-        if isinstance(bootstrap, list):
-            for content in bootstrap:
+        # Tolerate test mocks that return None or a bare list.
+        bootstrap_content = getattr(prepass, "bootstrap_content", None)
+        if bootstrap_content is None and isinstance(prepass, list):
+            bootstrap_content = prepass
+        if bootstrap_content:
+            for content in bootstrap_content:
                 messages.append(Message(role="user", content=content))
         self._writer.append_task(task_id=task_id, task_text=task_text)
 

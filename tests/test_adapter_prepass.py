@@ -27,7 +27,7 @@ def test_prepass_runs_tree_read_context_preflight_and_marks_loaded() -> None:
     adapter = PcmAdapter(runtime=runtime, max_tool_result_bytes=16384)
     session = Session()
     writer = _FakeTraceWriter()
-    bootstrap = adapter.run_prepass(session=session, trace_writer=writer)
+    prepass = adapter.run_prepass(session=session, trace_writer=writer)
 
     # Four pre-pass calls attempted (tree, read, context, preflight_schema).
     assert runtime.tree.call_count == 1
@@ -44,9 +44,35 @@ def test_prepass_runs_tree_read_context_preflight_and_marks_loaded() -> None:
     # preflight_schema bootstrap content returned for injection into the
     # conversation. run_preflight_schema wraps internal exceptions in
     # `schema.errors` but still returns ok=True, so there is always content.
-    assert isinstance(bootstrap, list)
-    assert len(bootstrap) == 1
-    assert "WORKSPACE SCHEMA" in bootstrap[0]
+    assert isinstance(prepass.bootstrap_content, list)
+    assert len(prepass.bootstrap_content) == 1
+    assert "WORKSPACE SCHEMA" in prepass.bootstrap_content[0]
+
+    # The typed schema is parsed from the preflight_schema envelope. Since
+    # the runtime mock returned an empty TreeResponse, no roots get
+    # discovered — but the dataclass exists and is consumable.
+    from bitgn_contest_agent.preflight.schema import WorkspaceSchema
+    assert isinstance(prepass.schema, WorkspaceSchema)
+
+
+def test_prepass_returns_empty_schema_when_no_roots_discovered() -> None:
+    runtime = MagicMock()
+    runtime.tree.return_value = pcm_pb2.TreeResponse()
+    runtime.read.return_value = pcm_pb2.ReadResponse(content="rules")
+    runtime.context.return_value = pcm_pb2.ContextResponse()
+
+    adapter = PcmAdapter(runtime=runtime, max_tool_result_bytes=16384)
+    session = Session()
+    writer = _FakeTraceWriter()
+    prepass = adapter.run_prepass(session=session, trace_writer=writer)
+
+    from bitgn_contest_agent.preflight.schema import WorkspaceSchema
+    # No directories with role signatures => empty roots, but dataclass intact.
+    assert prepass.schema.inbox_root is None
+    assert prepass.schema.entities_root is None
+    assert prepass.schema.finance_roots == []
+    assert prepass.schema.projects_root is None
+    assert isinstance(prepass.schema, WorkspaceSchema)
 
 
 def test_prepass_is_best_effort_one_failure_does_not_abort_others() -> None:
