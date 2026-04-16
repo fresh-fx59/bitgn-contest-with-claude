@@ -22,6 +22,10 @@ uv.lock
 .env
 .env.*
 !.env.example
+management_secret.txt
+local_api_key.txt
+**/cliproxyapi/auths/
+**/cliproxyapi/config/config.yaml
 
 # Claude Code per-session runtime state
 .claude/scheduled_tasks.lock
