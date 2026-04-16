@@ -114,3 +114,78 @@ def test_filter_by_task_id(tmp_path) -> None:
     assert rc == 0
     assert "t100" in out
     assert "t101" not in out
+
+
+def _make_trace_with_pcm_ops(path: Path, task_id: str) -> None:
+    """Trace mixing arch events with pcm_ops to exercise --include-pcm."""
+    writer = TraceWriter(path=path)
+    writer.write_meta(TraceMeta(
+        agent_version="x", agent_commit="y", model="m", backend="b",
+        reasoning_effort="medium", benchmark="bench",
+        task_id=task_id, task_index=0,
+        started_at="2026-04-16T00:00:00+00:00",
+        trace_schema_version=TRACE_SCHEMA_VERSION,
+        intent_head="q",
+    ))
+    emit_arch(writer, category=ArchCategory.TASK_START, details="q")
+    writer.append_pcm_op(
+        op="tree", path="/", bytes=100, wall_ms=50, ok=True,
+        error_code=None, origin="prepass",
+    )
+    writer.append_pcm_op(
+        op="read", path="AGENTS.md", bytes=1800, wall_ms=90, ok=True,
+        error_code=None, origin="prepass",
+    )
+    emit_arch(writer, category=ArchCategory.SKILL_ROUTER,
+              skill="finance-lookup", confidence=0.9)
+    writer.append_pcm_op(
+        op="read", path="hanna.md", bytes=400, wall_ms=40, ok=True,
+        error_code=None, origin="step:1",
+    )
+    emit_arch(writer, category=ArchCategory.VALIDATOR_T1,
+              at_step=1, rule=ValidatorT1Rule.MUTATION_GUARD)
+    writer.append_outcome(TraceOutcome(
+        terminated_by="report_completion", reported="OUTCOME_OK",
+        enforcer_bypassed=False, total_steps=1, total_llm_calls=1,
+        total_prompt_tokens=0, total_completion_tokens=0, score=1.0,
+    ))
+    writer.close()
+
+
+def test_include_pcm_interleaves_pcm_ops_with_arch(tmp_path) -> None:
+    """--include-pcm mixes pcm_op rows into the timeline in chronological
+    (JSONL-order) position, tagged with op/path/origin so "what PCM call
+    fired between the router and the T1 validator?" is answerable from
+    the timeline alone."""
+    path = tmp_path / "t100__run0.jsonl"
+    _make_trace_with_pcm_ops(path, "t100")
+    rc, out = _run_script(str(path), "--include-pcm")
+    assert rc == 0
+    # Arch events still present
+    assert "SKILL_ROUTER" in out
+    assert "VALIDATOR_T1" in out
+    # pcm_ops now shown with op name and origin
+    assert "PCM_OP" in out
+    assert "op=tree" in out
+    assert "op=read" in out
+    assert "origin=prepass" in out
+    assert "origin=step:1" in out
+    # Ordering: the prepass tree read happens BEFORE the skill_router
+    # arch event (same JSONL order). Verify by column positions.
+    tree_idx = out.find("op=tree")
+    router_idx = out.find("SKILL_ROUTER")
+    step_read_idx = out.find("origin=step:1")
+    t1_idx = out.find("VALIDATOR_T1")
+    assert 0 <= tree_idx < router_idx < step_read_idx < t1_idx
+
+
+def test_default_does_not_show_pcm_ops(tmp_path) -> None:
+    """Without --include-pcm, timeline keeps its arch-only shape so
+    long-running arch triage isn't drowned in 100+ pcm_op rows."""
+    path = tmp_path / "t100__run0.jsonl"
+    _make_trace_with_pcm_ops(path, "t100")
+    rc, out = _run_script(str(path))
+    assert rc == 0
+    assert "SKILL_ROUTER" in out
+    assert "PCM_OP" not in out
+    assert "op=tree" not in out
