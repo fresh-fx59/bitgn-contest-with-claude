@@ -93,3 +93,105 @@ def test_keys_lowercased():
     md = parse_record_metadata(text)
     assert "record_type" in md
     assert "project" in md
+
+
+def test_prod_bullet_strips_backticks():
+    # PROD bullet-list records wrap scalar values in backticks.
+    text = (
+        "# Hearthline\n"
+        "\n"
+        "- alias: `hearthline`\n"
+        "- owner_id: `entity.miles`\n"
+        "- kind: `house_system`\n"
+        "- status: `active`\n"
+    )
+    md = parse_record_metadata(text)
+    assert md["alias"] == "hearthline"
+    assert md["owner_id"] == "entity.miles"
+    assert md["status"] == "active"
+
+
+def test_prod_invoice_ascii_table_in_code_fence():
+    # PROD invoices put an ASCII-art `+---+---+` separator table inside
+    # a ```text code fence. Must still parse.
+    text = (
+        "# Northstar early design-partner invoice\n"
+        "\n"
+        "```text\n"
+        "+----------------+-------------------------------+\n"
+        "| field          | value                         |\n"
+        "+----------------+-------------------------------+\n"
+        "| record_type    | invoice                       |\n"
+        "| invoice_number | INV-0001                      |\n"
+        "| total_eur      | 610                           |\n"
+        "+----------------+-------------------------------+\n"
+        "```\n"
+    )
+    md = parse_record_metadata(text)
+    assert md["record_type"] == "invoice"
+    assert md["invoice_number"] == "INV-0001"
+    assert md["total_eur"] == "610"
+
+
+def test_prod_bill_classification():
+    # PROD purchase/bill records use the same ASCII-table-in-codefence shape.
+    from bitgn_contest_agent.preflight.schema import _classify_dir
+    text = (
+        "# ESP32 batch\n"
+        "```text\n"
+        "+---+---+\n"
+        "| record_type | bill |\n"
+        "+---+---+\n"
+        "```\n"
+    )
+    md = parse_record_metadata(text)
+    assert md["record_type"] == "bill"
+    assert _classify_dir([md, md, md]) == ["finance"]
+
+
+def test_prod_project_inferred_from_owner_id():
+    # PROD projects lack `record_type`; classifier must infer via `owner_id`.
+    from bitgn_contest_agent.preflight.schema import _classify_dir
+    text = (
+        "# Hearthline\n"
+        "- alias: `hearthline`\n"
+        "- owner_id: `entity.miles`\n"
+        "- kind: `house_system`\n"
+    )
+    md = parse_record_metadata(text)
+    assert "owner_id" in md
+    assert _classify_dir([md, md, md]) == ["projects"]
+
+
+def test_prod_entity_inferred_from_relationship():
+    from bitgn_contest_agent.preflight.schema import _classify_dir
+    text = (
+        "# Badger\n"
+        "- alias: `badger`\n"
+        "- kind: `system`\n"
+        "- relationship: `printer`\n"
+        "- important_dates:\n"
+    )
+    md = parse_record_metadata(text)
+    assert _classify_dir([md, md, md]) == ["entities"]
+
+
+def test_prod_projects_root_rollup_to_parent():
+    # Multiple subdirs all classified as projects roll up to common parent.
+    from bitgn_contest_agent.preflight.schema import _common_parent
+    dirs = [
+        "40_projects/2026_03_26_hearthline",
+        "40_projects/2026_04_21_studio_parts_library",
+        "40_projects/2026_04_25_harbor_body",
+    ]
+    assert _common_parent(dirs) == "40_projects"
+
+
+def test_prod_finance_multiroot_preserved():
+    # Finance stays multi-valued even when siblings share a common parent.
+    from bitgn_contest_agent.preflight.schema import _common_parent
+    # _common_parent is used only for single-root fields; finance skips it.
+    # This test documents that behavior — sibling dirs are NOT rolled up
+    # for finance_roots.
+    assert _common_parent(["50_finance/invoices"]) == "50_finance/invoices"
+    assert _common_parent(["50_finance/purchases"]) == "50_finance/purchases"

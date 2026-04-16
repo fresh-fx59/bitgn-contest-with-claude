@@ -103,6 +103,18 @@ def _parse_frontmatter_yaml(text: str) -> dict[str, str]:
 _BULLET_RE = re.compile(r"^-\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*)$")
 
 
+def _strip_value(v: str) -> str:
+    """Strip leading/trailing whitespace and surrounding backticks from a
+    parsed metadata value. PROD bullet-list records wrap scalars in
+    backticks (`` `active` ``, `` `entity.miles` ``); we normalize here
+    so downstream `_RECORD_TYPE_TO_ROLE` lookups and string matches work.
+    """
+    v = v.strip()
+    if len(v) >= 2 and v.startswith("`") and v.endswith("`"):
+        v = v[1:-1].strip()
+    return v
+
+
 def _parse_bullet_list(text: str) -> dict[str, str]:
     """Scan the top of the file for contiguous `- key: value` lines.
 
@@ -137,11 +149,11 @@ def _parse_bullet_list(text: str) -> dict[str, str]:
                 # Not a bullet list file.
                 return {}
             started = True
-            out[m.group(1).lower()] = m.group(2).strip()
+            out[m.group(1).lower()] = _strip_value(m.group(2))
             continue
         m = _BULLET_RE.match(line)
         if m:
-            out[m.group(1).lower()] = m.group(2).strip()
+            out[m.group(1).lower()] = _strip_value(m.group(2))
             continue
         if line.strip() == "":
             # Blank line ends the bullet block.
@@ -151,50 +163,82 @@ def _parse_bullet_list(text: str) -> dict[str, str]:
     return out
 
 
+def _is_table_separator(stripped: str) -> bool:
+    """True for markdown `|---|---|` or ASCII `+----+----+` separator rows."""
+    if len(stripped) < 2:
+        return False
+    if stripped[0] not in "|+" or stripped[-1] not in "|+":
+        return False
+    return all(c in "|+-:= \t" for c in stripped)
+
+
 def _parse_ascii_table(text: str) -> dict[str, str]:
-    """Parse a simple two-column markdown pipe table.
+    """Parse a two-column markdown pipe table or ASCII-art pipe table.
 
-    Expected shape:
-        | field | value |
-        | --- | --- |
-        | key1 | val1 |
-        | key2 | val2 |
+    Accepts both separator styles:
+        | --- | --- |          (markdown)
+        +-----+-----+          (ASCII art, as used by PROD invoices)
 
-    Header row and separator row are skipped. Returns {} if no such
-    table exists at the top of the file.
+    Also tolerates a surrounding ```text ... ``` code fence.
+
+    The first `| key | value |` data row with `key="field"` and
+    `value="value"` is treated as a header and skipped.
+
+    Returns {} if no such table exists in the first 60 lines of the
+    file. Stops at the first non-table, non-separator, non-blank line
+    (or at the closing code fence).
     """
     out: dict[str, str] = {}
     lines = text.splitlines()
-    # Find the first `| ... |` line.
-    start = None
-    for i, raw in enumerate(lines):
+
+    # Locate the first table-ish line (| row or +---+---+ separator),
+    # skipping heading, blank, and code-fence preamble.
+    i = 0
+    scanned = 0
+    while i < len(lines) and scanned < 60:
+        stripped = lines[i].strip()
+        scanned += 1
+        if not stripped or stripped.startswith("#") or stripped.startswith("```"):
+            i += 1
+            continue
+        if (stripped.startswith("|") and stripped.endswith("|")) or _is_table_separator(stripped):
+            break
+        # Any other prose before the table → no table here.
+        return {}
+    else:
+        return {}
+
+    if i >= len(lines):
+        return {}
+
+    header_seen = False
+    for raw in lines[i:]:
         stripped = raw.strip()
+        if not stripped:
+            if out:
+                break
+            continue
+        if stripped.startswith("```"):
+            # Closing code fence ends the table.
+            break
+        if _is_table_separator(stripped):
+            continue
         if stripped.startswith("|") and stripped.endswith("|"):
-            start = i
-            break
-        if stripped and not stripped.startswith("#"):
-            # Non-heading, non-empty, non-table line → no table here.
-            return {}
-    if start is None:
-        return {}
-    # Skip header + separator if present.
-    rows = lines[start:]
-    if len(rows) < 3:
-        return {}
-    sep = rows[1].strip()
-    if not all(c in "|-: " for c in sep):
-        return {}
-    for raw in rows[2:]:
-        stripped = raw.strip()
-        if not (stripped.startswith("|") and stripped.endswith("|")):
-            break
-        cells = [c.strip() for c in stripped.strip("|").split("|")]
-        if len(cells) < 2:
+            cells = [c.strip() for c in stripped.strip("|").split("|")]
+            if len(cells) < 2:
+                continue
+            key = cells[0].lower()
+            if not key:
+                continue
+            value = _strip_value(cells[1])
+            # Skip literal header row `| field | value |`.
+            if not header_seen and key == "field" and value.lower() == "value":
+                header_seen = True
+                continue
+            out[key] = value
             continue
-        key = cells[0].lower()
-        if not key:
-            continue
-        out[key] = cells[1]
+        # Any other non-table line ends the table.
+        break
     return out
 
 
@@ -220,24 +264,101 @@ _RECORD_TYPE_TO_ROLE = {
 }
 
 
+def _infer_record_type(md: dict[str, str]) -> str:
+    """Return a record_type for a metadata dict.
+
+    Priority:
+    1. Explicit `record_type:` field (DEV frontmatter + PROD ASCII
+       tables inside invoices).
+    2. Secondary-key inference for PROD bullet-list records that omit
+       record_type:
+       - `owner_id` → project (project records have owner_id, entity
+         records don't)
+       - `relationship` or `important_dates` → entity (cast/person
+         records in 10_entities/cast)
+       - `address` + `kind` where kind is a channel shape → outbox
+         (channel definitions in 60_outbox/channels)
+    3. Empty string → unclassified (contributes no vote to classifier).
+    """
+    rt = (md.get("record_type") or "").strip().lower()
+    if rt:
+        return rt
+    keys = md.keys()
+    if "owner_id" in keys:
+        return "project"
+    if "relationship" in keys or "important_dates" in keys:
+        return "entity"
+    if "address" in keys and "kind" in keys:
+        kind = (md.get("kind") or "").strip().lower()
+        if kind in {"slack", "email", "discord", "sms", "calendar"}:
+            return "outbox"
+    return ""
+
+
 def _classify_dir(frontmatters: list[dict[str, str]]) -> list[str]:
     """Return role labels the directory's records match.
 
     Threshold: ≥30% of records share a role. Records without a
-    recognized `record_type` contribute no vote. DEV-shape records
-    using `record_type` field names map identically to PROD-shape
-    records — no separate path needed.
+    recognized (explicit or inferred) record_type contribute no vote.
     """
     if not frontmatters:
         return []
     n = len(frontmatters)
     counts: dict[str, int] = {}
     for fm in frontmatters:
-        rt = (fm.get("record_type") or "").strip().lower()
+        rt = _infer_record_type(fm)
         role = _RECORD_TYPE_TO_ROLE.get(rt)
         if role:
             counts[role] = counts.get(role, 0) + 1
     return [role for role, c in counts.items() if c / n >= _MATCH_THRESHOLD]
+
+
+def _common_parent(paths: list[str]) -> str:
+    """Return the longest common directory prefix of `paths`, or the
+    single path if there is only one. Used to roll up per-subdir
+    classifications to their parent directory.
+
+    Example: ["40_projects/a", "40_projects/b"] → "40_projects".
+    Single input is returned unchanged.
+    """
+    if not paths:
+        return ""
+    if len(paths) == 1:
+        return paths[0]
+    parts = [p.split("/") for p in paths]
+    common: list[str] = []
+    for segs in zip(*parts):
+        if len(set(segs)) == 1:
+            common.append(segs[0])
+        else:
+            break
+    return "/".join(common) if common else paths[0]
+
+
+def _is_md_name(name: str) -> bool:
+    """Case-insensitive match for Markdown records.
+
+    PROD workspaces mix `.md` (entities, invoices) with `.MD` (project
+    READMEs, nested AGENTS.MD). Classification must consider both.
+    """
+    lower = name.lower()
+    return lower.endswith(".md")
+
+
+def _assign_roles(schema: WorkspaceSchema, per_role: dict[str, list[str]]) -> None:
+    """Populate single-root fields by rolling up per-dir classifications
+    to their common parent; keep `finance_roots` multi-valued."""
+    if per_role.get("inbox"):
+        schema.inbox_root = _common_parent(per_role["inbox"])
+    if per_role.get("entities"):
+        schema.entities_root = _common_parent(per_role["entities"])
+    if per_role.get("projects"):
+        schema.projects_root = _common_parent(per_role["projects"])
+    if per_role.get("outbox"):
+        schema.outbox_root = _common_parent(per_role["outbox"])
+    for d in per_role.get("finance", []):
+        if d not in schema.finance_roots:
+            schema.finance_roots.append(d)
 
 
 def discover_schema_from_fs(root: Path) -> WorkspaceSchema:
@@ -250,8 +371,9 @@ def discover_schema_from_fs(root: Path) -> WorkspaceSchema:
         schema.errors.append(f"root does not exist: {root}")
         return schema
 
+    per_role: dict[str, list[str]] = {}
     for dirpath in sorted(p for p in root.rglob("*") if p.is_dir()):
-        md_files = [f for f in dirpath.iterdir() if f.is_file() and f.suffix == ".md"]
+        md_files = [f for f in dirpath.iterdir() if f.is_file() and _is_md_name(f.name)]
         if not md_files:
             continue
         frontmatters = []
@@ -265,18 +387,9 @@ def discover_schema_from_fs(root: Path) -> WorkspaceSchema:
         roles = _classify_dir(frontmatters)
         rel = str(dirpath.relative_to(root))
         for role in roles:
-            if role == "inbox" and schema.inbox_root is None:
-                schema.inbox_root = rel
-            elif role == "entities" and schema.entities_root is None:
-                schema.entities_root = rel
-            elif role == "finance":
-                if rel not in schema.finance_roots:
-                    schema.finance_roots.append(rel)
-            elif role == "projects" and schema.projects_root is None:
-                schema.projects_root = rel
-            elif role == "outbox" and schema.outbox_root is None:
-                schema.outbox_root = rel
+            per_role.setdefault(role, []).append(rel)
 
+    _assign_roles(schema, per_role)
     return schema
 
 
@@ -306,7 +419,7 @@ def run_preflight_schema(client: Any, workspace_ctx: Any) -> ToolResult:
             )
             if entry.is_dir:
                 has_md = any(
-                    c.name.endswith(".md") and not c.is_dir
+                    _is_md_name(c.name) and not c.is_dir
                     for c in entry.children
                 )
                 if has_md and path:
@@ -316,11 +429,12 @@ def run_preflight_schema(client: Any, workspace_ctx: Any) -> ToolResult:
 
         _walk(tree_resp.root, "")
         dirs.sort()
+        per_role: dict[str, list[str]] = {}
         for d in dirs:
             list_resp = client.list(pcm_pb2.ListRequest(name=d))
             md_names = [
                 e.name for e in list_resp.entries
-                if e.name.endswith(".md") and not e.is_dir
+                if _is_md_name(e.name) and not e.is_dir
             ][:50]
             frontmatters = []
             for name in md_names:
@@ -330,17 +444,8 @@ def run_preflight_schema(client: Any, workspace_ctx: Any) -> ToolResult:
                 frontmatters.append(parse_record_metadata(read_resp.content))
             roles = _classify_dir(frontmatters)
             for role in roles:
-                if role == "inbox" and schema.inbox_root is None:
-                    schema.inbox_root = d
-                elif role == "entities" and schema.entities_root is None:
-                    schema.entities_root = d
-                elif role == "finance":
-                    if d not in schema.finance_roots:
-                        schema.finance_roots.append(d)
-                elif role == "projects" and schema.projects_root is None:
-                    schema.projects_root = d
-                elif role == "outbox" and schema.outbox_root is None:
-                    schema.outbox_root = d
+                per_role.setdefault(role, []).append(d)
+        _assign_roles(schema, per_role)
     except Exception as exc:
         schema.errors.append(f"pcm walk failed: {exc}")
 

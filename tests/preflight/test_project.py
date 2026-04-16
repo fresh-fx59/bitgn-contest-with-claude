@@ -133,3 +133,49 @@ def test_pcm_dev_layout_flat_md_still_works():
     result = run_preflight_project(runtime, req)
     assert result.ok is True
     assert result.refs == ("30_projects/health.md",)
+
+
+def test_pcm_prod_layout_no_record_type_matches_by_heading_and_slug():
+    """Real PROD shape — README.MD has `# Heading`, bullet-list with
+    `alias` + `owner_id` but NO `project:` or `record_type:` or
+    `start_date:`. Must still match by heading/slug and derive start
+    date from the slug prefix.
+    """
+    runtime = MagicMock()
+    slug_entry = MagicMock(is_dir=True)
+    slug_entry.name = "2026_04_21_studio_parts_library"
+    runtime.list.return_value = MagicMock(entries=[slug_entry])
+
+    def _read(req):
+        if req.path == "40_projects/2026_04_21_studio_parts_library/README.MD":
+            return MagicMock(content=(
+                "# Studio Parts Library\n"
+                "\n"
+                "- alias: `studio_parts_library`\n"
+                "- owner_id: `entity.miles`\n"
+                "- kind: `home_systems`\n"
+                "- status: `active`\n"
+                "- goal: Keep printed parts organized.\n"
+            ))
+        raise FileNotFoundError(req.path)
+
+    runtime.read.side_effect = _read
+    req = Req_PreflightProject(
+        tool="preflight_project",
+        projects_root="40_projects",
+        entities_root="10_entities",
+        query="Studio Parts Library",
+    )
+    result = run_preflight_project(runtime, req)
+    assert result.ok is True
+    assert result.refs == (
+        "40_projects/2026_04_21_studio_parts_library/README.MD",
+    )
+    # Summary cites the file; must not leak the start_date value.
+    summary = _summary_line(result.content)
+    assert "2026-04-21" not in summary
+    assert "40_projects/2026_04_21_studio_parts_library/README.MD" in summary
+    # Data payload derives start_date from slug prefix.
+    import json
+    payload = json.loads(result.content)["data"]
+    assert payload["project"]["start_date"] == "2026-04-21"

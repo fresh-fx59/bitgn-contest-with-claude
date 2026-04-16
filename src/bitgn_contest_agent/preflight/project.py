@@ -2,13 +2,16 @@
 metadata + entities involved (members).
 
 Handles both layouts:
-  DEV: flat <projects_root>/*.md files
-  PROD: nested <projects_root>/<slug>/README.MD files
+  DEV: flat <projects_root>/*.md files with `project:` frontmatter
+  PROD: nested <projects_root>/<YYYY_MM_DD_slug>/README.MD files whose
+        project name is conveyed by the `# Heading`, `alias:` field,
+        and/or the slug itself (no `project:` key, no `start_date:`
+        key — start date comes from the slug prefix).
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from bitgn_contest_agent.adapter.pcm import ToolResult
 from bitgn_contest_agent.preflight.canonicalize import normalize_name
@@ -17,22 +20,58 @@ from bitgn_contest_agent.preflight.schema import parse_record_metadata
 from bitgn_contest_agent.schemas import Req_PreflightProject
 
 
+def _extract_heading(text: str) -> str:
+    """Return the first `# H1` heading text (without the `#`), or ''."""
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("# ") and not stripped.startswith("## "):
+            return stripped[2:].strip()
+        if stripped and not stripped.startswith("#"):
+            break
+    return ""
+
+
+def _slug_parts(slug: str) -> tuple[str, str]:
+    """Split `YYYY_MM_DD_<rest>` slug into (date_str, rest).
+
+    Returns ('2026-04-21', 'studio parts library') for
+    `2026_04_21_studio_parts_library`. Returns ('', slug_as_title) if
+    no date prefix is present.
+    """
+    parts = slug.split("_")
+    if (
+        len(parts) >= 4
+        and parts[0].isdigit() and len(parts[0]) == 4
+        and parts[1].isdigit() and len(parts[1]) == 2
+        and parts[2].isdigit() and len(parts[2]) == 2
+    ):
+        date = f"{parts[0]}-{parts[1]}-{parts[2]}"
+        rest = " ".join(parts[3:])
+        return date, rest
+    return "", slug.replace("_", " ")
+
+
+def _match(query_norm: str, candidate: str) -> bool:
+    if not candidate:
+        return False
+    c = normalize_name(candidate)
+    return c == query_norm or query_norm in c or c in query_norm
+
+
 def _find_project(projects_dir: Path, query: str) -> dict[str, Any] | None:
+    """Filesystem lookup — used only by offline tests."""
     if not projects_dir.exists():
         return None
     q_norm = normalize_name(query)
-    for f in projects_dir.rglob("*.md"):
+    # First: flat .md records with `project:` field (DEV shape).
+    for f in projects_dir.glob("*.md"):
         try:
             text = f.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
         md = parse_record_metadata(text)
         pname = md.get("project", "")
-        if pname and (
-            normalize_name(pname) == q_norm
-            or q_norm in normalize_name(pname)
-            or normalize_name(pname) in q_norm
-        ):
+        if _match(q_norm, pname):
             return {
                 "name": pname,
                 "start_date": md.get("start_date", ""),
@@ -40,6 +79,30 @@ def _find_project(projects_dir: Path, query: str) -> dict[str, Any] | None:
                 "file": str(f),
                 "frontmatter": md,
             }
+    # Second: nested `<slug>/README.(MD|md)` records (PROD shape).
+    for subdir in sorted(p for p in projects_dir.iterdir() if p.is_dir()):
+        for ext in ("README.MD", "README.md"):
+            readme = subdir / ext
+            if not readme.exists():
+                continue
+            try:
+                text = readme.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                break
+            md = parse_record_metadata(text)
+            heading = _extract_heading(text)
+            slug_date, slug_title = _slug_parts(subdir.name)
+            candidates = [md.get("project", ""), heading, slug_title, md.get("alias", "")]
+            matched = next((c for c in candidates if _match(q_norm, c)), "")
+            if matched:
+                return {
+                    "name": matched or heading or slug_title,
+                    "start_date": md.get("start_date") or slug_date,
+                    "members": md.get("members") or md.get("linked_entities", ""),
+                    "file": str(readme),
+                    "frontmatter": md,
+                }
+            break  # only one README per subdir
     return None
 
 
@@ -51,54 +114,71 @@ def run_project_from_fs(
     return {"project": proj, "involved_entities": []}
 
 
-def _candidate_paths(projects_root: str, entries: Iterable[Any]) -> list[str]:
-    """Build ordered candidate paths to read.
-
-    PROD: `<projects_root>/<slug>/README.MD` (uppercase) then README.md.
-    DEV: flat `<projects_root>/<name>.md`.
-
-    Returns the list; caller reads each, first successful parse with a
-    matching `project` field wins.
-    """
-    out: list[str] = []
-    for e in entries:
-        if getattr(e, "is_dir", False):
-            slug = e.name
-            out.append(f"{projects_root}/{slug}/README.MD")
-            out.append(f"{projects_root}/{slug}/README.md")
-        else:
-            if e.name.endswith(".md") or e.name.endswith(".MD"):
-                out.append(f"{projects_root}/{e.name}")
-    return out
+def _match_in_file(
+    client: Any, projects_root: str, slug: str, file_path: str, content: str, q_norm: str,
+) -> dict[str, Any] | None:
+    md = parse_record_metadata(content)
+    heading = _extract_heading(content)
+    slug_date, slug_title = _slug_parts(slug)
+    candidates = [md.get("project", ""), heading, slug_title, md.get("alias", "")]
+    matched = next((c for c in candidates if _match(q_norm, c)), "")
+    if not matched:
+        return None
+    return {
+        "name": matched or heading or slug_title,
+        "start_date": md.get("start_date") or slug_date,
+        "members": md.get("members") or md.get("linked_entities", ""),
+        "file": file_path,
+        "frontmatter": md,
+    }
 
 
 def run_preflight_project(client: Any, req: Req_PreflightProject) -> ToolResult:
     from bitgn.vm import pcm_pb2
     try:
         q_norm = normalize_name(req.query)
-        found = None
+        found: dict[str, Any] | None = None
         lresp = client.list(pcm_pb2.ListRequest(name=req.projects_root))
-        for fp in _candidate_paths(req.projects_root, lresp.entries):
+        # Phase 1: flat `.md` files directly under projects_root (DEV).
+        for e in lresp.entries:
+            if getattr(e, "is_dir", False):
+                continue
+            name_lower = e.name.lower()
+            if not name_lower.endswith(".md"):
+                continue
+            fp = f"{req.projects_root}/{e.name}"
             try:
                 rr = client.read(pcm_pb2.ReadRequest(path=fp))
             except Exception:
-                # Missing README.md after README.MD tried, etc.
                 continue
-            md = parse_record_metadata(rr.content)
-            pname = md.get("project", "")
-            if pname and (
-                normalize_name(pname) == q_norm
-                or q_norm in normalize_name(pname)
-                or normalize_name(pname) in q_norm
-            ):
-                found = {
-                    "name": pname,
-                    "start_date": md.get("start_date", ""),
-                    "members": md.get("members", ""),
-                    "file": fp,
-                    "frontmatter": md,
-                }
+            m = _match_in_file(
+                client, req.projects_root, e.name.rsplit(".", 1)[0], fp, rr.content, q_norm,
+            )
+            if m:
+                found = m
                 break
+        # Phase 2: nested `<slug>/README.(MD|md)` (PROD).
+        if found is None:
+            for e in lresp.entries:
+                if not getattr(e, "is_dir", False):
+                    continue
+                slug = e.name
+                for ext in ("README.MD", "README.md"):
+                    fp = f"{req.projects_root}/{slug}/{ext}"
+                    try:
+                        rr = client.read(pcm_pb2.ReadRequest(path=fp))
+                    except Exception:
+                        continue
+                    m = _match_in_file(
+                        client, req.projects_root, slug, fp, rr.content, q_norm,
+                    )
+                    if m:
+                        found = m
+                        break
+                    # Found a readable README but didn't match — skip this subdir.
+                    break
+                if found is not None:
+                    break
         data = {"project": found, "involved_entities": []}
     except Exception as exc:
         return ToolResult(
