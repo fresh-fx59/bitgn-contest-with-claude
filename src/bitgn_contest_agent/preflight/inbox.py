@@ -138,13 +138,13 @@ def run_preflight_inbox(client: Any, req: Req_PreflightInbox) -> ToolResult:
     items: list[dict[str, Any]] = []
     try:
         # Load entities via PCM
-        entities_resp = client.List(pcm_pb2.ListRequest(path=req.entities_root))
+        entities_resp = client.list(pcm_pb2.ListRequest(name=req.entities_root))
         entities = []
         for e in entities_resp.entries:
             if not e.name.endswith(".md"):
                 continue
             rp = f"{req.entities_root}/{e.name}"
-            rr = client.Read(pcm_pb2.ReadRequest(path=rp))
+            rr = client.read(pcm_pb2.ReadRequest(path=rp))
             fm = _parse_frontmatter(rr.content)
             aliases = _parse_aliases_list(fm.get("aliases", ""))
             canonical = Path(e.name).stem.replace("_", " ").title()
@@ -156,12 +156,12 @@ def run_preflight_inbox(client: Any, req: Req_PreflightInbox) -> ToolResult:
             })
 
         # Enumerate inbox
-        inbox_resp = client.List(pcm_pb2.ListRequest(path=req.inbox_root))
+        inbox_resp = client.list(pcm_pb2.ListRequest(name=req.inbox_root))
         for e in inbox_resp.entries:
             if not e.name.endswith(".md"):
                 continue
             ip = f"{req.inbox_root}/{e.name}"
-            ir = client.Read(pcm_pb2.ReadRequest(path=ip))
+            ir = client.read(pcm_pb2.ReadRequest(path=ip))
             fm = _parse_frontmatter(ir.content)
             body = ir.content.split("---", 2)[-1] if ir.content.count("---") >= 2 else ir.content
             match = _match_entity(body, entities)
@@ -170,14 +170,14 @@ def run_preflight_inbox(client: Any, req: Req_PreflightInbox) -> ToolResult:
                 alias_norms = [normalize_name(a) for a in match["aliases"] if a]
                 for froot in req.finance_roots:
                     try:
-                        fresp = client.List(pcm_pb2.ListRequest(path=froot))
+                        fresp = client.list(pcm_pb2.ListRequest(name=froot))
                     except Exception:
                         continue
                     for fe in fresp.entries:
                         if not fe.name.endswith(".md"):
                             continue
                         fp = f"{froot}/{fe.name}"
-                        fr_read = client.Read(pcm_pb2.ReadRequest(path=fp))
+                        fr_read = client.read(pcm_pb2.ReadRequest(path=fp))
                         ffm = _parse_frontmatter(fr_read.content)
                         vendor = normalize_name(ffm.get("vendor", ""))
                         if vendor and any(a in vendor or vendor in a for a in alias_norms if a):

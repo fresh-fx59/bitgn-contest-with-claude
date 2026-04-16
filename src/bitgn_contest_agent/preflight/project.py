@@ -48,12 +48,12 @@ def run_preflight_project(client: Any, req: Req_PreflightProject) -> ToolResult:
     try:
         q_norm = normalize_name(req.query)
         found = None
-        lresp = client.List(pcm_pb2.ListRequest(path=req.projects_root))
+        lresp = client.list(pcm_pb2.ListRequest(name=req.projects_root))
         for e in lresp.entries:
             if not e.name.endswith(".md"):
                 continue
             fp = f"{req.projects_root}/{e.name}"
-            rr = client.Read(pcm_pb2.ReadRequest(path=fp))
+            rr = client.read(pcm_pb2.ReadRequest(path=fp))
             fm = _parse_frontmatter(rr.content)
             pname = fm.get("project", "")
             if pname and (normalize_name(pname) == q_norm

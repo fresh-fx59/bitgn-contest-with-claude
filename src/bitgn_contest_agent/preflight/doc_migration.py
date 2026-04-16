@@ -60,12 +60,12 @@ def run_preflight_doc_migration(client: Any, req: Req_PreflightDocMigration) -> 
     from bitgn.vm import pcm_pb2
     try:
         entities = []
-        eresp = client.List(pcm_pb2.ListRequest(path=req.entities_root))
+        eresp = client.list(pcm_pb2.ListRequest(name=req.entities_root))
         for e in eresp.entries:
             if not e.name.endswith(".md"):
                 continue
             rp = f"{req.entities_root}/{e.name}"
-            rr = client.Read(pcm_pb2.ReadRequest(path=rp))
+            rr = client.read(pcm_pb2.ReadRequest(path=rp))
             fm = _parse_frontmatter(rr.content)
             aliases = _parse_aliases_list(fm.get("aliases", ""))
             canonical = Path(e.name).stem.replace("_", " ").title()
@@ -81,7 +81,7 @@ def run_preflight_doc_migration(client: Any, req: Req_PreflightDocMigration) -> 
             dest_root = f"{req.entities_root}/{_slugify(m['canonical'])}"
             existing = set()
             try:
-                lresp = client.List(pcm_pb2.ListRequest(path=dest_root))
+                lresp = client.list(pcm_pb2.ListRequest(name=dest_root))
                 existing = {e.name for e in lresp.entries}
             except Exception:
                 pass

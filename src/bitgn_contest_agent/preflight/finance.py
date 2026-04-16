@@ -72,12 +72,12 @@ def run_preflight_finance(client: Any, req: Req_PreflightFinance) -> ToolResult:
     try:
         # Load entities
         entities = []
-        eresp = client.List(pcm_pb2.ListRequest(path=req.entities_root))
+        eresp = client.list(pcm_pb2.ListRequest(name=req.entities_root))
         for e in eresp.entries:
             if not e.name.endswith(".md"):
                 continue
             rp = f"{req.entities_root}/{e.name}"
-            rr = client.Read(pcm_pb2.ReadRequest(path=rp))
+            rr = client.read(pcm_pb2.ReadRequest(path=rp))
             fm = _parse_frontmatter(rr.content)
             from bitgn_contest_agent.preflight.inbox import _parse_aliases_list
             aliases = _parse_aliases_list(fm.get("aliases", ""))
@@ -94,14 +94,14 @@ def run_preflight_finance(client: Any, req: Req_PreflightFinance) -> ToolResult:
         files_meta = []
         for froot in req.finance_roots:
             try:
-                fresp = client.List(pcm_pb2.ListRequest(path=froot))
+                fresp = client.list(pcm_pb2.ListRequest(name=froot))
             except Exception:
                 continue
             for fe in fresp.entries:
                 if not fe.name.endswith(".md"):
                     continue
                 fp = f"{froot}/{fe.name}"
-                fr = client.Read(pcm_pb2.ReadRequest(path=fp))
+                fr = client.read(pcm_pb2.ReadRequest(path=fp))
                 ffm = _parse_frontmatter(fr.content)
                 vendor = normalize_name(ffm.get("vendor", ""))
                 if vendor and any(a in vendor or vendor in a for a in alias_norms if a):
