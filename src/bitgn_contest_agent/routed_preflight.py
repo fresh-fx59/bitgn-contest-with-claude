@@ -74,6 +74,9 @@ def dispatch_routed_preflight(
     query_field = skill.preflight_query_field or "query"
     raw_query = (decision.extracted or {}).get(query_field)
     query = raw_query.strip() if isinstance(raw_query, str) else ""
+    # Fall back to full task text when regex match didn't extract a query.
+    if not query and decision.task_text:
+        query = decision.task_text
 
     builder = _BUILDERS.get(tool)
     if builder is None:

@@ -38,8 +38,23 @@ def test_item_lists_all_bills_for_entity():
         finance_roots=["50_finance/purchases"],
     )
     item = items[0]
-    # Juniper has aliases Juniper Systems + House Mesh → 2 bills expected.
-    assert len(item["related_finance_files"]) == 2
+    # Juniper has aliases Juniper Systems + House Mesh → 2 vendor-matched
+    # bills + 1 filename-matched bill (bill_003_juniper_filter.md) = 3.
+    assert len(item["related_finance_files"]) == 3
+
+
+def test_filename_match_finds_bill_without_vendor_match():
+    """Bill whose filename contains entity name but whose vendor field
+    does NOT match should still be found via slug matching."""
+    items = enumerate_inbox_from_fs(
+        root=FIXTURE,
+        inbox_root="00_inbox",
+        entities_root="20_entities",
+        finance_roots=["50_finance/purchases"],
+    )
+    item = items[0]
+    paths = [p for p in item["related_finance_files"] if "juniper_filter" in p]
+    assert len(paths) == 1, f"Expected filename-matched bill, got: {item['related_finance_files']}"
 
 
 def test_inbox_item_includes_full_frontmatter():

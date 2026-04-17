@@ -1,0 +1,298 @@
+{
+  "schema_version": "1.2.0",
+  "overall": {
+    "total_runs": 5,
+    "total_passes": 4,
+    "pass_rate": 0.8,
+    "runs_per_task": 1,
+    "pass_rate_median": 1.0,
+    "pass_rate_min": 0.0,
+    "pass_rate_ci_lower": 0.0,
+    "pass_rate_ci_upper": 1.0,
+    "total_input_tokens": 580739,
+    "total_output_tokens": 16751,
+    "total_reasoning_tokens": 5564,
+    "trace_dir": "/home/claude-developer/bitgn-contest-with-claude/logs/20260416_185543",
+    "divergence_count": 32,
+    "total_pcm_ops": 551,
+    "total_pcm_wall_ms": 57464
+  },
+  "tasks": {
+    "t000": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 7,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 43671,
+      "output_tokens": 1457,
+      "reasoning_tokens": 509,
+      "harness_url": "https://vm-03o7c7cceqo9icwd4w.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "step_texts": [
+        "Need mandatory bootstrap before any task work: tree /, read AGENTS.md, then context.",
+        "Tree completed. Need second bootstrap step: read rulebook file. Root has AGENTS.MD (uppercase), likely canonical.",
+        "Read root AGENTS.MD; now must complete bootstrap with context before task-specific lookup.",
+        "Identity bootstrap complete (tree, AGENTS, context). Next, follow nested rulebook requirement before reading entity record.",
+        "Entered 10_entities and read its local rules. Need cast subfolder rulebook before opening record.",
+        "Cast rulebook confirms entity file authoritative for birthday; now read Nina record.",
+        "Have authoritative birthday from canonical entity file and can answer now."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 46837,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 103,
+      "pcm_wall_ms": 10521,
+      "pcm_ops_by_op": {
+        "tree": 3,
+        "read": 89,
+        "context": 2,
+        "list": 8,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 96,
+        "step": 7
+      }
+    },
+    "t001": {
+      "runs": 1,
+      "passes": 0,
+      "median_steps": 19,
+      "passes_per_run": [
+        0
+      ],
+      "input_tokens": 158731,
+      "output_tokens": 4585,
+      "reasoning_tokens": 1691,
+      "harness_url": "https://vm-03o7c7cch3woviy51n.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        4,
+        5,
+        6
+      ],
+      "step_texts": [
+        "Need satisfy mandatory identity bootstrap before task work: tree, read AGENTS.md, context.",
+        "Tree completed. Next bootstrap step is reading rulebook file. Root shows AGENTS.MD (uppercase).",
+        "Read root AGENTS. Must complete bootstrap by calling context before task-specific lookup.",
+        "Identity bootstrap complete (AGENTS + context). Before task work, root AGENTS requires inspecting 99_system via tree.",
+        "Inspected 99_system tree per rule. Need read nested AGENTS in entered folder.",
+        "System policy read. Now entering projects lane; must read nested AGENTS there before examining project files.",
+        "Project lane rules read. Need locate which project corresponds to informal name 'NORA-at-home'.",
+        "No exact 'NORA-at-home' string in 40_projects. Need broader keyword match.",
+        "Keyword 'nora' matches three project READMEs; must disambiguate by reading each canonical record.",
+        "Hearthline is not named NORA-at-home; continue reviewing remaining candidates.",
+        "House Mesh also not named NORA-at-home; one candidate remains.",
+        "All three nora-linked project READMEs read; none explicitly use the phrase 'NORA-at-home'. Need tie-break search across workspace for that informal name mapping.",
+        "No exact phrase anywhere yet. Need variant search for mapping clue.",
+        "No 'at-home' hits. Need one more variant search to confirm absence before clarification.",
+        "Still no explicit mapping for 'NORA-at-home'; before clarifying, perform one more targeted search by 'home' keyword within project records.",
+        "Additional plausible home-related project candidates found; need read their canonical READMEs before deciding ambiguity.",
+        "Repair Ledger not NORA-at-home. One more plausible candidate to read.",
+        "All plausible project READMEs checked in 40_projects and none named/mapped explicitly to 'NORA-at-home'. Need verify if entity record defines this informal project name.",
+        "Exhaustive local lookup found no project explicitly named or aliased 'NORA-at-home'; cannot map requested informal name to a unique project folder without guessing."
+      ],
+      "last_outcome": "OUTCOME_NONE_CLARIFICATION",
+      "last_latency_ms": 133486,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 115,
+      "pcm_wall_ms": 12823,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 94,
+        "context": 2,
+        "list": 8,
+        "search": 6,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 96,
+        "step": 19
+      }
+    },
+    "t002": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 19,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 180363,
+      "output_tokens": 4488,
+      "reasoning_tokens": 1263,
+      "harness_url": "https://vm-03o7c7ccm4p9cdtn22.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "step_texts": [
+        "Need bootstrap identity per rules before task work. Starting with tree('/').",
+        "Tree completed successfully and revealed root rulebook file as /AGENTS.MD. Next bootstrap step is reading the rulebook.",
+        "Loaded root AGENTS.MD; must complete bootstrap with context before task-specific reads. Then follow rule: inspect 99_system tree before task work.",
+        "Bootstrap complete (tree, AGENTS, context). Now must comply with root rulebook by inspecting /99_system before task work.",
+        "Ready for task-specific lookup. Need entity canonicalization first and must read nested AGENTS before entering /10_entities.",
+        "Need cast-level rules then read Bix record for aliases/handles.",
+        "Now read Bix canonical record.",
+        "Have Bix identity and alias. Need communication lane rules before reading channel logs.",
+        "Need channel-level rules, then exhaustive transcript review across all channel logs for Bix-attributed lines.",
+        "Channel rules loaded. Now need exhaustive scan of all channel transcript files to find messages attributed to Bix or alias forms.",
+        "First channel transcript checked; no Bix attribution found there. Continue exhaustive read of remaining channel files.",
+        "Second transcript checked; still no Bix. Continue reading all remaining channel logs.",
+        "No Bix in health channel. Need continue exhaustive channel reads.",
+        "Still no Bix messages; continue remaining transcripts.",
+        "Household calendar had no messages. Need to read remaining channel logs for exhaustive check.",
+        "No Bix in household_signal. Need finish exhaustive scan of all channel files before outcome.",
+        "Need final two channel files to complete exhaustive check.",
+        "Only one channel file left to verify exhaustive search across all transcripts.",
+        "Exhaustive channel-log review completed with Bix canonical identity and alias checked; no attributed messages found."
+      ],
+      "last_outcome": "OUTCOME_NONE_CLARIFICATION",
+      "last_latency_ms": 145738,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 115,
+      "pcm_wall_ms": 11764,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 100,
+        "context": 2,
+        "list": 8,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 96,
+        "step": 19
+      }
+    },
+    "t003": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 14,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 112861,
+      "output_tokens": 3889,
+      "reasoning_tokens": 1452,
+      "harness_url": "https://vm-03o7c7ccp2qo738px2.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10
+      ],
+      "step_texts": [
+        "Need to satisfy mandatory identity bootstrap before solving task: tree /, then read AGENTS.md, then context. No task-specific exploration yet.",
+        "Completed required initial tree. Next mandatory bootstrap step is reading root rulebook file.",
+        "Read root AGENTS.MD. Must complete bootstrap with context before task-specific work.",
+        "Bootstrap now includes context; before task work root rulebook additionally requires inspecting 99_system with tree.",
+        "Completed required tree of 99_system; now need nested rulebook in that folder before task-specific lookup.",
+        "Identity bootstrap complete (root AGENTS + context + 99_system inspection). Proceeding with task: resolve 'our dog' via canonical entity records, following nested rulebooks.",
+        "Entered entities lane; must read nested cast rulebook before using cast records.",
+        "Ready to resolve 'our dog' from canonical cast records; will search cast files for explicit dog markers.",
+        "Search identified bix.md as dog via relationship field. Need read canonical file to extract structured identifier.",
+        "Canonical dog resolved: Bix with alias `bix`. Need project lookup using structured identifier and obey nested rules in projects lane.",
+        "Have projects lane rules and canonical dog alias. Now locating all project records linked by identifier `bix`.",
+        "Search found two project READMEs linked to entity.bix. Need exact project names from canonical records before final response.",
+        "Need second matching project's canonical name before completing.",
+        "Collected canonical dog entity and all matching project canonical records; ready to return sorted exact project names."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 113958,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 110,
+      "pcm_wall_ms": 11277,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 93,
+        "context": 2,
+        "list": 8,
+        "search": 2,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 96,
+        "step": 14
+      }
+    },
+    "t004": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 12,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 85113,
+      "output_tokens": 2332,
+      "reasoning_tokens": 649,
+      "harness_url": "https://vm-03o7c7ccrqphdvqrrv.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        5,
+        6,
+        7,
+        9
+      ],
+      "step_texts": [
+        "Need to perform mandatory identity bootstrap before task work: tree /, then read AGENTS.md, then context.",
+        "Tree completed. Next mandatory bootstrap step is reading AGENTS.md at workspace root.",
+        "Read rulebook. Must complete bootstrap by calling context. Also AGENTS says inspect 99_system with tree before task work; need obey likely. first context mandatory per developer identity bootstrap. then do tree 99_system.",
+        "Identity bootstrap complete (tree/read/context). Per root AGENTS, must inspect 99_system before task-specific work.",
+        "Inspected 99_system tree. Need read nested rulebook in 99_system before proceeding to task folders.",
+        "System policy read. Now entering entities lane to resolve Omar canonically; must read nested AGENTS files on entry.",
+        "Need cast-level rules before reading person file.",
+        "Ready to read Omar canonical record to get structured identifier for project search.",
+        "Omar canonical alias is `omar`. Next, enter projects lane with its local rules before searching involvement and active status.",
+        "Have project lane rules and canonical alias. Need comprehensive match set across project READMEs using alias.",
+        "Search found one project reference to structured identifier for Omar. Need read that project README to verify status ACTIVE.",
+        "Found all evidence needed: canonical Omar alias and matching project README with active status. Ready to return count."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 72784,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 108,
+      "pcm_wall_ms": 11079,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 92,
+        "context": 2,
+        "list": 8,
+        "search": 1,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 96,
+        "step": 12
+      }
+    }
+  }
+}

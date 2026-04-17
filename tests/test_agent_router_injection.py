@@ -143,9 +143,9 @@ def test_router_no_match_sets_category_unknown(tmp_path) -> None:
             msg="m", args=(), exc_info=None,
         )
         f.filter(rec)
-        # No finance match → skill stays "-", category is "UNKNOWN"
-        assert rec.skill == "-"
-        assert rec.category == "UNKNOWN"
+        # Inbox task now routes to inbox-processing via regex.
+        assert rec.skill == "inbox-processing"
+        assert rec.category == "INBOX_PROCESSING"
     finally:
         reset_task_context(token)
         writer.close()

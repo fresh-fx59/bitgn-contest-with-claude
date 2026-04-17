@@ -1,0 +1,293 @@
+{
+  "schema_version": "1.2.0",
+  "overall": {
+    "total_runs": 5,
+    "total_passes": 5,
+    "pass_rate": 1.0,
+    "runs_per_task": 1,
+    "pass_rate_median": 1.0,
+    "pass_rate_min": 1.0,
+    "pass_rate_ci_lower": 1.0,
+    "pass_rate_ci_upper": 1.0,
+    "total_input_tokens": 507796,
+    "total_output_tokens": 13101,
+    "total_reasoning_tokens": 4017,
+    "trace_dir": "/home/claude-developer/bitgn-contest-with-claude/logs/20260416_191411",
+    "divergence_count": 30,
+    "total_pcm_ops": 936,
+    "total_pcm_wall_ms": 99701
+  },
+  "tasks": {
+    "t000": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 7,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 42277,
+      "output_tokens": 1407,
+      "reasoning_tokens": 364,
+      "harness_url": "https://vm-03o7e16g6a9ieh6xv9.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        4,
+        5
+      ],
+      "step_texts": [
+        "Need to perform mandatory identity bootstrap before task-specific lookup.",
+        "Completed required tree bootstrap step; now must read root AGENTS.MD before any task-specific lookup.",
+        "Root AGENTS read; identity bootstrap still incomplete until context is loaded.",
+        "Identity bootstrap complete (tree + root AGENTS + context). Before reading within 10_entities, follow rule to read nested AGENTS in entered folder.",
+        "Need nested cast rulebook before reading oskar file.",
+        "Now can read canonical Oskar record for birthday.",
+        "Found Oskar's canonical entity record and extracted birthday."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 37454,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 167,
+      "pcm_wall_ms": 18509,
+      "pcm_ops_by_op": {
+        "tree": 3,
+        "read": 125,
+        "context": 2,
+        "list": 36,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "step": 7
+      }
+    },
+    "t001": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 8,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 53745,
+      "output_tokens": 2402,
+      "reasoning_tokens": 1137,
+      "harness_url": "https://vm-03o7e16g95r5r6hmqw.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "step_texts": [
+        "Need perform mandatory identity bootstrap before task-specific investigation. Preflight says no direct project match for query.",
+        "Completed mandatory tree bootstrap. Need read root rulebook file next.",
+        "Read root AGENTS.MD. Must call context to finish identity bootstrap per developer instruction before task work.",
+        "Identity bootstrap complete (tree /, read AGENTS.MD, context). Need satisfy root rulebook prerequisite by inspecting 99_system before task work.",
+        "Inspected 99_system tree. Need comply with nested rulebooks by reading 99_system/AGENTS.MD before proceeding.",
+        "System rulebook read. Now entering projects lane; must read nested AGENTS.MD there before using project records.",
+        "Project lane rules read. Need determine project corresponding to 'family memory wall'; likely folder 2026_04_30_family_map_wall from tree. Must read canonical README.MD for factual start date.",
+        "Evidence gathered: project README for Family Map Wall and projects lane rule that folder prefix is creation date. Ready to return date in requested format."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 58565,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 184,
+      "pcm_wall_ms": 19348,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 140,
+        "context": 2,
+        "list": 37,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "routed_preflight": 16,
+        "step": 8
+      }
+    },
+    "t002": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 20,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 181594,
+      "output_tokens": 3801,
+      "reasoning_tokens": 1144,
+      "harness_url": "https://vm-03o7e16gdzv7abuwqi.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "step_texts": [
+        "Need to follow mandatory identity bootstrap before task-specific lookup.",
+        "Tree succeeded; discovered root rulebook file is named AGENTS.MD. Need read it, then context, before task work.",
+        "Loaded root rulebook. Must complete bootstrap with context call before task-specific actions.",
+        "Identity bootstrap completed (AGENTS.MD + context). Root rules require inspecting 99_system before task work.",
+        "Inspected 99_system structure; now need its local rulebook before continuing.",
+        "System policy read. Proceeding to entity resolution and channel logs while honoring nested rulebooks.",
+        "Need cast-level rules then read tobias canonical file.",
+        "Now read Tobias record for aliases/handles then inspect outbox rules.",
+        "Tobias canonical name appears as 'Tobias Kern' with alias 'tobias'. Need channel-lane rules before reading transcripts.",
+        "Need channel-specific rules then inspect transcripts.",
+        "Channel rules loaded. Now extracting Tobias-attributed messages by fully reading each channel transcript.",
+        "First channel reviewed; no Tobias/Kern attribution found there. Continue exhaustive channel reads.",
+        "Second channel also no Tobias/Kern. Continue full channel sweep.",
+        "No Tobias in health_signal. Continue exhaustive reads.",
+        "No Tobias here either; continue remaining channel files.",
+        "Household calendar empty; continue exhaustive sweep.",
+        "No Tobias alias in household_signal. Need finish all remaining channel files before conclusion.",
+        "Found a Tobias Kern message in northstar_email, but must complete exhaustive channel-file check per task hint before finalizing.",
+        "No Tobias in studio channel. Need last remaining channel file then can complete.",
+        "Exhaustive channel review complete; identified the most recent message attributed to Tobias Kern."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 109583,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 203,
+      "pcm_wall_ms": 20706,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 159,
+        "context": 2,
+        "list": 37,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "routed_preflight": 23,
+        "step": 20
+      }
+    },
+    "t003": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 17,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 134479,
+      "output_tokens": 3020,
+      "reasoning_tokens": 690,
+      "harness_url": "https://vm-03o7e16gm9fstsssxp.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        5,
+        6,
+        10
+      ],
+      "step_texts": [
+        "Beginning mandatory identity bootstrap before task-specific work.",
+        "Root tree loaded; next bootstrap step is reading rulebook file.",
+        "Loaded root rulebook; still need context to complete identity bootstrap.",
+        "Identity bootstrap completed with tree/read/context; now complying with root AGENTS rule to inspect 99_system before task work.",
+        "Inspected 99_system tree per rule; now need nested rulebook before continuing task-specific lookup.",
+        "System policy read; proceeding to entity resolution and must read nested AGENTS in cast before using that folder.",
+        "Loaded cast rulebook; now resolving informal reference 'experiment box' to canonical entity record.",
+        "No direct cast match for exact phrase; need broader lookup for canonical entity alias.",
+        "Found likely entity reference in foundry.md; must read canonical file to extract identifier.",
+        "Canonical entity resolved as Foundry with alias 'foundry'; now moving to project lookup and need folder rulebook.",
+        "Project lane rules read; now identifying all project records linked to canonical alias 'foundry'.",
+        "Found 5 project README hits for canonical link `entity.foundry`; now verifying exact project names from each canonical record.",
+        "Captured one exact project name (Hearthline); continue reading remaining matched canonical project records.",
+        "Now have House Mesh and Hearthline; continue reading all remaining matches for complete list.",
+        "Three names confirmed; two remaining matched projects to verify exact names.",
+        "Four names confirmed; one remaining project to read, then answer can be finalized.",
+        "All matched canonical project records were read and exact names extracted; ready to return sorted list."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 90538,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 193,
+      "pcm_wall_ms": 21588,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 146,
+        "context": 2,
+        "list": 37,
+        "search": 3,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "routed_preflight": 16,
+        "step": 17
+      }
+    },
+    "t004": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 13,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 95701,
+      "output_tokens": 2471,
+      "reasoning_tokens": 682,
+      "harness_url": "https://vm-03o7e16go6ag5rvx2z.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        3,
+        5,
+        6,
+        7,
+        9
+      ],
+      "step_texts": [
+        "Need perform mandatory identity bootstrap before task work.",
+        "Completed tree bootstrap step; now must load rulebook file.",
+        "Read root AGENTS.MD. Mandatory bootstrap still requires context call.",
+        "Identity bootstrap satisfied (tree/read/context). Additional rulebook requirement says inspect 99_system before task work.",
+        "Inspected 99_system tree. Need to read its AGENTS.MD to satisfy nested rulebook before task operations.",
+        "System policy read. Now moving into entities lane, so must read nested AGENTS before using canonical entity record.",
+        "Entities lane rulebook loaded; now entering cast subfolder requires its AGENTS.",
+        "Ready to resolve Renate canonical identifier from cast record before project lookup.",
+        "Renate canonical alias is `renate`; next enter projects lane and load its rulebook before searching.",
+        "Project lane rules loaded; now finding all project records linked to alias `renate`.",
+        "Found 2 project READMEs linked by `entity.renate`; need status in each to count ACTIVE.",
+        "Hearthline linked to Renate has status `active`; need second linked project status.",
+        "Both Renate-linked projects have status `active`, so the count is determined."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 68014,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 189,
+      "pcm_wall_ms": 19550,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 144,
+        "context": 2,
+        "list": 37,
+        "search": 1,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "routed_preflight": 16,
+        "step": 13
+      }
+    }
+  }
+}

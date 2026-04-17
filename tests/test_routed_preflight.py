@@ -72,11 +72,13 @@ def test_skipped_when_skill_has_no_preflight() -> None:
     adapter.dispatch.assert_not_called()
 
 
-def test_skipped_when_query_missing_for_finance() -> None:
+def test_skipped_when_query_and_task_text_both_empty() -> None:
+    """When extracted has no query AND task_text is empty, skip."""
     skill = _skill("FINANCE_LOOKUP", preflight="preflight_finance")
     decision = RoutingDecision(
         category="FINANCE_LOOKUP", source="classifier", confidence=0.9,
         extracted={}, skill_name=skill.name,
+        task_text="",
     )
     schema = WorkspaceSchema(finance_roots=["/50_finance"], entities_root="/30_e")
     adapter = MagicMock()
@@ -87,6 +89,34 @@ def test_skipped_when_query_missing_for_finance() -> None:
     assert out.tool == "preflight_finance"
     assert out.skipped_reason == "missing_query"
     adapter.dispatch.assert_not_called()
+
+
+def test_regex_match_without_named_group_falls_back_to_task_text() -> None:
+    """Tier 1 regex match with no named capture groups should use full
+    task_text as query, not skip with missing_query."""
+    skill = _skill("FINANCE_LOOKUP", preflight="preflight_finance")
+    task = "How much did Acme charge me in total for widgets 51 days ago?"
+    decision = RoutingDecision(
+        category="FINANCE_LOOKUP", source="regex", confidence=1.0,
+        extracted={},  # no named groups extracted
+        skill_name=skill.name,
+        task_text=task,
+    )
+    schema = WorkspaceSchema(
+        finance_roots=["/50_finance/purchases"],
+        entities_root="/30_entities",
+    )
+    adapter = MagicMock()
+    adapter.dispatch.return_value = _ok_result()
+    out = dispatch_routed_preflight(
+        decision=decision, schema=schema, adapter=adapter,
+        skills_by_name={skill.name: skill},
+    )
+    assert out.tool == "preflight_finance"
+    assert out.skipped_reason is None
+    assert out.result is not None and out.result.ok
+    req = adapter.dispatch.call_args[0][0]
+    assert req.query == task
 
 
 def test_skipped_when_finance_roots_missing() -> None:

@@ -70,19 +70,28 @@ def _match_entity(text: str, entities: list[dict[str, Any]]) -> dict[str, Any] |
 
 def _bills_for_entity(entity: dict[str, Any], finance_dirs: list[Path]) -> list[str]:
     alias_norms = [normalize_name(a) for a in entity["aliases"] if a]
-    hits: list[str] = []
+    hits: set[str] = set()
     for d in finance_dirs:
         if not d.exists():
             continue
         for f in d.rglob("*.md"):
+            # Check filename/slug for entity name.
+            slug_norm = normalize_name(f.stem)
+            if slug_norm and any(a and a in slug_norm for a in alias_norms):
+                hits.add(str(f))
+                continue
             try:
                 text = f.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
             fm = _parse_frontmatter(text)
-            vendor = normalize_name(fm.get("vendor", ""))
-            if vendor and any(a in vendor or vendor in a for a in alias_norms if a):
-                hits.append(str(f))
+            # Check vendor and entity-reference frontmatter fields.
+            for key in ("vendor", "related_entity", "buyer", "ordered_by",
+                        "entity", "recipient"):
+                val = normalize_name(fm.get(key, ""))
+                if val and any(a and (a in val or val in a) for a in alias_norms):
+                    hits.add(str(f))
+                    break
     return sorted(hits)
 
 
@@ -169,6 +178,7 @@ def run_preflight_inbox(client: Any, req: Req_PreflightInbox) -> ToolResult:
             related: list[str] = []
             if match:
                 alias_norms = [normalize_name(a) for a in match["aliases"] if a]
+                related_set: set[str] = set()
                 for froot in req.finance_roots:
                     try:
                         fresp = client.list(pcm_pb2.ListRequest(name=froot))
@@ -178,11 +188,20 @@ def run_preflight_inbox(client: Any, req: Req_PreflightInbox) -> ToolResult:
                         if not fe.name.endswith(".md"):
                             continue
                         fp = f"{froot}/{fe.name}"
+                        # Check filename/slug for entity name.
+                        slug_norm = normalize_name(Path(fe.name).stem)
+                        if slug_norm and any(a and a in slug_norm for a in alias_norms):
+                            related_set.add(fp)
+                            continue
                         fr_read = client.read(pcm_pb2.ReadRequest(path=fp))
                         ffm = _parse_frontmatter(fr_read.content)
-                        vendor = normalize_name(ffm.get("vendor", ""))
-                        if vendor and any(a in vendor or vendor in a for a in alias_norms if a):
-                            related.append(fp)
+                        for key in ("vendor", "related_entity", "buyer",
+                                    "ordered_by", "entity", "recipient"):
+                            val = normalize_name(ffm.get(key, ""))
+                            if val and any(a and (a in val or val in a) for a in alias_norms):
+                                related_set.add(fp)
+                                break
+                related = sorted(related_set)
             items.append({
                 "path": ip,
                 "task_type": fm.get("inbox_type") or fm.get("inbox_kind") or "",
