@@ -698,3 +698,53 @@ def test_r5_no_outbox_attachments_passes() -> None:
     v = StepValidator()
     verdict = v.check_terminal(session, step)
     assert verdict.ok
+
+
+# -- R0: minimum exploration ------------------------------------------------
+
+def test_r0_rejects_early_outcome_ok() -> None:
+    """report_completion with OUTCOME_OK at step 1 must be rejected."""
+    session = Session()
+    step = _mk_terminal("OUTCOME_OK", [])
+    v = StepValidator()
+    verdict = v.check_terminal(session, step, step_idx=1)
+    assert not verdict.ok
+    assert any("R0_MIN_EXPLORE" in r for r in verdict.reasons)
+
+
+def test_r0_allows_early_denied_security() -> None:
+    """DENIED_SECURITY is valid at any step — immediate refusal is fine."""
+    session = Session()
+    step = _mk_terminal("OUTCOME_DENIED_SECURITY", [])
+    v = StepValidator()
+    verdict = v.check_terminal(session, step, step_idx=0)
+    assert verdict.ok
+
+
+def test_r0_allows_early_err_internal() -> None:
+    """ERR_INTERNAL at step 0 is valid — crash recovery."""
+    session = Session()
+    step = _mk_terminal("OUTCOME_ERR_INTERNAL", [])
+    v = StepValidator()
+    # R2 will reject ERR_INTERNAL for a different reason, so just check R0
+    verdict = v.check_terminal(session, step, step_idx=0)
+    assert not any("R0_MIN_EXPLORE" in r for r in verdict.reasons)
+
+
+def test_r0_allows_ok_after_min_steps() -> None:
+    """OUTCOME_OK at step 3+ is allowed (past the floor)."""
+    session = Session()
+    step = _mk_terminal("OUTCOME_OK", [])
+    v = StepValidator()
+    verdict = v.check_terminal(session, step, step_idx=3)
+    assert verdict.ok
+
+
+def test_r0_rejects_clarification_at_step_0() -> None:
+    """OUTCOME_NONE_CLARIFICATION at step 0 should also be blocked."""
+    session = Session()
+    step = _mk_terminal("OUTCOME_NONE_CLARIFICATION", [])
+    v = StepValidator()
+    verdict = v.check_terminal(session, step, step_idx=0)
+    assert not verdict.ok
+    assert any("R0_MIN_EXPLORE" in r for r in verdict.reasons)

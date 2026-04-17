@@ -112,13 +112,30 @@ class StepValidator:
         self._previous_leaning = step_obj.outcome_leaning
         return correction
 
-    def check_terminal(self, session: Session, step: NextStep) -> Verdict:
+    def check_terminal(
+        self, session: Session, step: NextStep, step_idx: int = 99,
+    ) -> Verdict:
         """Terminal checks — replaces enforcer.check_terminal()."""
         fn = step.function
         if not isinstance(fn, ReportTaskCompletion):
             return Verdict(ok=True, reasons=[])
 
         reasons: List[str] = []
+
+        # R0 — minimum exploration: don't accept terminal before step N
+        # unless outcome is DENIED_SECURITY or ERR_INTERNAL (immediate
+        # refusal / internal error are valid at any step).
+        _MIN_EXPLORE_STEPS = 3
+        if (
+            step_idx < _MIN_EXPLORE_STEPS
+            and fn.outcome not in (
+                "OUTCOME_DENIED_SECURITY", "OUTCOME_ERR_INTERNAL",
+            )
+        ):
+            reasons.append(
+                f"R0_MIN_EXPLORE: too early to report at step {step_idx} — "
+                f"explore at least {_MIN_EXPLORE_STEPS} steps before concluding"
+            )
 
         # R1 — grounding-refs reachability.
         # Case-insensitive match against seen_refs (successful reads) OR

@@ -400,7 +400,7 @@ class AgentLoop:
             enforcer_action: str | None = None
 
             if isinstance(fn, ReportTaskCompletion):
-                verdict = self._validator.check_terminal(session, step_obj)
+                verdict = self._validator.check_terminal(session, step_obj, step_idx)
                 if verdict.ok:
                     # Pre-completion verification (spec 2026-04-21).
                     # Hard cap: 1 verification round per task.
@@ -500,7 +500,7 @@ class AgentLoop:
                         retry_step = step_obj  # fall through to submit_anyway
                     retry_fn = retry_step.function
                     if isinstance(retry_fn, ReportTaskCompletion):
-                        retry_verdict = self._validator.check_terminal(session, retry_step)
+                        retry_verdict = self._validator.check_terminal(session, retry_step, step_idx)
                         if retry_verdict.ok:
                             tool_result = self._adapter.submit_terminal(retry_fn)
                             enforcer_action = "accept_after_retry"
