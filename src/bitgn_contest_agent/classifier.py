@@ -23,9 +23,14 @@ import logging
 import os
 import re as _re
 import threading
-from typing import Any, List
+from typing import TYPE_CHECKING, Any, List
+
+from pydantic import BaseModel
 
 from bitgn_contest_agent import router_config
+
+if TYPE_CHECKING:
+    from bitgn_contest_agent.backend.base import Backend
 
 _LOG = logging.getLogger(__name__)
 
@@ -162,6 +167,52 @@ def parse_response(
         return None, confidence
 
     return category, confidence
+
+
+# ── Structured classification via Backend.call_structured ────────────
+
+
+class ClassificationResult(BaseModel):
+    """Schema for structured classification responses.
+
+    Used with ``Backend.call_structured`` which forces valid JSON output
+    via ``response_format=<schema>`` — eliminates the free-text JSON
+    parse failures that plague small local models.
+    """
+    category: str
+    confidence: float = 1.0
+
+
+def classify_structured(
+    backend: Backend,
+    *,
+    system: str,
+    user: str,
+    timeout_sec: float | None = None,
+) -> dict[str, Any]:
+    """Classify using ``Backend.call_structured`` with enforced JSON schema.
+
+    Returns a dict matching the same shape as ``classify()`` so callers
+    can use ``parse_response()`` on the result without changes.
+
+    The system and user prompts are merged into a single user message
+    because ``call_structured`` takes a single prompt string, not a
+    message list.
+    """
+    if timeout_sec is None:
+        timeout_sec = _classifier_timeout_sec()
+    prompt = f"{system}\n\n---\n\n{user}"
+    sem = _inflight_semaphore
+    if sem is not None:
+        with sem:
+            result = backend.call_structured(
+                prompt, ClassificationResult, timeout_sec=timeout_sec,
+            )
+    else:
+        result = backend.call_structured(
+            prompt, ClassificationResult, timeout_sec=timeout_sec,
+        )
+    return result.model_dump()
 
 
 def _classifier_timeout_sec() -> float:

@@ -737,6 +737,7 @@ class AgentLoop:
                     tool_args=fn_dump,
                     tool_result_text=tool_result.content,
                     already_injected=frozenset(reactive_injected),
+                    backend=self._backend,
                 )
                 if reactive_decision is not None:
                     reactive_injected_this_step = True

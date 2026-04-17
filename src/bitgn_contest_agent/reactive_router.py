@@ -16,9 +16,12 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from bitgn_contest_agent import classifier, router_config
+
+if TYPE_CHECKING:
+    from bitgn_contest_agent.backend.base import Backend
 from bitgn_contest_agent.skill_loader import (
     SkillFormatError,
     _parse_frontmatter,
@@ -129,6 +132,7 @@ class ReactiveRouter:
         tool_args: dict,
         tool_result_text: str,
         already_injected: frozenset[str] = frozenset(),
+        backend: Optional[Backend] = None,
     ) -> Optional[ReactiveDecision]:
         """Check if a tool dispatch triggers a reactive skill injection.
 
@@ -175,15 +179,19 @@ class ReactiveRouter:
         if not eligible:
             return None
 
+        system = _reactive_classifier_system_prompt(
+            [s.category for s in eligible],
+        )
+        user = _reactive_classifier_user_msg(
+            tool_name, path, tool_result_text,
+        )
         try:
-            raw = classifier.classify(
-                system=_reactive_classifier_system_prompt(
-                    [s.category for s in eligible],
-                ),
-                user=_reactive_classifier_user_msg(
-                    tool_name, path, tool_result_text,
-                ),
-            )
+            if backend is not None:
+                raw = classifier.classify_structured(
+                    backend, system=system, user=user,
+                )
+            else:
+                raw = classifier.classify(system=system, user=user)
         except Exception as exc:  # noqa: BLE001 — reactive router never breaks the main path
             _LOG.warning("reactive classifier failed, skipping: %s", exc)
             return None

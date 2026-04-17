@@ -1,9 +1,16 @@
 """Unit tests for the shared classifier module."""
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 
-from bitgn_contest_agent.classifier import _strip_markdown_fences, parse_response
+from bitgn_contest_agent.classifier import (
+    ClassificationResult,
+    _strip_markdown_fences,
+    classify_structured,
+    parse_response,
+)
 
 
 class TestStripMarkdownFences:
@@ -53,3 +60,34 @@ class TestParseResponse:
         )
         assert cat == "FOO"
         assert conf == 0.0
+
+
+class TestClassifyStructured:
+    def test_returns_dict_from_backend(self) -> None:
+        """classify_structured delegates to backend.call_structured and
+        returns a plain dict compatible with parse_response."""
+        mock_backend = MagicMock()
+        mock_backend.call_structured.return_value = ClassificationResult(
+            category="FINANCE", confidence=0.92,
+        )
+        result = classify_structured(
+            mock_backend, system="classify this", user="some text",
+        )
+        assert result == {"category": "FINANCE", "confidence": 0.92}
+        mock_backend.call_structured.assert_called_once()
+        # Verify schema type passed to backend
+        call_args = mock_backend.call_structured.call_args
+        assert call_args[0][1] is ClassificationResult
+
+    def test_result_works_with_parse_response(self) -> None:
+        """End-to-end: classify_structured → parse_response."""
+        mock_backend = MagicMock()
+        mock_backend.call_structured.return_value = ClassificationResult(
+            category="INBOX", confidence=0.85,
+        )
+        raw = classify_structured(
+            mock_backend, system="sys", user="usr",
+        )
+        cat, conf = parse_response(raw, valid_categories={"INBOX", "OTHER"})
+        assert cat == "INBOX"
+        assert conf == 0.85

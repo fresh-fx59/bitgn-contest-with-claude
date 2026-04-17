@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -163,6 +163,31 @@ class TestReactiveRouterTier2:
         assert decision.skill_name == "test-reactive-read"
         assert decision.source == "classifier"
         assert decision.confidence == 0.9
+
+    def test_classify_structured_used_when_backend_given(self) -> None:
+        """When backend is passed, classify_structured is called instead
+        of the free-text classify."""
+        router = self._make_router()
+        mock_response = {"category": "TEST_INBOX", "confidence": 0.95}
+        with patch(
+            "bitgn_contest_agent.classifier.classify_structured",
+            return_value=mock_response,
+        ) as mock_structured, patch(
+            "bitgn_contest_agent.classifier.classify",
+        ) as mock_free:
+            fake_backend = MagicMock()
+            decision = router.evaluate(
+                tool_name="read",
+                tool_args={"path": "/sandbox/unknown-folder/msg.md"},
+                tool_result_text="some content",
+                already_injected=frozenset(),
+                backend=fake_backend,
+            )
+        mock_structured.assert_called_once()
+        mock_free.assert_not_called()
+        assert decision is not None
+        assert decision.source == "classifier"
+        assert decision.confidence == 0.95
 
     def test_classifier_below_threshold_returns_none(self) -> None:
         """Low-confidence classifier result is rejected."""
