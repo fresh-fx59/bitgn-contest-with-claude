@@ -125,3 +125,14 @@ When you find candidate files through any search path:
 - Do NOT use OUTCOME_NONE_CLARIFICATION when you have a matching record — a date mismatch is not grounds for clarification
 
 Only use OUTCOME_NONE_CLARIFICATION if you have exhausted all progressive search strategies and genuinely found no matching vendor + item anywhere in the workspace.
+
+## Revenue / Payment Aggregation
+
+When asked "how much money", "total amount", or "total revenue" for a service line or vendor:
+
+1. Use `search` to find **ALL** invoices matching the query term
+2. Read **EVERY** matching invoice to extract amounts
+3. **Sum all amounts** before reporting — do NOT answer from a single invoice
+4. Include the count of invoices found in your `outcome_justification`
+
+A revenue or payment total is always an aggregate across all matching records.
