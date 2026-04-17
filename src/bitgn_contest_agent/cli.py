@@ -80,10 +80,12 @@ def build_parser() -> argparse.ArgumentParser:
     run_bench.add_argument("--no-parallel-iterations", dest="parallel_iterations",
                            action="store_false",
                            help="force serial iteration execution (old behavior)")
-    run_bench.add_argument("--resume", default=None, metavar="RUN_ID",
+    run_bench.add_argument("--resume", nargs="?", default=None, const="__LAST__",
+                           metavar="RUN_ID",
                            help="resume a crashed leaderboard run by its BitGN run_id; "
                                 "skips trials already DONE/ERROR and submits with force=True. "
-                                "Implies --runs 1.")
+                                "Implies --runs 1. If passed with no value, reads run_id "
+                                "from .last_run_id (written on start_run).")
 
     tri = subs.add_parser("triage", help="classify bench failures")
     tri.add_argument("summary", nargs="?", default=None,
@@ -563,6 +565,19 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
     # Forces runs=1 because resume semantics only make sense for one run
     # (the run_id is already fixed server-side).
     resume_run_id: Optional[str] = args.resume
+    if resume_run_id == "__LAST__":
+        last_path = Path(".last_run_id")
+        if not last_path.exists():
+            print("--resume with no value requires .last_run_id (run a benchmark first)",
+                  file=sys.stderr)
+            return 2
+        resume_run_id = last_path.read_text().strip()
+        if not resume_run_id:
+            print("--resume: .last_run_id is empty", file=sys.stderr)
+            return 2
+        logging.getLogger(__name__).info(
+            "--resume (default): using .last_run_id=%s", resume_run_id,
+        )
     if resume_run_id is not None:
         if args.smoke:
             print("--resume is incompatible with --smoke", file=sys.stderr)
@@ -631,6 +646,15 @@ def _cmd_run_benchmark(args: argparse.Namespace) -> int:
                 ]
 
             rid, trial_ids = harness.start_run(name=LEADERBOARD_RUN_NAME)
+            logging.getLogger(__name__).info(
+                "started leaderboard run_id=%s trials=%d", rid, len(trial_ids),
+            )
+            try:
+                Path(".last_run_id").write_text(rid)
+            except OSError as exc:
+                logging.getLogger(__name__).warning(
+                    "failed to persist .last_run_id: %s", exc,
+                )
             with leaderboard_run_ids_lock:
                 leaderboard_run_ids[run_index] = rid
             # --max-trials truncates the trial list so the capped remainder
