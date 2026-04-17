@@ -1302,3 +1302,43 @@ def test_harmony_constrain_function_rejects_unknown_tool() -> None:
     assert "<|message|>" not in body
     assert "<|constrain|>" not in body
     assert body == '{"content":"hi"}'
+
+
+# ── bare-value salvage ─────────────────────────────────────────────────
+
+
+def test_salvage_bare_numeric_value() -> None:
+    """Model emits '780' as a raw answer — synthesize report_completion."""
+    ns = _try_salvage_from_content("780")
+    assert ns is not None
+    assert ns.function.tool == "report_completion"
+    assert "780" in ns.function.message
+
+
+def test_salvage_bare_name_value() -> None:
+    ns = _try_salvage_from_content("Tobias")
+    assert ns is not None
+    assert ns.function.tool == "report_completion"
+    assert "Tobias" in ns.function.message
+
+
+def test_salvage_bare_date_value() -> None:
+    ns = _try_salvage_from_content("08/16/2019")
+    assert ns is not None
+    assert ns.function.tool == "report_completion"
+    assert "08/16/2019" in ns.function.message
+
+
+def test_salvage_does_not_fire_on_long_prose() -> None:
+    """Long prose is not a bare value — let critique handle it."""
+    ns = _try_salvage_from_content("I'm not sure what to do here. " * 20)
+    assert ns is None
+
+
+def test_salvage_bare_value_not_triggered_when_json_present() -> None:
+    """Content with braces should go through the JSON path, not bare-value."""
+    content = '{"name": "read", "arguments": {"path": "x.md"}}'
+    ns = _try_salvage_from_content(content)
+    assert ns is not None
+    # Should be salvaged as a read tool call, not report_completion
+    assert ns.function.tool == "read"

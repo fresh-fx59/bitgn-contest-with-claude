@@ -530,6 +530,26 @@ def _try_salvage_from_content(content: str) -> NextStep | None:
     Returns the parsed ``NextStep`` on success, ``None`` otherwise.
     """
     harmony_tool, body = _strip_harmony(content)
+
+    # Bare-value reply: short content with no JSON braces and few words.
+    # Local models sometimes emit a raw answer ("780", "Tobias") instead of
+    # a tool call.  Synthesize report_completion so the answer isn't lost.
+    # Guard: ≤80 chars and ≤5 words — keeps prose/confusion sentences out.
+    stripped = body.strip()
+    if (stripped and "{" not in stripped
+            and len(stripped) <= 80 and len(stripped.split()) <= 5):
+        try:
+            return _build_next_step("report_completion", {
+                "message": stripped,
+                "outcome": "OUTCOME_OK",
+                "outcome_justification": "bare-value salvage",
+                "rulebook_notes": "—",
+                "grounding_refs": [],
+                "completed_steps_laconic": [],
+            })
+        except ValidationError:
+            pass  # fall through to JSON extraction
+
     obj = _extract_first_json_object(body)
     if obj is None:
         return None
