@@ -38,17 +38,22 @@ class _SlowBackend(Backend):
         finally:
             with self.lock:
                 self.concurrent -= 1
-        # Return a terminal step so the agent loop exits after one call
+        # Return a terminal step so the agent loop exits after one call.
+        # Use DENIED_SECURITY to bypass R0_MIN_EXPLORE — this test is
+        # about concurrency, not terminal validation.
         return NextStepResult(
-            parsed=_mk_step({
-                "tool": "report_completion",
-                "message": "done",
-                "grounding_refs": ["AGENTS.md"],
-                "rulebook_notes": "n",
-                "outcome_justification": "done",
-                "completed_steps_laconic": ["done"],
-                "outcome": "OUTCOME_OK",
-            }),
+            parsed=_mk_step(
+                {
+                    "tool": "report_completion",
+                    "message": "denied",
+                    "grounding_refs": [],
+                    "rulebook_notes": "n",
+                    "outcome_justification": "security",
+                    "completed_steps_laconic": ["checked"],
+                    "outcome": "OUTCOME_DENIED_SECURITY",
+                },
+                outcome_leaning="OUTCOME_DENIED_SECURITY",
+            ),
             prompt_tokens=0,
             completion_tokens=0,
             reasoning_tokens=0,

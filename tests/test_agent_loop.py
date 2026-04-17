@@ -90,10 +90,14 @@ def _fake_prepass(session: Session) -> None:
     session.seen_refs.add("AGENTS.md")
 
 
+def _filler_reads(n: int = 3) -> list[NextStepResult]:
+    """Return N read-step results — pads scripted backends past R0_MIN_EXPLORE."""
+    return [_wrap(_mk_step({"tool": "read", "path": "AGENTS.md"})) for _ in range(n)]
+
+
 def test_agent_loop_happy_path_read_then_report(tmp_path: Path) -> None:
     backend = _ScriptedBackend(
-        [
-            _wrap(_mk_step({"tool": "read", "path": "AGENTS.md"})),
+        _filler_reads(3) + [
             _wrap(_mk_step(
                 {
                     "tool": "report_completion",
@@ -131,7 +135,7 @@ def test_agent_loop_happy_path_read_then_report(tmp_path: Path) -> None:
 
 def test_agent_loop_enforcer_rejects_fabricated_ref_then_retries(tmp_path: Path) -> None:
     backend = _ScriptedBackend(
-        [
+        _filler_reads(3) + [
             _wrap(_mk_step(
                 {
                     "tool": "report_completion",
@@ -176,7 +180,7 @@ def test_agent_loop_enforcer_rejects_fabricated_ref_then_retries(tmp_path: Path)
     assert result.terminated_by == "report_completion"
     assert result.reported == "OUTCOME_OK"
     assert result.enforcer_bypassed is False
-    assert backend.calls == 2  # one rejection + one accepted retry
+    assert backend.calls == 5  # 3 filler reads + one rejected terminal + one accepted retry
     adapter.submit_terminal.assert_called_once()
     writer.close()
 
@@ -250,19 +254,21 @@ class _FlakyBackend(Backend):
 def test_agent_loop_retries_on_transient_backend_error(tmp_path: Path, monkeypatch) -> None:
     # Replace time.sleep so tests stay fast.
     monkeypatch.setattr("bitgn_contest_agent.agent.time.sleep", lambda s: None)
+    # Use OUTCOME_DENIED_SECURITY to bypass R0_MIN_EXPLORE — this test
+    # is about transient-error retry, not terminal validation.
     backend = _FlakyBackend(
         _mk_step(
             {
                 "tool": "report_completion",
-                "message": "done",
-                "grounding_refs": ["AGENTS.md"],
+                "message": "denied",
+                "grounding_refs": [],
                 "rulebook_notes": "n",
-                "outcome_justification": "read",
-                "completed_steps_laconic": ["read AGENTS.md"],
-                "outcome": "OUTCOME_OK",
+                "outcome_justification": "security",
+                "completed_steps_laconic": ["checked"],
+                "outcome": "OUTCOME_DENIED_SECURITY",
             },
-            observation="task complete",
-            outcome_leaning="OUTCOME_OK",
+            observation="security concern",
+            outcome_leaning="OUTCOME_DENIED_SECURITY",
         ),
         raise_times=2,
     )
@@ -326,9 +332,11 @@ def test_agent_loop_writes_real_tokens_into_trace_and_totals(tmp_path: Path, mon
         observation="task complete",
         outcome_leaning="OUTCOME_OK",
     )
-    backend = _ScriptedBackend([
-        NextStepResult(parsed=report_step, prompt_tokens=137, completion_tokens=42, reasoning_tokens=9),
-    ])
+    backend = _ScriptedBackend(
+        _filler_reads(3) + [
+            NextStepResult(parsed=report_step, prompt_tokens=137, completion_tokens=42, reasoning_tokens=9),
+        ]
+    )
     adapter = _mk_adapter_mock()
     adapter.run_prepass.side_effect = lambda *, session, trace_writer: _fake_prepass(session)
     writer = _mk_writer(tmp_path)
@@ -353,7 +361,8 @@ def test_agent_loop_writes_real_tokens_into_trace_and_totals(tmp_path: Path, mon
     records = [json.loads(line) for line in trace_path.read_text().splitlines()]
     step_records = [r for r in records if r.get("kind") == "step"]
     assert step_records, "no step record written"
-    llm = step_records[0]["llm"]
+    # The report_completion step is the last one (filler reads precede it).
+    llm = step_records[-1]["llm"]
     assert llm["prompt_tokens"] == 137
     assert llm["completion_tokens"] == 42
     assert llm["reasoning_tokens"] == 9
