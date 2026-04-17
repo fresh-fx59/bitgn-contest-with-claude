@@ -22,12 +22,14 @@ from __future__ import annotations
 import json as _json
 import logging
 import re as _re
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeVar
 
 import httpx
 import openai
 from openai import OpenAI
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
+
+_T = TypeVar("_T", bound=BaseModel)
 
 _LOG = logging.getLogger(__name__)
 
@@ -554,6 +556,16 @@ def _try_salvage_from_content(content: str) -> NextStep | None:
             for key, val in func.items():
                 if key != "tool":
                     merged[key] = val
+            # Local models routinely emit empty strings for NonEmptyStr
+            # fields (rulebook_notes, outcome_justification) when they mean
+            # "nothing applicable". Strict schema validation would reject,
+            # losing an otherwise-valid terminal. Inject a placeholder so
+            # salvage succeeds — the agent's answer is what matters.
+            for placeholder_field in (
+                "rulebook_notes", "outcome_justification", "message",
+            ):
+                if merged.get(placeholder_field) == "":
+                    merged[placeholder_field] = "—"
             try:
                 return _build_next_step(tool_name, merged)
             except ValidationError:
@@ -830,3 +842,42 @@ class OpenAIToolCallingBackend(Backend):
             reasoning=reasoning_text,
             tool_calls=tool_calls_raw,
         )
+
+    def call_structured(
+        self,
+        prompt: str,
+        response_schema: type[_T],
+        *,
+        timeout_sec: float = 30.0,
+    ) -> _T:
+        """One-shot structured call for preflight/classifier tools.
+
+        Uses ``beta.chat.completions.parse`` with ``response_format=<schema>``
+        — no tools, no tool_choice. LM Studio + gpt-oss-20b supports JSON
+        Schema via this path. On parse-returns-None (LM Studio sometimes
+        drops ``parsed`` even when content is valid JSON), fall back to
+        manual ``model_validate_json`` on the raw content.
+        """
+        payload = [{"role": "user", "content": prompt}]
+        try:
+            completion = self._client.beta.chat.completions.parse(
+                model=self._model,
+                messages=payload,
+                response_format=response_schema,
+                timeout=timeout_sec,
+                extra_body={"reasoning": {"effort": self._reasoning_effort}},
+            )
+            parsed = completion.choices[0].message.parsed
+            if parsed is not None:
+                return parsed
+            raw = completion.choices[0].message.content or ""
+            return response_schema.model_validate_json(raw)
+        except (openai.RateLimitError, openai.APITimeoutError,
+                openai.APIConnectionError, openai.InternalServerError,
+                httpx.ReadTimeout) as exc:
+            raise TransientBackendError(str(exc)) from exc
+        except openai.BadRequestError as exc:
+            msg = str(exc).lower()
+            if "model reloaded" in msg or "model has crashed" in msg:
+                raise TransientBackendError(str(exc)) from exc
+            raise
