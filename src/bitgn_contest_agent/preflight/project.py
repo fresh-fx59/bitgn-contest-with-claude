@@ -7,9 +7,14 @@ Handles both layouts:
         project name is conveyed by the `# Heading`, `alias:` field,
         and/or the slug itself (no `project:` key, no `start_date:`
         key — start date comes from the slug prefix).
+
+When no exact or substring match is found, falls back to a lightweight
+LLM call (via the shared classifier module) to disambiguate the query
+against the list of known project names.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +23,8 @@ from bitgn_contest_agent.preflight.canonicalize import normalize_name
 from bitgn_contest_agent.preflight.response import build_response
 from bitgn_contest_agent.preflight.schema import parse_record_metadata
 from bitgn_contest_agent.schemas import Req_PreflightProject
+
+_LOG = logging.getLogger(__name__)
 
 
 def _extract_heading(text: str) -> str:
@@ -56,6 +63,41 @@ def _match(query_norm: str, candidate: str) -> bool:
         return False
     c = normalize_name(candidate)
     return c == query_norm or query_norm in c or c in query_norm
+
+
+def _disambiguate_via_llm(query: str, candidates: list[str]) -> str | None:
+    """Ask the classifier LLM to pick the best project name from
+    ``candidates`` given a possibly-informal ``query``.
+
+    Returns the chosen candidate string or None on failure. Never
+    raises — failures degrade to no-match (the agent's manual search
+    takes over).
+    """
+    if not candidates:
+        return None
+    numbered = "\n".join(f"  {i+1}. {c}" for i, c in enumerate(candidates))
+    system = (
+        "You match an informal project name to one of the canonical "
+        "project names listed below.  Return ONLY a JSON object:\n"
+        '  {"match": "<exact canonical name from the list>", '
+        '"confidence": <0.0-1.0>}\n'
+        "If none of the projects is a plausible match, return "
+        '{"match": null, "confidence": 0.0}.\n'
+        "No prose. No markdown fences."
+    )
+    user = f"Query: {query}\n\nProjects:\n{numbered}"
+    try:
+        from bitgn_contest_agent import classifier
+        raw = classifier.classify(system=system, user=user)
+        if not isinstance(raw, dict):
+            return None
+        match = raw.get("match")
+        conf = float(raw.get("confidence", 0))
+        if match and conf >= 0.5 and match in candidates:
+            return match
+    except Exception:  # noqa: BLE001 — never crash the preflight
+        _LOG.debug("LLM disambiguation failed for query=%r", query, exc_info=True)
+    return None
 
 
 def _find_project(projects_dir: Path, query: str) -> dict[str, Any] | None:
@@ -114,6 +156,22 @@ def run_project_from_fs(
     return {"project": proj, "involved_entities": []}
 
 
+def _record_to_result(
+    content: str, slug: str, file_path: str, md: dict[str, str],
+) -> dict[str, Any]:
+    """Build the result dict for a matched project record."""
+    heading = _extract_heading(content)
+    slug_date, slug_title = _slug_parts(slug)
+    name = md.get("project") or heading or slug_title
+    return {
+        "name": name,
+        "start_date": md.get("start_date") or slug_date,
+        "members": md.get("members") or md.get("linked_entities", ""),
+        "file": file_path,
+        "frontmatter": md,
+    }
+
+
 def _match_in_file(
     client: Any, projects_root: str, slug: str, file_path: str, content: str, q_norm: str,
 ) -> dict[str, Any] | None:
@@ -138,6 +196,10 @@ def run_preflight_project(client: Any, req: Req_PreflightProject) -> ToolResult:
     try:
         q_norm = normalize_name(req.query)
         found: dict[str, Any] | None = None
+        # all_candidates: list of (display_name, content, slug, file_path, md)
+        # populated during scanning for Phase 3 LLM fallback.
+        all_candidates: list[tuple[str, str, str, str, dict[str, str]]] = []
+
         lresp = client.list(pcm_pb2.ListRequest(name=req.projects_root))
         # Phase 1: flat `.md` files directly under projects_root (DEV).
         for e in lresp.entries:
@@ -151,12 +213,19 @@ def run_preflight_project(client: Any, req: Req_PreflightProject) -> ToolResult:
                 rr = client.read(pcm_pb2.ReadRequest(path=fp))
             except Exception:
                 continue
+            slug = e.name.rsplit(".", 1)[0]
             m = _match_in_file(
-                client, req.projects_root, e.name.rsplit(".", 1)[0], fp, rr.content, q_norm,
+                client, req.projects_root, slug, fp, rr.content, q_norm,
             )
             if m:
                 found = m
                 break
+            # Collect as candidate for Phase 3.
+            md = parse_record_metadata(rr.content)
+            heading = _extract_heading(rr.content)
+            display = md.get("project") or heading or slug.replace("_", " ")
+            all_candidates.append((display, rr.content, slug, fp, md))
+
         # Phase 2: nested `<slug>/README.(MD|md)` (PROD).
         if found is None:
             for e in lresp.entries:
@@ -175,10 +244,25 @@ def run_preflight_project(client: Any, req: Req_PreflightProject) -> ToolResult:
                     if m:
                         found = m
                         break
-                    # Found a readable README but didn't match — skip this subdir.
-                    break
+                    # Collect as candidate for Phase 3.
+                    md = parse_record_metadata(rr.content)
+                    heading = _extract_heading(rr.content)
+                    display = md.get("project") or heading or slug.replace("_", " ")
+                    all_candidates.append((display, rr.content, slug, fp, md))
+                    break  # only one README per subdir
                 if found is not None:
                     break
+
+        # Phase 3: LLM disambiguation when exact/substring match missed.
+        if found is None and all_candidates:
+            names = [c[0] for c in all_candidates]
+            chosen = _disambiguate_via_llm(req.query, names)
+            if chosen:
+                for display, content, slug, fp, md in all_candidates:
+                    if display == chosen:
+                        found = _record_to_result(content, slug, fp, md)
+                        break
+
         data = {"project": found, "involved_entities": []}
     except Exception as exc:
         return ToolResult(

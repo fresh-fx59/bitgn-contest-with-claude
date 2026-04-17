@@ -59,3 +59,25 @@ class TestFinanceLookupRouting:
         router = load_router(skills_dir=SKILLS_DIR)
         decision = router.route("Handle the next inbox item.")
         assert decision.skill_name != "finance-lookup"
+
+    def test_project_start_date_not_routed_to_finance(self) -> None:
+        """'start date for Northstar Ledger' must NOT hit finance-lookup
+        even though 'Ledger' sounds financial."""
+        router = load_router(skills_dir=SKILLS_DIR)
+        decision = router.route(
+            "Need the start date for Northstar Ledger. Reply with the date in MM/DD/YYYY format only."
+        )
+        assert decision.skill_name == "project-involvement"
+        assert decision.source == "regex"
+
+    def test_project_start_date_variants_route_correctly(self) -> None:
+        router = load_router(skills_dir=SKILLS_DIR)
+        for task in [
+            "What is the start date of the project the sci-fi reading lane?",
+            "Give me the start date for the project House Mesh.",
+            "Need the start date for the home automation cleanup.",
+        ]:
+            decision = router.route(task)
+            assert decision.skill_name == "project-involvement", (
+                f"'{task}' routed to {decision.skill_name}, expected project-involvement"
+            )

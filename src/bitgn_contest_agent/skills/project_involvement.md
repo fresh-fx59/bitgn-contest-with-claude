@@ -1,10 +1,12 @@
 ---
 name: project-involvement
-description: Strategy for finding all projects an entity participates in
+description: Strategy for finding project attributes or membership
 type: rigid
 category: project_involvement
 matcher_patterns:
-classifier_hint: "Tasks asking which projects a person or entity is involved in, or project participation queries"
+  - '(?i)start\s+date\b.*\b(project|for\s+(?:the\s+)?(?:project\s+)?\w)'
+  - '(?i)\bproject\b.*\bstart\s+date\b'
+classifier_hint: "Tasks asking about project attributes (start date, members, status), which projects a person is involved in, or any project-related queries — even if the project name sounds financial or like another domain"
 preflight: preflight_project
 preflight_query_field: query
 ---
