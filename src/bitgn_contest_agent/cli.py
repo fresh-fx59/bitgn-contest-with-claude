@@ -16,7 +16,7 @@ import time
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 
 import threading as _threading
 
@@ -96,11 +96,64 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_ADAPTER_DRIVEN_ENV_VARS = (
+    "MAX_PARALLEL_TASKS",
+    "MAX_INFLIGHT_LLM",
+    "TASK_TIMEOUT_SEC",
+    "LLM_HTTP_TIMEOUT_SEC",
+    "AGENT_REASONING_EFFORT",
+)
+
+
+def _apply_adapter_profile(cfg: AgentConfig) -> AgentConfig:
+    """Override ``cfg`` fields with adapter profile defaults where the user
+    did not explicitly set the corresponding env var.
+
+    Precedence: env var (highest) > adapter profile > AgentConfig hard default.
+    Only runs when ``AGENT_TOOLCALLING=1`` (frontier path never consults the
+    registry). Unknown model raises ``ConfigError`` at CLI startup — fail-fast.
+    Logs one line per resolved tunable.
+    """
+    if os.environ.get("AGENT_TOOLCALLING", "").strip() not in {"1", "true", "True"}:
+        return cfg
+    from bitgn_contest_agent.backend.adapters import get_adapter
+
+    adapter = get_adapter(cfg.model)
+    profile = adapter.profile
+    overrides: dict = {}
+    sources: List[tuple[str, Any, str]] = []
+
+    def _pick(env_name: str, field: str, profile_value: Any) -> None:
+        if os.environ.get(env_name):
+            sources.append((field, getattr(cfg, field), "env"))
+            return
+        overrides[field] = profile_value
+        sources.append((field, profile_value, "adapter"))
+
+    _pick("MAX_PARALLEL_TASKS", "max_parallel_tasks", profile.max_parallel_tasks)
+    _pick("MAX_INFLIGHT_LLM", "max_inflight_llm", profile.max_inflight_llm)
+    _pick("TASK_TIMEOUT_SEC", "task_timeout_sec", profile.task_timeout_sec)
+    _pick("LLM_HTTP_TIMEOUT_SEC", "llm_http_timeout_sec", profile.llm_http_timeout_sec)
+    _pick("AGENT_REASONING_EFFORT", "reasoning_effort", profile.reasoning_effort)
+
+    logger = logging.getLogger(__name__)
+    logger.info(
+        "[ARCH:CONFIG] resolved adapter=%s model=%s",
+        type(adapter).__name__,
+        cfg.model,
+    )
+    for field, value, source in sources:
+        logger.info("  %s=%s (source=%s)", field, value, source)
+
+    return dataclasses.replace(cfg, **overrides) if overrides else cfg
+
+
 def _resolve_config(args: argparse.Namespace) -> AgentConfig:
     # PLAN DEVIATION: plan uses cfg.__dict__ but AgentConfig is
     # frozen=True, slots=True — slotted dataclasses have no __dict__.
     # dataclasses.replace() is the idiomatic way to override fields.
     cfg = load_from_env()
+    cfg = _apply_adapter_profile(cfg)
     overrides: dict = {}
     if getattr(args, "benchmark", None):
         overrides["benchmark"] = args.benchmark

@@ -643,6 +643,7 @@ class OpenAIToolCallingBackend(Backend):
         client: OpenAI,
         model: str,
         reasoning_effort: str,
+        adapter: Optional["Any"] = None,
     ) -> None:
         self._client = client
         self._model = model
@@ -653,6 +654,14 @@ class OpenAIToolCallingBackend(Backend):
         # the agent lifecycle builds a fresh backend per task so this
         # does NOT leak across tasks.
         self._consecutive_salvage_misses: int = 0
+        # Model adapter drives request shaping and response extraction.
+        # Default falls back to the legacy gpt-oss full-chain salvage so
+        # callers that don't inject an adapter (tests, direct ctor users)
+        # keep working byte-identical to the pre-adapter backend.
+        if adapter is None:
+            from bitgn_contest_agent.backend.adapters.gpt_oss import GptOssAdapter
+            adapter = GptOssAdapter()
+        self._adapter = adapter
 
     @classmethod
     def from_config(
@@ -662,11 +671,15 @@ class OpenAIToolCallingBackend(Backend):
         model: str,
         reasoning_effort: str,
     ) -> "OpenAIToolCallingBackend":
+        from bitgn_contest_agent.backend.adapters import get_adapter
+
         client = OpenAI(base_url=base_url, api_key=api_key)
+        adapter = get_adapter(model)
         return cls(
             client=client,
             model=model,
             reasoning_effort=reasoning_effort,
+            adapter=adapter,
         )
 
     def next_step(
@@ -751,12 +764,12 @@ class OpenAIToolCallingBackend(Backend):
         reasoning_tokens = getattr(details, "reasoning_tokens", 0) or 0
 
         if not tool_calls:
-            # LM Studio (and similar local servers) do not always honor
-            # tool_choice="required" — small models may emit the OpenAI
-            # tool shape {"name","arguments"} as free-text content, or
-            # even a NextStep-like JSON blob. Try to salvage either shape
-            # before giving up with a critique.
-            salvaged = _try_salvage_from_content(content)
+            # LM Studio does not always honor ``tool_choice="required"``.
+            # Delegate content-based fallback to the adapter; adapters that
+            # know their model's content-only shapes will salvage (gpt-oss,
+            # lfm2). Adapters that know salvage is unsafe (glm: chat-template
+            # leakage) return None and the critique/retry loop handles it.
+            salvaged = self._adapter.extract_next_step(choice.message)
             if salvaged is not None:
                 parsed = salvaged
                 # Successful salvage resets the circuit breaker.
@@ -834,10 +847,15 @@ class OpenAIToolCallingBackend(Backend):
                     ],
                 )
         else:
+            # Native tool_call present — adapter handles the standard
+            # extraction path. Distinguish malformed args (native call
+            # with broken JSON or schema mismatch) from the no-tool_calls
+            # salvage branch above so the circuit breaker only counts
+            # actual salvage misses.
             call = tool_calls[0]
             raw_args = call.function.arguments or "{}"
             try:
-                args = _json.loads(raw_args)
+                _json.loads(raw_args)
             except _json.JSONDecodeError as exc:
                 raise ValidationError.from_exception_data(
                     "NextStep",
@@ -850,7 +868,24 @@ class OpenAIToolCallingBackend(Backend):
                         }
                     ],
                 )
-            parsed = _build_next_step(call.function.name, args)
+            parsed = self._adapter.extract_next_step(choice.message)
+            if parsed is None:
+                # Tool_calls were present but the adapter refused — typically
+                # schema validation failure on the tool's own parameters.
+                # Surface as ValidationError so the agent gets a critique.
+                raise ValidationError.from_exception_data(
+                    "NextStep",
+                    [
+                        {
+                            "type": "value_error",
+                            "loc": ("function",),
+                            "input": raw_args[:200],
+                            "ctx": {"error": ValueError(
+                                f"tool {call.function.name!r} args failed schema validation"
+                            )},
+                        }
+                    ],
+                )
             # Successful native tool_call resets the circuit breaker.
             self._consecutive_salvage_misses = 0
 
