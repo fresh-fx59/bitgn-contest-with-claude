@@ -65,24 +65,32 @@ def _match(query_norm: str, candidate: str) -> bool:
     return c == query_norm or query_norm in c or c in query_norm
 
 
-def _disambiguate_via_llm(query: str, candidates: list[str]) -> str | None:
+_HIGH_CONFIDENCE = 0.85
+
+
+def _disambiguate_via_llm(
+    query: str, candidates: list[str],
+) -> tuple[str | None, list[str]]:
     """Ask the classifier LLM to pick the best project name from
     ``candidates`` given a possibly-informal ``query``.
 
-    Returns the chosen candidate string or None on failure. Never
-    raises — failures degrade to no-match (the agent's manual search
-    takes over).
+    Returns ``(chosen, runner_ups)`` where *chosen* is the top pick
+    (or None) and *runner_ups* are additional plausible matches the
+    agent should also read when confidence is below ``_HIGH_CONFIDENCE``.
     """
     if not candidates:
-        return None
+        return None, []
     numbered = "\n".join(f"  {i+1}. {c}" for i, c in enumerate(candidates))
     system = (
         "You match an informal project name to one of the canonical "
         "project names listed below.  Return ONLY a JSON object:\n"
         '  {"match": "<exact canonical name from the list>", '
-        '"confidence": <0.0-1.0>}\n'
+        '"confidence": <0.0-1.0>, '
+        '"runner_ups": ["<other plausible names>"]}\n'
+        "runner_ups should include any project whose name partially "
+        "overlaps with the query or could be confused with the match.\n"
         "If none of the projects is a plausible match, return "
-        '{"match": null, "confidence": 0.0}.\n'
+        '{"match": null, "confidence": 0.0, "runner_ups": []}.\n'
         "No prose. No markdown fences."
     )
     user = f"Query: {query}\n\nProjects:\n{numbered}"
@@ -90,14 +98,16 @@ def _disambiguate_via_llm(query: str, candidates: list[str]) -> str | None:
         from bitgn_contest_agent import classifier
         raw = classifier.classify(system=system, user=user)
         if not isinstance(raw, dict):
-            return None
+            return None, []
         match = raw.get("match")
         conf = float(raw.get("confidence", 0))
+        runner_ups_raw = raw.get("runner_ups") or []
+        runner_ups = [r for r in runner_ups_raw if r in candidates and r != match]
         if match and conf >= 0.5 and match in candidates:
-            return match
+            return match, runner_ups
     except Exception:  # noqa: BLE001 — never crash the preflight
         _LOG.debug("LLM disambiguation failed for query=%r", query, exc_info=True)
-    return None
+    return None, []
 
 
 def _find_project(projects_dir: Path, query: str) -> dict[str, Any] | None:
@@ -254,16 +264,23 @@ def run_preflight_project(client: Any, req: Req_PreflightProject) -> ToolResult:
                     break
 
         # Phase 3: LLM disambiguation when exact/substring match missed.
+        also_read: list[dict[str, Any]] = []
         if found is None and all_candidates:
             names = [c[0] for c in all_candidates]
-            chosen = _disambiguate_via_llm(req.query, names)
+            chosen, runner_ups = _disambiguate_via_llm(req.query, names)
             if chosen:
                 for display, content, slug, fp, md in all_candidates:
                     if display == chosen:
                         found = _record_to_result(content, slug, fp, md)
-                        break
+                    elif display in runner_ups:
+                        also_read.append(_record_to_result(content, slug, fp, md))
 
-        data = {"project": found, "involved_entities": []}
+        data: dict[str, Any] = {
+            "project": found,
+            "involved_entities": [],
+        }
+        if also_read:
+            data["also_read"] = also_read
     except Exception as exc:
         return ToolResult(
             ok=False, content="", refs=tuple(),
@@ -273,8 +290,18 @@ def run_preflight_project(client: Any, req: Req_PreflightProject) -> ToolResult:
     if found:
         # Non-leaky summary — cite the file instead of the value so the
         # agent is pressured to read it (grader enforces attribution).
-        summary = f"Project '{found['name']}' found at {found['file']}."
-        refs: tuple[str, ...] = (found["file"],)
+        ref_list: list[str] = [found["file"]]
+        if also_read:
+            extra = ", ".join(a["file"] for a in also_read)
+            summary = (
+                f"Project '{found['name']}' found at {found['file']}. "
+                f"Disambiguation was ambiguous — also read these "
+                f"before answering: {extra}"
+            )
+            ref_list.extend(a["file"] for a in also_read)
+        else:
+            summary = f"Project '{found['name']}' found at {found['file']}."
+        refs: tuple[str, ...] = tuple(ref_list)
     else:
         summary = f"Query '{req.query}' → no project match."
         refs = ()

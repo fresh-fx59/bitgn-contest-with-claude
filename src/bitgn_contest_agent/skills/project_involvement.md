@@ -17,6 +17,8 @@ A `PREFLIGHT` user message above (auto-dispatched by the router for this task sh
 
 **CRITICAL grounding rule:** You MUST `read` every file you reference in your answer. If preflight identifies a project file (e.g. `40_projects/.../README.MD`), you MUST call `read` on that file before answering — even if the preflight already extracted the data you need. The grader checks that referenced files appear in your tool-call history.
 
+**Ambiguous matches:** When preflight returns `also_read` entries, the match was ambiguous. You MUST read ALL listed files (primary match AND also_read entries), compare them against the query, and pick the best match yourself. Do NOT blindly trust the primary match — read the alternatives and decide based on which project's description/purpose best fits the query.
+
 ## Search Strategy
 
 1. Resolve the entity reference to its canonical record in the workspace.

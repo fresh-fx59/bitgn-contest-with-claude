@@ -217,6 +217,15 @@ Entity resolution:
     finance records using those canonical identifiers. The person's
     display name rarely appears verbatim in financial records;
     the canonical identifier is the reliable lookup key.
+  - Identity vs. relationship fields: an entity's `name` or `alias`
+    is its identity. A `relationship` field (e.g. `relationship:
+    lab_server`) describes its ROLE, not its name. When the task
+    asks about "the lab server" by name, an entity whose
+    `relationship` field mentions "lab_server" is NOT an identity
+    match — the entity's name is "Foundry", not "lab server". If
+    no entity or project has the queried term as its actual name or
+    alias, use OUTCOME_NONE_CLARIFICATION. Proximity on a metadata
+    field is never a substitute for an exact name match.
 
 Unsupported-capability discipline:
   - Do NOT create workaround artifacts (reminders, follow-up tasks,
