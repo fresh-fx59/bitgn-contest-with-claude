@@ -76,7 +76,8 @@ def parse_record_metadata(text: str) -> dict[str, str]:
     {} on unknown shapes — callers treat empty as "no classifiable
     metadata" (fail-safe).
 
-    Scan order: YAML → bullet list → ASCII table. First non-empty wins.
+    Scan order: YAML → bullet list → ASCII table → heading heuristic.
+    First non-empty wins.
     """
     yaml_md = _parse_frontmatter_yaml(text)
     if yaml_md:
@@ -84,7 +85,28 @@ def parse_record_metadata(text: str) -> dict[str, str]:
     bullet_md = _parse_bullet_list(text)
     if bullet_md:
         return bullet_md
-    return _parse_ascii_table(text)
+    table_md = _parse_ascii_table(text)
+    if table_md:
+        return table_md
+    return _infer_from_heading(text)
+
+
+_HEADING_RE = re.compile(r"^#\s+(.+)", re.MULTILINE)
+
+
+def _infer_from_heading(text: str) -> dict[str, str]:
+    """Last-resort heuristic: extract the H1 heading and infer a
+    record_type from keywords. Covers PROD inbox items that are
+    plain markdown with no structured metadata (e.g. "# Next inbox
+    item\\n\\nPlease handle this request: ...").
+    """
+    m = _HEADING_RE.search(text[:500])
+    if not m:
+        return {}
+    heading = m.group(1).strip().lower()
+    if "inbox" in heading:
+        return {"_heading": m.group(1).strip(), "record_type": "inbox"}
+    return {}
 
 
 def _parse_frontmatter_yaml(text: str) -> dict[str, str]:
