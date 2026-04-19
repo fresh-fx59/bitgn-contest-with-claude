@@ -217,9 +217,127 @@ def _verify_against_expected(
     return issues
 
 
+def _run_variant_catalogue(
+    catalogue_path: str,
+    workspace_path: str,
+    task_id: str | None = None,
+    template: str | None = None,
+    difficulty: str | None = None,
+    quiet: bool = False,
+) -> None:
+    """Run generated variant catalogue against a workspace snapshot.
+
+    Validates routing accuracy and preflight data quality for each variant.
+    """
+    catalogue = json.load(open(catalogue_path))
+    cases = catalogue["test_cases"]
+
+    # Filters
+    if task_id:
+        cases = [c for c in cases if c["task_id"] == task_id]
+    if template:
+        cases = [c for c in cases if c.get("template") == template]
+    if difficulty:
+        cases = [c for c in cases if c.get("difficulty") == difficulty]
+
+    print(f"Testing {len(cases)} variants from {Path(catalogue_path).name}")
+    if template:
+        print(f"  template filter: {template}")
+    if difficulty:
+        print(f"  difficulty filter: {difficulty}")
+    print()
+
+    # Expected routing map: template → expected skill
+    TEMPLATE_TO_SKILL = {
+        "which_projects": "project-involvement",
+        "active_project_count": "project-involvement",
+        "birthday": "entity-date",
+        "important_date": "entity-date",
+        "next_birthday": "entity-date",
+        "project_start_date": "project-date",
+        "finance_line_item": "finance-query",
+        "finance_counterparty": "finance-query",
+        "finance_line_counterparty": "finance-query",
+    }
+
+    stats = {
+        "total": 0,
+        "routing_correct": 0,
+        "routing_wrong": 0,
+        "routing_errors": {},  # skill_expected → {skill_got → count}
+        "by_template": {},
+        "by_difficulty": {},
+    }
+
+    for tc in cases:
+        tid = tc["task_id"]
+        intent = tc["intent"]
+        tmpl = tc.get("template", "unknown")
+        diff = tc.get("difficulty", "unknown")
+        expected_skill = TEMPLATE_TO_SKILL.get(tmpl)
+
+        stats["total"] += 1
+        stats["by_template"].setdefault(tmpl, {"total": 0, "correct": 0})
+        stats["by_template"][tmpl]["total"] += 1
+        stats["by_difficulty"].setdefault(diff, {"total": 0, "correct": 0})
+        stats["by_difficulty"][diff]["total"] += 1
+
+        try:
+            result = run_preflight_pipeline(
+                workspace_path,
+                intent,
+                verbose=False,
+            )
+            actual_skill = result.get("routing", {}).get("skill_name")
+
+            if expected_skill and actual_skill == expected_skill:
+                stats["routing_correct"] += 1
+                stats["by_template"][tmpl]["correct"] += 1
+                stats["by_difficulty"][diff]["correct"] += 1
+                if not quiet:
+                    print(f"  {tid} [{diff}] OK  skill={actual_skill}")
+            elif expected_skill:
+                stats["routing_wrong"] += 1
+                stats["routing_errors"].setdefault(expected_skill, {})
+                stats["routing_errors"][expected_skill].setdefault(actual_skill, 0)
+                stats["routing_errors"][expected_skill][actual_skill] += 1
+                print(f"  {tid} [{diff}] MISROUTE  expected={expected_skill} got={actual_skill}")
+                print(f"    intent: {intent[:100]}")
+            else:
+                stats["routing_correct"] += 1
+                stats["by_template"][tmpl]["correct"] += 1
+                stats["by_difficulty"][diff]["correct"] += 1
+        except Exception as e:
+            print(f"  {tid} [{diff}] ERROR: {e}")
+
+    # Summary
+    total = stats["total"]
+    correct = stats["routing_correct"]
+    wrong = stats["routing_wrong"]
+    print(f"\n{'='*60}")
+    print(f"Routing accuracy: {correct}/{total} ({100*correct/total:.1f}%)")
+    print(f"  correct: {correct}, misrouted: {wrong}")
+
+    print(f"\nBy template:")
+    for tmpl, s in sorted(stats["by_template"].items()):
+        pct = 100 * s["correct"] / s["total"] if s["total"] else 0
+        print(f"  {tmpl}: {s['correct']}/{s['total']} ({pct:.0f}%)")
+
+    print(f"\nBy difficulty:")
+    for diff, s in sorted(stats["by_difficulty"].items()):
+        pct = 100 * s["correct"] / s["total"] if s["total"] else 0
+        print(f"  {diff}: {s['correct']}/{s['total']} ({pct:.0f}%)")
+
+    if stats["routing_errors"]:
+        print(f"\nMisroute details:")
+        for expected, misroutes in sorted(stats["routing_errors"].items()):
+            for got, count in sorted(misroutes.items(), key=lambda x: -x[1]):
+                print(f"  expected {expected} → got {got}: {count} cases")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Local preflight test runner")
-    parser.add_argument("--catalogue", help="Test case catalogue JSON")
+    parser.add_argument("--catalogue", help="Test case catalogue JSON (harvested or generated)")
     parser.add_argument("--task-id", help="Specific task ID to test")
     parser.add_argument("--all-with-snapshots", action="store_true",
                         help="Test all tasks with workspace snapshots")
@@ -228,6 +346,8 @@ def main() -> None:
     parser.add_argument("--context-date", help="Override context date (ISO format)")
     parser.add_argument("--preflight-only", action="store_true",
                         help="Only test preflight pipeline, no agent loop")
+    parser.add_argument("--template", help="Filter variants by template name")
+    parser.add_argument("--difficulty", help="Filter variants by difficulty (easy/medium/hard)")
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
 
@@ -246,6 +366,26 @@ def main() -> None:
         parser.error("--catalogue is required unless using --workspace + --instruction")
 
     catalogue = json.load(open(args.catalogue))
+
+    # Detect catalogue type: generated variants vs harvested traces
+    is_generated = catalogue.get("source") == "generated_variants"
+
+    if is_generated:
+        # Generated variant catalogue — requires workspace path
+        ws = args.workspace or catalogue.get("workspace_path")
+        if not ws:
+            parser.error("Generated variant catalogue requires --workspace")
+        _run_variant_catalogue(
+            args.catalogue,
+            ws,
+            task_id=args.task_id,
+            template=args.template,
+            difficulty=args.difficulty,
+            quiet=args.quiet,
+        )
+        return
+
+    # Harvested trace catalogue — original flow
     cases = catalogue["test_cases"]
 
     if args.task_id:
