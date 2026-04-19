@@ -58,9 +58,19 @@ def classify(*, system: str, user: str) -> Any:
 
     Max attempts controlled by ``router_config.classifier_max_attempts()``.
 
+    Escape hatch: ``BITGN_SKIP_CLASSIFIER=1`` raises immediately without
+    an HTTP call so the caller degrades to UNKNOWN. Needed when the
+    classifier model is a slow local LLM (e.g. GLM-4.7-Flash) because LM
+    Studio's MLX runtime does not cancel in-flight generation when the
+    client disconnects — a timed-out classifier call keeps running in
+    the background and queues every subsequent request behind it, even
+    though httpx already reported timeout.
+
     Raises:
         The last exception encountered if all attempts are exhausted.
     """
+    if os.environ.get("BITGN_SKIP_CLASSIFIER", "").strip() in {"1", "true", "True"}:
+        raise RuntimeError("classifier skipped via BITGN_SKIP_CLASSIFIER=1")
     max_attempts = router_config.classifier_max_attempts()
     client = _get_openai_client()
     model = router_config.classifier_model()
@@ -249,7 +259,11 @@ def _strip_markdown_fences(text: str) -> str:
 
 def _get_openai_client():  # pragma: no cover — thin factory, tested via patching
     from openai import OpenAI
+    # max_retries=0: an httpx timeout here should fail the classifier and
+    # degrade to UNKNOWN, not silently retry. SDK retries on local-LLM
+    # timeouts just queue another generation on LM Studio's busy slot.
     return OpenAI(
         base_url=os.environ.get("CLIPROXY_BASE_URL") or os.environ.get("OPENAI_BASE_URL"),
         api_key=os.environ.get("CLIPROXY_API_KEY") or os.environ.get("OPENAI_API_KEY", "sk-proxy"),
+        max_retries=0,
     )

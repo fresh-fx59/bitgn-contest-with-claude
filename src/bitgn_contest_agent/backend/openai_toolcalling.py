@@ -673,7 +673,14 @@ class OpenAIToolCallingBackend(Backend):
     ) -> "OpenAIToolCallingBackend":
         from bitgn_contest_agent.backend.adapters import get_adapter
 
-        client = OpenAI(base_url=base_url, api_key=api_key)
+        # max_retries=0: the OpenAI SDK's default (2) multiplies the
+        # per-request httpx timeout by 3x and, worse, each SDK retry
+        # queues another generation on LM Studio's single slot (MLX
+        # doesn't cancel in-flight gens when the client disconnects).
+        # Local slow models (GLM reasoning) would thrash; the agent
+        # loop's own backoff schedule handles transient errors at the
+        # correct layer.
+        client = OpenAI(base_url=base_url, api_key=api_key, max_retries=0)
         adapter = get_adapter(model)
         return cls(
             client=client,

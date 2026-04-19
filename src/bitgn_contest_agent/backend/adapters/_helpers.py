@@ -55,3 +55,53 @@ def try_bare_name_arguments(content: str) -> Optional[NextStep]:
         return _build_next_step(name, args)
     except ValidationError:
         return None
+
+
+def try_envelope(content: str) -> Optional[NextStep]:
+    """Parse the NextStep envelope shape from content body.
+
+    Shape: ``{"current_state": ..., "function": {"tool": ..., ...}, ...}``.
+    Observed on GLM-4.7-Flash when it declines ``tool_choice="required"``
+    and emits the structured envelope as free-text content instead.
+
+    Safe against chat-template leakage: requires a parseable JSON object
+    with a ``function.tool`` that matches a registered tool name. Empty-
+    string placeholder injection for ``rulebook_notes`` /
+    ``outcome_justification`` / ``message`` preserves the guard from the
+    pre-adapter envelope branch.
+
+    Falls back to envelope-terminal synthesis when the envelope has a
+    terminal ``outcome_leaning`` but no ``function`` key.
+    """
+    from bitgn_contest_agent.backend.openai_toolcalling import (
+        _ENVELOPE_FIELDS,
+        _VALID_TOOL_NAMES,
+        _build_next_step,
+        _extract_first_json_object,
+        _maybe_salvage_envelope_terminal,
+    )
+
+    if not content:
+        return None
+    obj = _extract_first_json_object(content)
+    if obj is None:
+        return None
+    if "function" in obj and isinstance(obj["function"], dict):
+        func = obj["function"]
+        tool_name = func.get("tool")
+        if tool_name in _VALID_TOOL_NAMES:
+            merged = {}
+            for key in _ENVELOPE_FIELDS:
+                if key in obj:
+                    merged[key] = obj[key]
+            for key, val in func.items():
+                if key != "tool":
+                    merged[key] = val
+            for placeholder in ("rulebook_notes", "outcome_justification", "message"):
+                if merged.get(placeholder) == "":
+                    merged[placeholder] = "—"
+            try:
+                return _build_next_step(tool_name, merged)
+            except ValidationError:
+                return None
+    return _maybe_salvage_envelope_terminal(obj)
