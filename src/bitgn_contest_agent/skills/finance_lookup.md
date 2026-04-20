@@ -9,6 +9,9 @@ matcher_patterns:
   - '(?i)total.*(invoice|receipt|bill).*ago'
   - '(?i)(invoice|receipt|bill).*charge.*total'
   - '(?i)(what was the total|total from).*\d+\s*days?\s*ago'
+  - '(?i)how much.*(money|did we|have we).*(make|earn|made|earned).*(service\s+line|service\s+project)'
+  - '(?i)(service\s+line|service\s+project).*(since|from|beginning)'
+classifier_hint: "Tasks asking about financial totals, service line revenue, how much money earned from a service, or any query about past charges, invoices, receipts, or bills"
 preflight: preflight_finance
 preflight_query_field: query
 ---
@@ -22,6 +25,31 @@ You are answering a question about a past financial transaction — a charge, in
 A `PREFLIGHT` user message above (auto-dispatched by the router for this task shape) contains the canonical narrowing — the matching record(s), entity canonicalization, or destination resolution. Treat it as ground truth and start from those references. Fall through to the strategy below only if preflight returned nothing usable or the question needs more than what was pre-fetched.
 
 **CRITICAL grounding rule:** You MUST `read` every file you reference in your answer or use for calculation. Preflight helps you *find* files faster, but the grader requires each referenced file to appear in your tool-call history. Never answer based solely on preflight summaries without reading the actual files.
+
+## Step 0.5: Service Line vs Project Name
+
+**CRITICAL distinction:** When the task mentions a "service line" or
+"service project", the queried string is an INVOICE LINE ITEM name —
+NOT a project name.
+
+- **Service line** = a line item description inside an invoice's Line
+  Items table (e.g. "operator workflow discovery sprint", "follow-up
+  findings memo"). Search for it inside invoice files, in the line
+  items section.
+- **Project name** = the `project` field in invoice frontmatter (e.g.
+  "Helios Workflow Sprint", "Northstar Ledger").
+
+These are DIFFERENT things. An invoice's `project` field identifies
+which project the invoice belongs to. The line items table lists the
+specific services delivered. A "service line" query asks about line
+items, NOT project names.
+
+**How to compute the answer for service-line queries:**
+1. Search all invoices for the exact line item name
+2. Filter by date (issued_on >= start date)
+3. Sum the `line_eur` values for matching line items — NOT the
+   invoice `total_eur`. Each invoice may have multiple line items;
+   only sum the lines that match the queried service name.
 
 ## Step 1: Anchor the Date
 

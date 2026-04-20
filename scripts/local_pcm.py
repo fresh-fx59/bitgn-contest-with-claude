@@ -55,7 +55,7 @@ class LocalPcmClient:
         workspace_root: str | Path,
         context_date: str | None = None,
     ):
-        self._root = Path(workspace_root)
+        self._root = Path(workspace_root).resolve()
         if not self._root.exists():
             raise FileNotFoundError(f"Workspace root not found: {self._root}")
         # Context date — defaults to today
@@ -95,7 +95,7 @@ class LocalPcmClient:
 
         entry = _walk(resolved)
         self.ops_log.append({"op": "tree", "root": root_path})
-        return _TreeResponse(entry=entry)
+        return _TreeResponse(root=entry)
 
     def read(self, req: Any) -> Any:
         """Emulate read RPC — returns file content."""
@@ -249,7 +249,9 @@ class LocalPcmClient:
 
 @dataclass
 class _TreeResponse:
-    entry: TreeEntry
+    # Field name matches protobuf TreeResponse.root so preflight tools
+    # that access tree_resp.root work without modification.
+    root: TreeEntry
 
 @dataclass
 class _ReadResponse:

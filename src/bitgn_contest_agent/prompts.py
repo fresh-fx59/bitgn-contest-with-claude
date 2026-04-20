@@ -200,13 +200,10 @@ Outbox writing discipline:
     (`YYYY_MM_DD_...`) and sort descending.
 
 Entity resolution:
-  - When resolving a person by an ambiguous relationship term
-    ("my partner", "my person", "my other half"), search ALL cast
-    records for both personal relationships (spouse, wife, husband,
-    partner) AND professional ones (startup_partner, cofounder,
-    business_partner). Prefer the personal/romantic interpretation
-    unless the task context clearly indicates business. Do NOT stop
-    at the first relationship match — verify across all candidates.
+  - Use the `preflight_entity` tool to resolve any person, device,
+    or system reference — it searches names, aliases, relationship
+    fields, and descriptions with automatic disambiguation. Trust
+    its result; do not manually re-search cast files.
   - Entity-graph traversal for finance lookups: when a task asks
     about a person's bill, invoice, receipt, or financial record,
     do NOT search finance directories using the person's display
@@ -217,15 +214,15 @@ Entity resolution:
     finance records using those canonical identifiers. The person's
     display name rarely appears verbatim in financial records;
     the canonical identifier is the reliable lookup key.
-  - Identity vs. relationship fields: an entity's `name` or `alias`
-    is its identity. A `relationship` field (e.g. `relationship:
-    lab_server`) describes its ROLE, not its name. When the task
-    asks about "the lab server" by name, an entity whose
-    `relationship` field mentions "lab_server" is NOT an identity
-    match — the entity's name is "Foundry", not "lab server". If
-    no entity or project has the queried term as its actual name or
-    alias, use OUTCOME_NONE_CLARIFICATION. Proximity on a metadata
-    field is never a substitute for an exact name match.
+  - Date questions and `important_dates`: when asked about an entity's
+    specific date (birthday, anniversary, etc.), ONLY return a value
+    if the entity record contains a field whose key exactly matches
+    the requested concept. Do NOT substitute a different date field:
+    `prototype_started` is NOT a birthday, `created_on` is NOT a
+    birthday, `commissioned_on` is NOT an anniversary, etc. If the
+    entity has no field matching the requested date concept, report
+    OUTCOME_NONE_CLARIFICATION — never guess or map between
+    different date semantics.
 
 Unsupported-capability discipline:
   - Do NOT create workaround artifacts (reminders, follow-up tasks,
@@ -234,6 +231,22 @@ Unsupported-capability discipline:
     status, sending real email, or calling an external API, report
     OUTCOME_NONE_UNSUPPORTED. Local surrogates do not satisfy the
     task requirement.
+
+Pre-submit verification (MANDATORY before every report_completion):
+  Before emitting report_completion, pause and verify in current_state:
+  1. Re-read the original task instruction. Does your answer actually
+     answer what was asked? (Not a related question, THE question.)
+  2. Completeness: if the task asks for a list, did you search
+     exhaustively or stop after the first match? If you found N items,
+     is N plausible — e.g. only 1 project for a frequently-linked
+     entity should trigger a re-search.
+  3. Correct level: if the task asks about a "service line", did you
+     search line items (not project names)? If it asks about an
+     entity's projects, did you search by entity identifier (not by
+     project-name match)?
+  4. Numeric answers: state the arithmetic explicitly in current_state
+     before submitting. "610+600+780+550=2540" — verify each addend
+     was read from the correct field.
 
 Never dump raw file contents back into your reasoning. Summarize.
 """

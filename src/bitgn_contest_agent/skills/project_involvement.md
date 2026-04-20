@@ -7,36 +7,66 @@ matcher_patterns:
   - '(?i)start\s+date\b.*\b(project|for\s+(?:the\s+)?(?:project\s+)?\w)'
   - '(?i)\bproject\b.*\bstart\s+date\b'
 classifier_hint: "Tasks asking about project attributes (start date, members, status), which projects a person is involved in, or any project-related queries — even if the project name sounds financial or like another domain"
-preflight: preflight_project
+preflight: preflight_entity
 preflight_query_field: query
 ---
 
-## Step 0: Pre-fetched context
+## Step 0: Classify the query
 
-A `PREFLIGHT` user message above (auto-dispatched by the router for this task shape) contains the canonical narrowing — the matching record(s), entity canonicalization, or destination resolution. Treat it as ground truth and start from those references. Fall through to the strategy below only if preflight returned nothing usable or the question needs more than what was pre-fetched.
+**Before using preflight data**, determine what the task is actually
+asking:
 
-**CRITICAL grounding rule:** You MUST `read` every file you reference in your answer. If preflight identifies a project file (e.g. `40_projects/.../README.MD`), you MUST call `read` on that file before answering — even if the preflight already extracted the data you need. The grader checks that referenced files appear in your tool-call history.
+- **"Which projects is X involved in?"** → This is an ENTITY→PROJECTS
+  query. X is a person, device, or system — NOT a project name.
+  **IGNORE preflight project matches entirely.** Preflight tries to
+  match X as a project name and will give you wrong project candidates.
+  Go directly to Step 1 (entity resolution).
 
-**Ambiguous matches:** When preflight returns `also_read` entries, the match was ambiguous. You MUST read ALL listed files (primary match AND also_read entries), compare them against the query, and pick the best match yourself. Do NOT blindly trust the primary match — read the alternatives and decide based on which project's description/purpose best fits the query.
+- **"What is the start date of project X?"** → This is a PROJECT
+  ATTRIBUTE query. Preflight project matches ARE useful here. Read the
+  matched file and extract the date.
 
-## Search Strategy
+- **Other project queries** → Use preflight data if it returned a
+  useful match; fall through to search strategy if not.
 
-1. Resolve the entity reference to its canonical record in the workspace.
-   If the reference is informal (nickname, role description, relationship
-   term), search cast/entity records to find the canonical name first.
+**CRITICAL grounding rule:** You MUST `read` every file you reference
+in your answer. The grader checks that referenced files appear in your
+tool-call history.
 
-2. From the canonical record, extract the entity's structured identifier
-   or alias (the filename stem or an explicit alias field).
+## Step 1: Entity Resolution (for "which projects" queries)
 
-3. Search project metadata for that identifier in linked-entity fields.
-   Use `search` with the entity identifier across the projects directory.
-   Do NOT search by name keywords in prose — names in prose produce false
-   positives and miss projects where the entity is referenced only by
-   structured alias.
+The subject of "which projects is X involved in" is ALWAYS an entity
+(person, device, system), never a project. If preflight returned an
+entity match, use it. Otherwise resolve manually:
 
-4. Read ALL matching project records to compile the complete list.
-   Do not stop at the first match.
+1. Search cast files by name, alias, and relationship field.
+2. **Compound descriptors** (e.g. "design partner"): split into
+   qualifier ("design") + relationship type ("partner"). Find all
+   entities whose relationship contains the type. If multiple match,
+   search invoice/project filenames for the qualifier — e.g.
+   `*_design_partner_*` in finance records disambiguates which entity
+   is the "design" partner.
 
-5. Return the complete list of project names. If zero projects are found
-   after exhaustive search by entity identifier, report
-   OUTCOME_NONE_CLARIFICATION.
+From the resolved entity, extract the `alias` field — this is the
+canonical identifier you will search projects with.
+
+## Step 2: Search Projects by Entity Identifier
+
+Once you have the canonical entity alias (e.g. `juniper`, `nina`):
+
+1. Use `search` with pattern `entity.{alias}` across the projects
+   directory. This finds ALL projects that link this entity.
+2. Do NOT search by name keywords in prose — structured `entity.X`
+   references are the reliable lookup key.
+3. Read EVERY matching project README to extract the exact project
+   title. Do not stop at the first match.
+
+## Step 3: Compile and Verify
+
+1. Collect ALL project titles from Step 2.
+2. **Verification check**: Does the count seem reasonable? If you found
+   only 1 project for an entity, consider whether you searched broadly
+   enough. Re-search if needed.
+3. Sort alphabetically and return the complete list.
+4. If zero projects found after exhaustive entity-identifier search,
+   report OUTCOME_NONE_CLARIFICATION.

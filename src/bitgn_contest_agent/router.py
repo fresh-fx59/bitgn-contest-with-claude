@@ -5,6 +5,10 @@ non-UNKNOWN hit the caller injects the matching bitgn skill body as a
 `role=user` message after the task text. Never breaks the main path:
 classifier failures, network errors, and malformed JSON all degrade
 to UNKNOWN.
+
+Non-English task instructions are normalised to English before tier-1
+regex matching via a cheap classifier LLM call, so regex patterns only
+need English variants.
 """
 from __future__ import annotations
 
@@ -38,6 +42,33 @@ _UNKNOWN = RoutingDecision(
     skill_name=None,
 )
 
+def _normalize_to_english(task_text: str) -> Optional[str]:
+    """Translate task text to English via a light LLM call.
+
+    Returns the English translation, or None if the call fails.
+    The caller decides when to invoke this (typically after tier-1
+    regex misses on the original text).
+    """
+    try:
+        result = classifier.classify(
+            system=(
+                "Translate the user's text to English. Return ONLY a JSON "
+                'object: {"english": "<translated text>"}\n'
+                "Preserve all proper names, numbers, quoted strings, and "
+                "technical terms exactly as they appear. If the text is "
+                "already in English, return it unchanged."
+            ),
+            user=task_text,
+        )
+        english = result.get("english", "")
+        if isinstance(english, str) and english.strip():
+            _LOG.info("normalised task text → %s", english[:120])
+            return english.strip()
+    except Exception as exc:  # noqa: BLE001
+        _LOG.warning("task text normalisation failed: %s", exc)
+
+    return None
+
 
 @dataclass
 class _CompiledSkill:
@@ -54,20 +85,14 @@ class Router:
             self._compiled.append(_CompiledSkill(skill=s, patterns=patterns))
             self._by_category[s.category] = s
 
-    def route(self, task_text: str) -> RoutingDecision:
-        if not router_config.router_enabled():
-            return _UNKNOWN
-        if not task_text:
-            return _UNKNOWN
-
-        # Tier 1 — regex matchers.
+    def _try_regex(self, text: str, task_text: str) -> Optional[RoutingDecision]:
+        """Try tier-1 regex matchers against *text*. Returns None on miss."""
         for c in self._compiled:
             for pat in c.patterns:
-                m = pat.search(task_text)
+                m = pat.search(text)
                 if m is None:
                     continue
                 extracted: Dict[str, str] = {}
-                # Named groups first; then positional groups as group_N.
                 for k, v in m.groupdict().items():
                     if v is not None:
                         extracted[k] = v
@@ -82,10 +107,33 @@ class Router:
                     skill_name=c.skill.name,
                     task_text=task_text,
                 )
+        return None
+
+    def route(self, task_text: str) -> RoutingDecision:
+        if not router_config.router_enabled():
+            return _UNKNOWN
+        if not task_text:
+            return _UNKNOWN
+
+        # Tier 1a — regex on original text (free, instant).
+        hit = self._try_regex(task_text, task_text)
+        if hit is not None:
+            return hit
+
+        # Tier 1b — regex miss: normalise to English and retry.
+        # This catches non-English tasks (Chinese, French, German, …)
+        # without needing language-specific regex patterns.
+        normalised = _normalize_to_english(task_text)
+        if normalised is not None and normalised != task_text:
+            hit = self._try_regex(normalised, task_text)
+            if hit is not None:
+                return hit
 
         # Tier 2 — classifier LLM (shared module).
+        # Uses normalised text if available for better classification.
         if not self._compiled:
             return _UNKNOWN
+        classifier_text = normalised or task_text
         skill_meta = [
             (c.skill.category, c.skill.classifier_hint or c.skill.description)
             for c in self._compiled
@@ -93,7 +141,7 @@ class Router:
         try:
             raw = classifier.classify(
                 system=_classifier_system_prompt(skill_meta),
-                user=task_text,
+                user=classifier_text,
             )
         except Exception as exc:  # noqa: BLE001 — router never breaks the main path
             _LOG.warning("classifier failed, degrading to UNKNOWN: %s", exc)
