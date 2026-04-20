@@ -33,6 +33,9 @@ class Session:
     )
     nudges_emitted: int = 0
     mutations: List[Tuple[str, str]] = field(default_factory=list)
+    # Attachment paths extracted from outbox writes — used by terminal R5
+    # to ensure every attachment was actually read before being cited.
+    outbox_attachments: set[str] = field(default_factory=set)
 
     def loop_nudge_needed(self, call: Tuple[str, ...]) -> bool:
         """Record a (tool, canonical_args) tuple; return True if the same

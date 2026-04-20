@@ -640,3 +640,61 @@ def test_r1_attempted_but_not_verified_absent_still_rejects() -> None:
     verdict = v.check_terminal(session, step)
     assert not verdict.ok
     assert any("grounding_ref" in r for r in verdict.reasons)
+
+
+# === R5: outbox attachment grounding ===
+
+def test_r5_rejects_unread_outbox_attachment() -> None:
+    """PROD t097 2026-04-20: agent attached 4 invoices but only read 1.
+    R5 forces agent to read every attached file before terminal."""
+    session = Session()
+    session.seen_refs.add("AGENTS.md")
+    session.seen_refs.add("50_finance/invoices/inv_0004.md")
+    session.outbox_attachments = {
+        "50_finance/invoices/inv_0001.md",
+        "50_finance/invoices/inv_0002.md",
+        "50_finance/invoices/inv_0003.md",
+        "50_finance/invoices/inv_0004.md",
+    }
+    step = _mk_terminal("OUTCOME_OK", ["AGENTS.md", "50_finance/invoices/inv_0004.md"])
+    v = StepValidator()
+    verdict = v.check_terminal(session, step)
+    assert not verdict.ok
+    # Should flag the 3 unread attachments
+    att_reasons = [r for r in verdict.reasons if "outbox attachment" in r]
+    assert len(att_reasons) == 3
+    assert any("inv_0001" in r for r in att_reasons)
+    assert any("inv_0002" in r for r in att_reasons)
+    assert any("inv_0003" in r for r in att_reasons)
+
+
+def test_r5_passes_when_all_attachments_read() -> None:
+    """R5 passes when agent has read every outbox attachment."""
+    session = Session()
+    session.seen_refs.update([
+        "AGENTS.md",
+        "50_finance/invoices/inv_0001.md",
+        "50_finance/invoices/inv_0002.md",
+        "50_finance/invoices/inv_0003.md",
+        "50_finance/invoices/inv_0004.md",
+    ])
+    session.outbox_attachments = {
+        "50_finance/invoices/inv_0001.md",
+        "50_finance/invoices/inv_0002.md",
+        "50_finance/invoices/inv_0003.md",
+        "50_finance/invoices/inv_0004.md",
+    }
+    step = _mk_terminal("OUTCOME_OK", list(session.seen_refs))
+    v = StepValidator()
+    verdict = v.check_terminal(session, step)
+    assert verdict.ok
+
+
+def test_r5_no_outbox_attachments_passes() -> None:
+    """R5 is a no-op when there are no outbox writes."""
+    session = Session()
+    session.seen_refs.add("AGENTS.md")
+    step = _mk_terminal("OUTCOME_OK", ["AGENTS.md"])
+    v = StepValidator()
+    verdict = v.check_terminal(session, step)
+    assert verdict.ok

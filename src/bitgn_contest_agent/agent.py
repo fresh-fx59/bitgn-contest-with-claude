@@ -88,6 +88,34 @@ def _record_read_attempt(
         session.verified_absent.add(path)
 
 
+def _extract_outbox_attachments(content: str, session: "Session") -> None:
+    """Parse YAML frontmatter from an outbox write and record attachment paths.
+
+    The terminal R5 rule rejects report_completion if any outbox attachment
+    was never read — forces the agent to ground every attachment it cites.
+    Defensive: silently ignores malformed YAML.
+    """
+    import yaml as _yaml
+
+    # Extract YAML frontmatter between --- delimiters.
+    if not content.startswith("---"):
+        return
+    end = content.find("\n---", 3)
+    if end == -1:
+        return
+    try:
+        fm = _yaml.safe_load(content[3:end])
+    except Exception:
+        return
+    if not isinstance(fm, dict):
+        return
+    attachments = fm.get("attachments")
+    if isinstance(attachments, list):
+        for path in attachments:
+            if isinstance(path, str) and path.strip():
+                session.outbox_attachments.add(path.strip())
+
+
 @dataclass(frozen=True, slots=True)
 class AgentLoopResult:
     terminated_by: str
@@ -491,6 +519,11 @@ class AgentLoop:
                 if tool_name in ("write", "delete", "move"):
                     mut_path = getattr(fn, "path", "") or getattr(fn, "from_name", "")
                     session.mutations.append((tool_name, mut_path))
+                # Track outbox attachments for terminal R5 check.
+                if tool_name == "write" and "outbox" in mut_path.lower():
+                    _extract_outbox_attachments(
+                        getattr(fn, "content", ""), session
+                    )
                 # Cache file content on successful read for body validation.
                 if tool_name == "read":
                     read_path = getattr(fn, "path", "")

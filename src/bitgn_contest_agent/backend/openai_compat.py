@@ -46,10 +46,11 @@ _TRANSIENT_EXCEPTIONS: tuple[type[Exception], ...] = (
 # Verified from PROD t009 2026-04-15 crash:
 #   "APIError: read tcp [...]:53210->[...]:443: read: connection reset by peer"
 _TRANSIENT_MESSAGE_SUBSTRINGS: tuple[str, ...] = (
-    "connection reset",
-    "econnreset",
-    "broken pipe",
-    "epipe",
+    "connection reset",     # TCP RST
+    "econnreset",           # Connection reset by peer
+    "broken pipe",          # EPIPE error
+    "epipe",                # EPIPE variant
+    "stream error",         # HTTP/2 RST_STREAM / GOAWAY — PROD t093 2026-04-20
 )
 
 

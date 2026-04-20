@@ -210,7 +210,7 @@ def test_pcm_llm_disambiguation_fallback():
     # Mock the LLM disambiguator to return "Reading Spine".
     with patch(
         "bitgn_contest_agent.preflight.project._disambiguate_via_llm",
-        return_value="Reading Spine",
+        return_value=("Reading Spine", []),
     ) as mock_disamb:
         req = Req_PreflightProject(
             tool="preflight_project",
@@ -248,7 +248,7 @@ def test_pcm_llm_disambiguation_returns_none_on_failure():
 
     with patch(
         "bitgn_contest_agent.preflight.project._disambiguate_via_llm",
-        return_value=None,
+        return_value=(None, []),
     ):
         req = Req_PreflightProject(
             tool="preflight_project",
@@ -273,7 +273,7 @@ def test_disambiguate_via_llm_returns_match():
             "sci-fi reading lane",
             ["Reading Spine", "Black Library Evenings", "Harbor Body"],
         )
-    assert result == "Reading Spine"
+    assert result == ("Reading Spine", [])
 
 
 def test_disambiguate_via_llm_returns_none_on_low_confidence():
@@ -281,11 +281,11 @@ def test_disambiguate_via_llm_returns_none_on_low_confidence():
 
     stub = {"match": "Reading Spine", "confidence": 0.3}
     with patch("bitgn_contest_agent.classifier.classify", return_value=stub):
-        result = _disambiguate_via_llm(
+        chosen, runner_ups = _disambiguate_via_llm(
             "totally unrelated",
             ["Reading Spine", "Black Library Evenings"],
         )
-    assert result is None
+    assert chosen is None
 
 
 def test_disambiguate_via_llm_returns_none_on_exception():
@@ -295,11 +295,11 @@ def test_disambiguate_via_llm_returns_none_on_exception():
         "bitgn_contest_agent.classifier.classify",
         side_effect=RuntimeError("network"),
     ):
-        result = _disambiguate_via_llm(
+        chosen, runner_ups = _disambiguate_via_llm(
             "some query",
             ["Proj A", "Proj B"],
         )
-    assert result is None
+    assert chosen is None
 
 
 def test_disambiguate_via_llm_returns_none_on_hallucinated_name():
@@ -308,11 +308,11 @@ def test_disambiguate_via_llm_returns_none_on_hallucinated_name():
 
     stub = {"match": "Nonexistent Project", "confidence": 0.95}
     with patch("bitgn_contest_agent.classifier.classify", return_value=stub):
-        result = _disambiguate_via_llm(
+        chosen, runner_ups = _disambiguate_via_llm(
             "query",
             ["Proj A", "Proj B"],
         )
-    assert result is None
+    assert chosen is None
 
 
 def test_pcm_exact_match_skips_llm_disambiguation():

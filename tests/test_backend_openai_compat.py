@@ -226,6 +226,29 @@ def test_plain_api_error_without_transient_marker_propagates() -> None:
         backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
 
 
+def test_http2_stream_error_is_remapped_to_transient() -> None:
+    """HTTP/2 RST_STREAM errors from the upstream codex API surface as bare
+    openai.APIError with 'stream error' in the message. Must be caught as
+    transient so P2 backoff retries. Regression guard for PROD t093
+    2026-04-20 crash."""
+    import openai
+
+    fake_client = MagicMock()
+    fake_client.beta.chat.completions.parse.side_effect = openai.APIError(
+        message="stream error: stream ID 5; INTERNAL_ERROR; received from peer",
+        request=MagicMock(),
+        body=None,
+    )
+    backend = OpenAIChatBackend(
+        client=fake_client,
+        model="gpt-5.3-codex",
+        reasoning_effort="medium",
+        use_structured_output=True,
+    )
+    with pytest.raises(TransientBackendError):
+        backend.next_step([Message(role="user", content="t")], NextStep, 30.0)
+
+
 def test_extract_json_object_strips_markdown_fences() -> None:
     raw = '```json\n{"tool":"tree","root":"/"}\n```'
     assert _extract_json_object(raw) == '{"tool":"tree","root":"/"}'

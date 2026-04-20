@@ -198,7 +198,7 @@ def _disambiguate_via_llm(
                     return [c]
     except Exception:
         _LOG.debug("LLM entity disambiguation failed for query=%r", query, exc_info=True)
-    return candidates
+    return []
 
 
 # ── main entry points ─────────────────────────────────────────────

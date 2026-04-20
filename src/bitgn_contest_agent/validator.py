@@ -155,6 +155,20 @@ class StepValidator:
         if r4 is not None:
             reasons.append(r4)
 
+        # R5 — outbox attachment grounding.
+        # Every path listed in an outbox email's `attachments:` must have been
+        # read before terminal. Unread attachments won't appear in grounding_refs,
+        # and the server rejects the answer ("answer missing required reference").
+        # PROD t097 2026-04-20: agent attached 4 invoices but only read 1.
+        if session.outbox_attachments:
+            for att in sorted(session.outbox_attachments):
+                al = att.lower()
+                if al not in seen_lower and al not in absent_lower:
+                    reasons.append(
+                        f"outbox attachment {att!r} was never read — "
+                        f"read each attached file before completing"
+                    )
+
         verdict = Verdict(ok=not reasons, reasons=reasons)
         if reasons:
             emit_arch(

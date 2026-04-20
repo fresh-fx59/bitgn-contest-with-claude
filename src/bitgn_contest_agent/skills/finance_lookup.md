@@ -37,7 +37,7 @@ NOT a project name.
   findings memo"). Search for it inside invoice files, in the line
   items section.
 - **Project name** = the `project` field in invoice frontmatter (e.g.
-  "Helios Workflow Sprint", "Northstar Ledger").
+  "Workflow Sprint", "Backfill Pack").
 
 These are DIFFERENT things. An invoice's `project` field identifies
 which project the invoice belongs to. The line items table lists the
