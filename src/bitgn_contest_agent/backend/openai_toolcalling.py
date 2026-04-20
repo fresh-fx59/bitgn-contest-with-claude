@@ -695,17 +695,21 @@ class OpenAIToolCallingBackend(Backend):
         response_schema: type[NextStep],
         timeout_sec: float,
     ) -> NextStepResult:
-        payload = _build_payload(messages)
+        request_kwargs: Dict[str, Any] = {
+            "model": self._model,
+            "messages": _build_payload(messages),
+            "tools": self._tools,
+            "tool_choice": "required",
+            "timeout": timeout_sec,
+            "max_tokens": 4096,
+            "extra_body": {"reasoning": {"effort": self._reasoning_effort}},
+        }
+        # Adapters that need outbound payload shaping (e.g. qwen's
+        # output-discipline system nudge) mutate here. Default is a
+        # passthrough so other adapters stay byte-identical.
+        request_kwargs = self._adapter.shape_request(request_kwargs)
         try:
-            completion = self._client.chat.completions.create(
-                model=self._model,
-                messages=payload,
-                tools=self._tools,
-                tool_choice="required",
-                timeout=timeout_sec,
-                max_tokens=4096,
-                extra_body={"reasoning": {"effort": self._reasoning_effort}},
-            )
+            completion = self._client.chat.completions.create(**request_kwargs)
         except _TRANSIENT_EXCEPTIONS as exc:
             raise TransientBackendError(str(exc)) from exc
         except openai.BadRequestError as exc:

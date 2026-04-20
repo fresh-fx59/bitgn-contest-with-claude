@@ -6,11 +6,34 @@ docs/superpowers/specs/2026-04-19-local-model-adapters-design.md §6.
 """
 from __future__ import annotations
 
-from typing import Optional
+import logging
+from typing import Optional, Tuple
 
 from pydantic import ValidationError
 
 from bitgn_contest_agent.schemas import NextStep
+
+_LOG = logging.getLogger(__name__)
+
+# Tokens that unambiguously indicate chat-template leakage or mid-reasoning
+# output rather than a clean bare answer. Any match → refuse salvage.
+# Covers: harmony channels, qwen/im tags, think-block tags, backticked
+# code fences, and the `</tool_call>` fragment that caused the 2026-04-19
+# GLM score=0 incident.
+_UNSAFE_BARE_TOKENS: Tuple[str, ...] = (
+    "<|", "</", "```",
+    "<think>", "<think/>",
+    "tool_call", "function_call",
+)
+
+# Lowercased substrings that suggest the model is still narrating its
+# work, not terminating. If any are present the content is NOT a final
+# answer and salvage must return None so the critique/retry path runs.
+_BARE_ANSWER_CONTINUATION_MARKERS: Tuple[str, ...] = (
+    "let me ", "let's ", "i need ", "i should ",
+    "i'll ", "i will ", "first, ", "next, ",
+    "next step", "thinking", "analysis:", "plan:",
+)
 
 
 def try_gpt_oss_full_chain(content: str) -> Optional[NextStep]:
@@ -105,3 +128,71 @@ def try_envelope(content: str) -> Optional[NextStep]:
             except ValidationError:
                 return None
     return _maybe_salvage_envelope_terminal(obj)
+
+
+def try_qwen_bare_answer(content: str) -> Optional[NextStep]:
+    """Salvage a short bare-text content as a terminal report_completion.
+
+    Evidence (2026-04-19 qwen3.5-35b-a3b PROD run): 12 cases where qwen
+    emitted the final answer as plain text instead of a tool_call —
+    numbers ("1170", "650", "380"), dates ("03-02-2026"), short file-
+    path lists. 6 of those tasks failed because the content was not
+    salvaged; the circuit breaker eventually fired OUTCOME_NONE_UNSUPPORTED.
+
+    This helper synthesizes a ``report_completion(OUTCOME_OK)`` with the
+    stripped content verbatim as ``message``. The grader decides correctness —
+    a wrong bare answer still fails, but a right one passes instead of
+    being lost to circuit-breaker synthesis.
+
+    Guards (ALL must pass, else return None so the critique loop runs):
+      - content is non-empty after strip
+      - stripped length ≤ 500 chars (long enough for a short file list;
+        too short for mid-exploration prose)
+      - no JSON/array prefix (``{`` / ``[``): envelope/name-arguments
+        salvage handles those shapes
+      - no ``_UNSAFE_BARE_TOKENS`` (chat-template leakage guard — this is
+        the 2026-04-19 GLM score=0 rule, inherited)
+      - no ``_BARE_ANSWER_CONTINUATION_MARKERS`` (model is narrating,
+        not terminating)
+
+    Wired only from ``QwenA3bAdapter``. Other adapters must not chain
+    this — GLM's content is chat-template leakage (never a real answer),
+    and gpt-oss already owns the legacy bare-value branch with a
+    different (tighter) guard set.
+    """
+    from bitgn_contest_agent.backend.openai_toolcalling import _build_next_step
+
+    if not content:
+        return None
+    stripped = content.strip()
+    if not stripped or len(stripped) > 500:
+        return None
+    if stripped[0] in "{[":
+        return None
+    if any(tok in stripped for tok in _UNSAFE_BARE_TOKENS):
+        return None
+    lowered = stripped.lower()
+    if any(tok in lowered for tok in _BARE_ANSWER_CONTINUATION_MARKERS):
+        return None
+    try:
+        ns = _build_next_step(
+            "report_completion",
+            {
+                "message": stripped,
+                "grounding_refs": [],
+                "rulebook_notes": "—",
+                "outcome_justification": "—",
+                "completed_steps_laconic": [],
+                "outcome": "OUTCOME_OK",
+                "outcome_leaning": "OUTCOME_OK",
+            },
+        )
+    except ValidationError:
+        return None
+    _LOG.info(
+        "qwen_bare_answer_salvage: synthesized OUTCOME_OK from bare "
+        "content=%r (len=%d)",
+        stripped[:120],
+        len(stripped),
+    )
+    return ns

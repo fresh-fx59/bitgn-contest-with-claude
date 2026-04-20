@@ -136,6 +136,23 @@ def _apply_adapter_profile(cfg: AgentConfig) -> AgentConfig:
     _pick("LLM_HTTP_TIMEOUT_SEC", "llm_http_timeout_sec", profile.llm_http_timeout_sec)
     _pick("AGENT_REASONING_EFFORT", "reasoning_effort", profile.reasoning_effort)
 
+    # classifier_timeout_sec is read directly by classifier.py via env
+    # (hardcoded default=10s). That default is too low for local 20B
+    # models AND too high for the neuraldeep gateway's 60s server cap.
+    # Seed the env from the adapter profile when the user did not set
+    # it explicitly — same precedence as the cfg fields above.
+    classifier_source = "env"
+    if not os.environ.get("BITGN_CLASSIFIER_TIMEOUT_SEC"):
+        os.environ["BITGN_CLASSIFIER_TIMEOUT_SEC"] = str(profile.classifier_timeout_sec)
+        classifier_source = "adapter"
+    sources.append(
+        (
+            "classifier_timeout_sec",
+            int(os.environ["BITGN_CLASSIFIER_TIMEOUT_SEC"]),
+            classifier_source,
+        )
+    )
+
     logger = logging.getLogger(__name__)
     logger.info(
         "[ARCH:CONFIG] resolved adapter=%s model=%s",

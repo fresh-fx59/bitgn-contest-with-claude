@@ -17,6 +17,7 @@ from .glm_flash import GlmFlashAdapter
 from .gpt_oss import GptOssAdapter
 from .lfm2 import Lfm2Adapter
 from .qwen_a3b import QwenA3bAdapter
+from .qwen_a3b_remote import QwenA3bRemoteAdapter
 
 
 ADAPTERS: Dict[str, Type[ModelAdapter]] = {
@@ -25,6 +26,12 @@ ADAPTERS: Dict[str, Type[ModelAdapter]] = {
     "glm-4.7-flash-mlx": GlmFlashAdapter,
     "liquid/lfm2-24b-a2b": Lfm2Adapter,
     "qwen3.5-35b-a3b": QwenA3bAdapter,
+    # qwen3.6 is only served via the neuraldeep gateway today; the
+    # remote adapter swaps the reasoning flag (extra_body.thinking)
+    # and caps llm_http_timeout at 65s to match the gateway's 60s
+    # internal cap. If qwen3.6 ever gets served locally via LM Studio,
+    # add a second registry entry mapping to QwenA3bAdapter.
+    "qwen3.6-35b-a3b": QwenA3bRemoteAdapter,
 }
 
 

@@ -354,3 +354,52 @@ def test_run_tasks_and_summarize_parallel_iterations_executes_concurrently(
     assert elapsed < 0.38, f"expected parallel execution, took {elapsed:.3f}s"
     # Result order preserved (iter0 task, iter1 task, iter2 task)
     assert [r.task_id for r in results] == ["t0", "t1", "t2"]
+
+
+# ---------------------------------------------------------------------------
+# Adapter profile → classifier timeout wiring
+# ---------------------------------------------------------------------------
+
+
+def test_apply_adapter_profile_seeds_classifier_timeout_from_adapter(monkeypatch):
+    """qwen3.6 remote adapter declares classifier_timeout_sec=65 to match
+    the neuraldeep gateway's 60s server cap. classifier.py reads the value
+    from BITGN_CLASSIFIER_TIMEOUT_SEC directly (not through cfg), so the
+    adapter value is wired by exporting the env var at CLI startup.
+
+    Regression: without this, local 20B adapter values (300s) or the
+    hardcoded 10s classifier default would stomp the gateway-tuned 65s."""
+    monkeypatch.setenv("BITGN_API_KEY", "fake")
+    monkeypatch.setenv("CLIPROXY_BASE_URL", "http://fake")
+    monkeypatch.setenv("CLIPROXY_API_KEY", "fake")
+    monkeypatch.setenv("AGENT_TOOLCALLING", "1")
+    monkeypatch.setenv("AGENT_MODEL", "qwen3.6-35b-a3b")
+    monkeypatch.delenv("BITGN_CLASSIFIER_TIMEOUT_SEC", raising=False)
+
+    from bitgn_contest_agent.cli import _apply_adapter_profile
+    from bitgn_contest_agent.config import load_from_env
+
+    _apply_adapter_profile(load_from_env())
+
+    import os as _os
+    assert _os.environ["BITGN_CLASSIFIER_TIMEOUT_SEC"] == "65"
+
+
+def test_apply_adapter_profile_env_wins_over_adapter_for_classifier_timeout(monkeypatch):
+    """Explicit env setting must beat the adapter's value — same precedence
+    rule used for llm_http_timeout_sec / max_parallel. The escape hatch
+    stays useful for ad-hoc tuning runs."""
+    monkeypatch.setenv("BITGN_API_KEY", "fake")
+    monkeypatch.setenv("CLIPROXY_BASE_URL", "http://fake")
+    monkeypatch.setenv("CLIPROXY_API_KEY", "fake")
+    monkeypatch.setenv("AGENT_TOOLCALLING", "1")
+    monkeypatch.setenv("AGENT_MODEL", "qwen3.6-35b-a3b")
+    monkeypatch.setenv("BITGN_CLASSIFIER_TIMEOUT_SEC", "999")
+
+    from bitgn_contest_agent.cli import _apply_adapter_profile
+    from bitgn_contest_agent.config import load_from_env
+
+    _apply_adapter_profile(load_from_env())
+
+    import os as _os
+    assert _os.environ["BITGN_CLASSIFIER_TIMEOUT_SEC"] == "999"
