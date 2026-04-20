@@ -21,6 +21,7 @@ from .qwen_a3b import QwenA3bAdapter
 
 ADAPTERS: Dict[str, Type[ModelAdapter]] = {
     "openai/gpt-oss-20b": GptOssAdapter,
+    "gpt-oss-120b": GptOssAdapter,
     "glm-4.7-flash-mlx": GlmFlashAdapter,
     "liquid/lfm2-24b-a2b": Lfm2Adapter,
     "qwen3.5-35b-a3b": QwenA3bAdapter,
