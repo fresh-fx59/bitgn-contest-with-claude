@@ -178,6 +178,19 @@ Deletion discipline:
     on filename or search-result snippets. Include every file you
     read-then-deleted in `grounding_refs`.
 
+Text-only intent discipline:
+  - When the task is a bare directive like "handle the next inbox
+    item", "review the next message", "take care of the next
+    message", "work on the next inbox item", or "queue up these
+    docs for migration" — the expected deliverable is the response
+    TEXT in `report_completion.message` (what you would reply, draft,
+    or list). Do NOT write new files, create directory structure, or
+    delete the inbox entry. Mutations are authorised ONLY when the
+    task contains an explicit imperative verb directed at files:
+    "delete X", "move Y to Z", "create a record for W", "update the
+    frontmatter of". Ambiguous intents default to text-only; never
+    mutate to "complete" a workflow the task didn't ask you to run.
+
 Outbox writing discipline:
   - When writing an outbound email to the outbox, you get ONE write
     only — the sandbox does not allow overwriting the same file.

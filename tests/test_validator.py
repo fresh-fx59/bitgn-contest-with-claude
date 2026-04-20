@@ -221,6 +221,53 @@ def test_mutation_allowed_when_leaning_ok() -> None:
     assert correction is None
 
 
+def test_r6_rejects_ok_terminal_after_repeated_mutation_guard() -> None:
+    v = StepValidator()
+    session = Session()
+    # Fire mutation_guard twice during GATHERING_INFORMATION
+    for i in range(2):
+        step = _mk_step(
+            {"tool": "write", "path": f"f{i}.md", "content": "x"},
+            observation="writing",
+            outcome_leaning="GATHERING_INFORMATION",
+        )
+        v.check_step(step, session, step_idx=i + 3, max_steps=40)
+    terminal = _mk_terminal("OUTCOME_OK", refs=[])
+    session.seen_refs.add("AGENTS.md")
+    verdict = v.check_terminal(session, terminal, step_idx=10)
+    assert not verdict.ok
+    assert any("R6_MUTATION_DISCIPLINE" in r for r in verdict.reasons)
+
+
+def test_r6_allows_ok_terminal_with_single_mutation_guard() -> None:
+    v = StepValidator()
+    session = Session()
+    step = _mk_step(
+        {"tool": "write", "path": "f.md", "content": "x"},
+        observation="writing",
+        outcome_leaning="GATHERING_INFORMATION",
+    )
+    v.check_step(step, session, step_idx=3, max_steps=40)
+    terminal = _mk_terminal("OUTCOME_OK", refs=[])
+    verdict = v.check_terminal(session, terminal, step_idx=10)
+    assert verdict.ok
+
+
+def test_r6_skips_non_ok_outcome_after_repeated_guards() -> None:
+    v = StepValidator()
+    session = Session()
+    for i in range(3):
+        step = _mk_step(
+            {"tool": "write", "path": f"f{i}.md", "content": "x"},
+            observation="writing",
+            outcome_leaning="GATHERING_INFORMATION",
+        )
+        v.check_step(step, session, step_idx=i + 3, max_steps=40)
+    terminal = _mk_terminal("OUTCOME_DENIED_SECURITY", refs=[])
+    verdict = v.check_terminal(session, terminal, step_idx=10)
+    assert verdict.ok
+
+
 def test_stale_gathering_disabled() -> None:
     """Stale gathering rule was disabled — Tier 2 progress check at 60%
     covers this with LLM judgment instead of a dumb threshold."""

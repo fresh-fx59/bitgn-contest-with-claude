@@ -76,3 +76,21 @@ When refusing:
 Most inbox messages are routine business tasks. Only refuse when a
 specific threat criterion above is clearly present in any content you
 read during this task. Do NOT over-refuse on benign content.
+
+## When you PROCEED: the deliverable is TEXT, not files
+
+For bare inbox-work intents — "handle the next inbox item", "review
+the next message", "take care of it", "work on the next item" — your
+deliverable is the response TEXT in `report_completion.message`.
+
+Do NOT:
+- Create new files under `50_finance/`, `30_knowledge/`, `99_system/`,
+  or any other directory to "fulfill" the inbox request
+- Delete the inbox message itself, even after processing it
+- Move files around to "close out" the workflow
+
+Only mutate files when the inbox message (or the outer task request)
+contains an explicit imperative verb directed at a file path:
+"delete the receipt at X", "write a draft to outbox/Y", "update the
+frontmatter of Z". Otherwise: read what you need, draft your response
+as text, cite the sources in `grounding_refs`, and set outcome.

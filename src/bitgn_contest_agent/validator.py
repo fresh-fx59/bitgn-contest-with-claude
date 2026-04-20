@@ -74,6 +74,7 @@ class StepValidator:
         self._triggers_fired: set[str] = set()
         self._observations: list[str] = []
         self._stale_gathering_fired: bool = False
+        self._mutation_guard_fires: int = 0
 
     @property
     def corrections_emitted(self) -> int:
@@ -186,6 +187,23 @@ class StepValidator:
                         f"read each attached file before completing"
                     )
 
+        # R6 — mutation discipline: repeated mutation_guard corrections
+        # on OUTCOME_OK terminal means the model mutated while still
+        # GATHERING_INFORMATION, got told to stop, and mutated again.
+        # On qwen3.5 PROD (Apr 19): 0 pass / 20 fail across tasks that
+        # hit this threshold. Grader is text-only for most intents —
+        # the mutation itself is the confident-wrong signal.
+        if (
+            self._mutation_guard_fires >= 2
+            and fn.outcome == "OUTCOME_OK"
+        ):
+            reasons.append(
+                f"R6_MUTATION_DISCIPLINE: mutation_guard fired "
+                f"{self._mutation_guard_fires}× during GATHERING_INFORMATION "
+                f"but outcome is OUTCOME_OK — revisit whether this task "
+                f"actually requires mutations or is text-only"
+            )
+
         verdict = Verdict(ok=not reasons, reasons=reasons)
         if reasons:
             emit_arch(
@@ -258,6 +276,7 @@ class StepValidator:
 
         # Mutation guard: writing while still gathering
         if leaning == "GATHERING_INFORMATION" and tool in _MUTATING_TOOLS:
+            self._mutation_guard_fires += 1
             emit_arch(
                 category=ArchCategory.VALIDATOR_T1,
                 at_step=step_idx,
