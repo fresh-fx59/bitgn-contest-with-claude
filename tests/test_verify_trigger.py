@@ -135,3 +135,71 @@ def test_reasons_return_in_priority_order():
     )
     # Spec §4: MISSING_REF ranks higher than NUMERIC_MULTIREF.
     assert reasons[0] == VerifyReason.MISSING_REF
+
+
+def test_inbox_giveup_fires_on_none_clarification_without_write():
+    ns = _completion(
+        message="I need more info.",
+        outcome="OUTCOME_NONE_CLARIFICATION",
+    )
+    reasons = should_verify(
+        next_step=ns,
+        session=Session(),
+        read_cache={},
+        write_history=[],
+        task_text="take care of the next message in inbox",
+        skill_name="inbox-processing",
+    )
+    assert VerifyReason.INBOX_GIVEUP in reasons
+
+
+def test_inbox_giveup_quiet_when_outbox_write_exists():
+    from bitgn_contest_agent.verify import WriteOp
+    ns = _completion(
+        message="I need more info.",
+        outcome="OUTCOME_NONE_CLARIFICATION",
+    )
+    reasons = should_verify(
+        next_step=ns,
+        session=Session(),
+        read_cache={},
+        write_history=[
+            WriteOp(op="write", path="60_outbox/outbox/eml_x.md",
+                    step=2, content="reply body"),
+        ],
+        task_text="take care of the next message in inbox",
+        skill_name="inbox-processing",
+    )
+    assert VerifyReason.INBOX_GIVEUP not in reasons
+
+
+def test_inbox_giveup_quiet_on_non_inbox_skill():
+    ns = _completion(
+        message="I need more info.",
+        outcome="OUTCOME_NONE_CLARIFICATION",
+    )
+    reasons = should_verify(
+        next_step=ns,
+        session=Session(),
+        read_cache={},
+        write_history=[],
+        task_text="how much did vendor X charge?",
+        skill_name="finance-lookup",
+    )
+    assert VerifyReason.INBOX_GIVEUP not in reasons
+
+
+def test_inbox_giveup_quiet_on_ok_outcome():
+    ns = _completion(
+        message="done",
+        outcome="OUTCOME_OK",
+    )
+    reasons = should_verify(
+        next_step=ns,
+        session=Session(),
+        read_cache={},
+        write_history=[],
+        task_text="take care of the next message in inbox",
+        skill_name="inbox-processing",
+    )
+    assert VerifyReason.INBOX_GIVEUP not in reasons

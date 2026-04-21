@@ -72,3 +72,31 @@ def test_message_combines_multiple_reasons_in_one_message():
     # Both sections present, each with its own heading.
     assert msg.count("## ") >= 2
     assert "MISSING_REF" in msg and "NUMERIC_MULTIREF" in msg
+
+
+def test_message_has_inbox_giveup_section():
+    ns = NextStep(
+        current_state="stuck",
+        plan_remaining_steps_brief=["submit"],
+        identity_verified=True,
+        observation="stuck",
+        outcome_leaning="OUTCOME_NONE_CLARIFICATION",
+        function=ReportTaskCompletion(
+            tool="report_completion",
+            message="need more info",
+            grounding_refs=[],
+            rulebook_notes="n/a",
+            outcome_justification="n/a",
+            completed_steps_laconic=["done"],
+            outcome="OUTCOME_NONE_CLARIFICATION",
+        ),
+    )
+    msg = build_verification_message(
+        reasons=[VerifyReason.INBOX_GIVEUP],
+        next_step=ns,
+        read_cache={},
+        write_history=[],
+        task_text="take care of the next message in inbox",
+    )
+    assert "INBOX_GIVEUP" in msg
+    assert "sender" in msg.lower() or "alias" in msg.lower()

@@ -12,7 +12,9 @@ from unittest.mock import MagicMock
 
 from bitgn_contest_agent.adapter.pcm import ToolResult
 from bitgn_contest_agent.agent import AgentLoop
+import bitgn_contest_agent.agent as _agent_mod
 from bitgn_contest_agent.backend.base import Message, NextStepResult
+from bitgn_contest_agent.router import RoutingDecision
 from bitgn_contest_agent.schemas import NextStep
 from bitgn_contest_agent.validator import Verdict
 
@@ -93,12 +95,47 @@ class _Backend:
         )
 
 
+class _HarnessAgentLoop(AgentLoop):
+    """AgentLoop subclass that optionally forces a skill_name in the routing decision."""
+
+    def __init__(self, *, forced_skill_name: str | None, **kw):
+        super().__init__(**kw)
+        self._forced_skill_name = forced_skill_name
+
+    def run(self, *, task_id: str, task_text: str):
+        forced = self._forced_skill_name
+        if forced is None:
+            return super().run(task_id=task_id, task_text=task_text)
+
+        real_build = _agent_mod._build_initial_messages
+
+        def fake_build(*args, **kwargs):
+            messages, decision = real_build(*args, **kwargs)
+            decision = RoutingDecision(
+                category=decision.category if decision else "INBOX_PROCESSING",
+                source=decision.source if decision else "regex",
+                confidence=decision.confidence if decision else 1.0,
+                extracted=decision.extracted if decision else {},
+                skill_name=forced,
+                task_text=task_text,
+            )
+            return messages, decision
+
+        _agent_mod._build_initial_messages = fake_build
+        try:
+            return super().run(task_id=task_id, task_text=task_text)
+        finally:
+            _agent_mod._build_initial_messages = real_build
+
+
 def run_agent_with_mock_backend(
     *, task_id: str, task_text: str,
     backend: Callable[..., dict],
+    skill_name: str | None = None,
 ) -> list[dict]:
     writer = _Writer()
-    agent = AgentLoop(
+    agent = _HarnessAgentLoop(
+        forced_skill_name=skill_name,
         backend=_Backend(backend),
         adapter=_Adapter(),
         writer=writer,

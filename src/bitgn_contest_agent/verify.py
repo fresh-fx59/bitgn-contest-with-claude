@@ -158,7 +158,22 @@ def should_verify(
         if len(read_cache) >= 2:
             reasons.append(VerifyReason.NUMERIC_MULTIREF)
 
-    # INBOX_GIVEUP — added in C3.
+    # INBOX_GIVEUP — inbox skill gave NONE_CLARIFICATION without replying.
+    inbox_skill = skill_name and "inbox" in skill_name.lower()
+    if (
+        inbox_skill
+        and fn.outcome == "OUTCOME_NONE_CLARIFICATION"
+        and not any(
+            w.op == "write" and "outbox/" in w.path.replace("\\", "/")
+            for w in write_history
+        )
+    ):
+        # Insert in priority position: MISSING_REF > INBOX_GIVEUP > NUMERIC_MULTIREF.
+        if VerifyReason.NUMERIC_MULTIREF in reasons:
+            idx = reasons.index(VerifyReason.NUMERIC_MULTIREF)
+            reasons.insert(idx, VerifyReason.INBOX_GIVEUP)
+        else:
+            reasons.append(VerifyReason.INBOX_GIVEUP)
 
     return reasons
 
@@ -202,6 +217,28 @@ def _section_numeric_multiref(
     )
 
 
+def _section_inbox_giveup(task_text: str) -> str:
+    return (
+        "## INBOX_GIVEUP\n"
+        "You routed as an inbox task, marked outcome "
+        "NONE_CLARIFICATION, and did not write any outbox reply. This "
+        "usually indicates premature giveup — reconsider before "
+        "finalizing:\n"
+        "  - Re-read the inbox `from:` header and resolve the sender "
+        "via the entity cast directly (aliases, relationship, "
+        "primary_contact_email).\n"
+        "  - If the task mentions a descriptor (e.g. 'design partner', "
+        "'my spouse'), re-check every entity's relationship field — "
+        "the descriptor may map semantically to startup_partner, wife, "
+        "etc.\n"
+        "  - If after that check no entity matches, re-emit "
+        "report_completion with outcome OUTCOME_NONE_UNSUPPORTED "
+        "(task really has no answer) or OUTCOME_NONE_CLARIFICATION "
+        "with a specific clarifying question you couldn't answer from "
+        "the workspace."
+    )
+
+
 def build_verification_message(
     reasons: list[VerifyReason],
     next_step: NextStep,
@@ -214,7 +251,7 @@ def build_verification_message(
     Sections are emitted in priority order (same order as
     `should_verify` returned them), each separated by a blank line.
     """
-    del write_history  # unused until C3 adds INBOX_GIVEUP
+    del write_history  # not needed in message building; kept for API symmetry
     intro = (
         "Before the answer is accepted, address the following checks. "
         "If the evidence confirms your current answer, you can re-emit "
@@ -229,5 +266,6 @@ def build_verification_message(
             sections.append(
                 _section_numeric_multiref(next_step, read_cache, task_text)
             )
-        # INBOX_GIVEUP — added in C3.
+        elif r is VerifyReason.INBOX_GIVEUP:
+            sections.append(_section_inbox_giveup(task_text))
     return intro + "\n" + "\n\n".join(sections)
