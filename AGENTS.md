@@ -76,12 +76,12 @@ Suggested template:
     set -a && source .worktrees/plan-b/.env && set +a
     .venv/bin/python -m bitgn_contest_agent.cli run-benchmark \
       --benchmark bitgn/pac1-prod \
-      --max-parallel 16 --max-inflight-llm 24 \
+      --max-parallel 3 --max-inflight-llm 6 \
       --runs 1 \
-      --output artifacts/bench/<commit>_<label>_p16i24_gpt54_prod_runs1.json \
+      --output artifacts/bench/<commit>_<label>_p3i6_gpt54_prod_runs1.json \
       --log-dir logs
     ```
-    `p16i24` in the filename encodes `--max-parallel 16 --max-inflight-llm 24`. Omitting `--max-inflight-llm` defaults to 6 which starves 16 parallel tasks and causes mass timeouts.
+    `p3i6` in the filename encodes `--max-parallel 3 --max-inflight-llm 6`. Do not raise parallelism without explicit user approval — higher settings (e.g. p16i24) can cause rate-limit timeouts and must be launched deliberately.
   - PROD smoke test (first 5 trials from PROD leaderboard, cheap validation):
     ```
     set -a && source .worktrees/plan-b/.env && set +a

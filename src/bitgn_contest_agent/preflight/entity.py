@@ -47,6 +47,16 @@ def _extract_body(content: str) -> str:
     return "\n".join(lines[body_start:]).strip()
 
 
+# Relationship synonym classes: query word → additional relationship words
+# that should also be considered candidates. Asymmetric on purpose.
+# Example: "partner" can mean either the business partner (relationship=
+# startup_partner) or the life partner (relationship=wife/husband/spouse).
+# "wife" does NOT expand to "partner" — a wife query is unambiguous.
+_RELATIONSHIP_SYNONYMS: dict[str, tuple[str, ...]] = {
+    "partner": ("wife", "husband", "spouse", "girlfriend", "boyfriend"),
+}
+
+
 # ── matching phases ───────────────────────────────────────────────
 
 def _match_result(e: dict[str, Any], source: str) -> dict[str, Any]:
@@ -89,18 +99,44 @@ def _phase_relationship(query_norm: str, entities: list[dict[str, Any]]) -> list
 
     The relationship value uses underscores (home_server) while the
     query uses spaces (home server). We normalize both.
+
+    Matches at three strength tiers (strongest wins):
+      1. Direct substring on full query ↔ relationship.
+      2. Word-level overlap with the query words.
+      3. Word-level overlap with synonym-expanded query words (e.g.
+         "partner" also matches wife/husband/spouse).
+
+    If any tier-1 match exists, return only those; otherwise return
+    the tier-2/3 candidates so the caller's LLM step can disambiguate.
+    This keeps unambiguous queries like "home server" single-match while
+    opening ambiguous queries like "my partner" to disambiguation.
     """
-    matches = []
+    q_words = {w for w in query_norm.split() if len(w) >= 3}
+    match_targets = set(q_words)
+    for w in q_words:
+        match_targets.update(_RELATIONSHIP_SYNONYMS.get(w, ()))
+
+    direct: list[dict[str, Any]] = []
+    fuzzy: list[dict[str, Any]] = []
     for e in entities:
         rel = e["frontmatter"].get("relationship", "")
         if not rel:
             continue
         rel_norm = normalize_name(rel.replace("_", " "))
-        if rel_norm and (query_norm == rel_norm
-                         or query_norm in rel_norm
-                         or rel_norm in query_norm):
-            matches.append(_match_result(e, "relationship"))
-    return matches
+        if not rel_norm:
+            continue
+        if (query_norm == rel_norm
+                or query_norm in rel_norm
+                or rel_norm in query_norm):
+            direct.append(_match_result(e, "relationship"))
+            continue
+        rel_words = set(rel_norm.split())
+        if match_targets and match_targets & rel_words:
+            source = ("relationship_word"
+                      if q_words & rel_words
+                      else "relationship_synonym")
+            fuzzy.append(_match_result(e, source))
+    return direct if direct else fuzzy
 
 
 def _phase_compound(query_norm: str, entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
