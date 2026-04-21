@@ -301,15 +301,6 @@ class AgentLoop:
             for content in bootstrap_content:
                 messages.append(Message(role="user", content=content))
 
-        # Routed preflight — harness-side dispatch driven by the router
-        # decision. When the router picked a skill that has a preflight
-        # binding (frontmatter), dispatch it now (after prepass provides
-        # the WorkspaceSchema) and inject the canonical-narrowing user
-        # message before the first LLM step.
-        self._dispatch_routed_preflight(
-            decision=decision, prepass=prepass, messages=messages,
-        )
-
         self._writer.append_task(task_id=task_id, task_text=task_text)
 
         totals = _Totals()
@@ -724,96 +715,6 @@ class AgentLoop:
         )
 
     # -- helpers ---------------------------------------------------------
-
-    def _dispatch_routed_preflight(
-        self,
-        *,
-        decision: Optional[RoutingDecision],
-        prepass: object,
-        messages: List[Message],
-    ) -> None:
-        """Run the routed preflight (if any) and mutate `messages`.
-
-        No-op when router is disabled, decision is None, or the prepass
-        object is a legacy test mock lacking `schema`. Trace events are
-        written for every attempt that chose a tool; dispatch exceptions
-        are swallowed inside `dispatch_routed_preflight` itself.
-        """
-        if self._router is None or decision is None:
-            return
-        schema = getattr(prepass, "schema", None)
-        if schema is None:
-            return  # legacy mock — no typed schema available
-
-        from bitgn_contest_agent.routed_preflight import (
-            dispatch_routed_preflight,
-        )
-
-        with pcm_origin("routed_preflight"):
-            outcome = dispatch_routed_preflight(
-                decision=decision,
-                schema=schema,
-                adapter=self._adapter,
-                skills_by_name=self._router.skills_by_name(),
-                backend=self._backend,
-            )
-
-        query = (decision.extracted or {}).get("query", "")
-        category = decision.category
-
-        # Trace every routed-preflight attempt — even the ones skipped
-        # before dispatch (e.g. missing_roots, missing_query). Retrospective
-        # analysis needs the reason to explain why a task fell through
-        # to manual tree+search exploration.
-        if outcome.tool is not None or outcome.skipped_reason is not None:
-            result = outcome.result
-            tool_label = outcome.tool or "unknown"
-            match_found = None
-            match_file = None
-            if result is not None and result.ok:
-                # Non-empty refs ≡ preflight found something to cite.
-                # Empty refs ≡ query ran but no match.
-                match_found = bool(result.refs)
-                if result.refs:
-                    match_file = result.refs[0]
-            self._writer.append_prepass(
-                cmd=f"routed_{tool_label}",
-                ok=bool(result.ok) if result is not None else False,
-                bytes=result.bytes if result is not None else 0,
-                wall_ms=result.wall_ms if result is not None else 0,
-                error=(
-                    outcome.error
-                    or (result.error if result is not None else None)
-                ),
-                error_code=(
-                    result.error_code if result is not None else None
-                ),
-                category=category,
-                query=query or None,
-                skipped_reason=outcome.skipped_reason,
-                match_found=match_found,
-                match_file=match_file,
-            )
-
-        result = outcome.result
-        if (
-            result is not None
-            and result.ok
-            and result.content
-        ):
-            messages.append(
-                Message(
-                    role="user",
-                    content=(
-                        f"PREFLIGHT (auto-dispatched by router for "
-                        f"category={category}, query={query!r}):\n"
-                        f"{result.content}\n\n"
-                        f"This is the canonical narrowing for this task. "
-                        f"Use these references first; widen the search "
-                        f"only if the answer is not derivable from them."
-                    ),
-                )
-            )
 
     def _call_backend_with_retry(
         self,

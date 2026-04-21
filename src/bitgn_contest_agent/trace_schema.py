@@ -179,10 +179,10 @@ class TracePcmOp(_BaseRecord):
     error_code: Optional[str] = None
     # Attribution — which phase of the task emitted this op. Filled by
     # a ContextVar set by the agent loop: "prepass" (identity bootstrap
-    # + preflight_schema internals), "routed_preflight" (router-picked
-    # preflight before the main loop), or "step:N" (inside LLM step N,
-    # including the terminal answer). Absent on traces written before
-    # attribution landed.
+    # + preflight_schema internals), or "step:N" (inside LLM step N,
+    # including the terminal answer). "routed_preflight" is a historical
+    # label that appears in older log files but is no longer emitted.
+    # Absent on traces written before attribution landed.
     origin: Optional[str] = None
 
 
