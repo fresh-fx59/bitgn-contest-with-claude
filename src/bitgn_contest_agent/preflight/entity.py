@@ -48,12 +48,23 @@ def _extract_body(content: str) -> str:
 
 
 # Relationship synonym classes: query word → additional relationship words
-# that should also be considered candidates. Asymmetric on purpose.
-# Example: "partner" can mean either the business partner (relationship=
-# startup_partner) or the life partner (relationship=wife/husband/spouse).
-# "wife" does NOT expand to "partner" — a wife query is unambiguous.
+# that should also be considered candidates.
+#
+# The life-partner class is symmetric: a query rooted in any of
+# {partner, wife, husband, spouse, girlfriend, boyfriend} expands to the
+# others, so PROD workspaces that represent the user's spouse as "wife"
+# OR "husband" OR "spouse" all resolve consistently regardless of how the
+# query is phrased ("my partner" / "my spouse" / "my wife").
+# "partner" additionally matches the compound "startup_partner" via the
+# partial-word tier when the query is qualified ("my design partner");
+# bare queries ("my partner") preempt compound matches and resolve to
+# the life-partner synonym class deterministically.
+_LIFE_PARTNER_CLASS: tuple[str, ...] = (
+    "partner", "wife", "husband", "spouse", "girlfriend", "boyfriend",
+)
 _RELATIONSHIP_SYNONYMS: dict[str, tuple[str, ...]] = {
-    "partner": ("wife", "husband", "spouse", "girlfriend", "boyfriend"),
+    word: tuple(w for w in _LIFE_PARTNER_CLASS if w != word)
+    for word in _LIFE_PARTNER_CLASS
 }
 
 
@@ -101,23 +112,27 @@ def _phase_relationship(query_norm: str, entities: list[dict[str, Any]]) -> list
     query uses spaces (home server). We normalize both.
 
     Match tiers (stronger tiers preempt weaker ones):
-      1. Direct substring on full query ↔ relationship.
-      2. Full-word match — query words cover ALL relationship words
-         (e.g. query "startup partner" ↔ rel "startup_partner").
-      3. Synonym-class match — query word maps to a sibling relationship
-         via _RELATIONSHIP_SYNONYMS (e.g. query "partner" → rel "wife").
-      4. Partial-word match — query shares SOME but not all words with
-         a compound relationship (e.g. query "design partner" shares
-         only "partner" with "startup_partner").
+      1. Direct — query ↔ rel substring match.
+      2. word_full — rel_words ⊆ q_words (e.g. "startup partner" covers
+         startup_partner exactly).
+      3. synonym_full — rel_words ⊆ match_targets, no direct q_words
+         overlap (e.g. query "partner"/"spouse"/"wife" → rel wife).
+      4. word_partial — q_words overlap rel_words but do not cover
+         them (e.g. "design partner" shares only "partner" with
+         startup_partner).
+      5. synonym_partial — match_targets overlap rel_words via synonyms
+         but do not cover them (e.g. query "spouse" touches startup_
+         partner only through the expanded "partner" sibling).
 
     Return rules:
-      - Any tier-1 hit → return only those.
-      - Else any tier-2 hit → return only those (deterministic exact).
-      - Else if query is BARE (exactly one ≥3-char word and it is a
-        synonym key like "partner") and synonym hits exist → return
-        only synonym hits. This resolves "my partner" → wife without
-        surfacing compound relationships like "startup_partner".
-      - Else → return tier-3 + tier-4 (ambiguous, LLM disambiguates).
+      - Any tier-1 → return only those.
+      - Else any tier-2 (word_full) → return only those.
+      - Else if BARE query (exactly one ≥3-char word that is a synonym
+        key) AND synonym_full hits exist → return only synonym_full.
+        This resolves "my partner"/"my spouse" → wife deterministically
+        without surfacing the compound startup_partner.
+      - Else → word_partial + synonym_full + synonym_partial (LLM
+        disambiguates among the remaining candidates).
     """
     q_words = {w for w in query_norm.split() if len(w) >= 3}
     match_targets = set(q_words)
@@ -129,7 +144,8 @@ def _phase_relationship(query_norm: str, entities: list[dict[str, Any]]) -> list
     direct: list[dict[str, Any]] = []
     word_full: list[dict[str, Any]] = []
     word_partial: list[dict[str, Any]] = []
-    synonym: list[dict[str, Any]] = []
+    synonym_full: list[dict[str, Any]] = []
+    synonym_partial: list[dict[str, Any]] = []
     for e in entities:
         rel = e["frontmatter"].get("relationship", "")
         if not rel:
@@ -152,15 +168,20 @@ def _phase_relationship(query_norm: str, entities: list[dict[str, Any]]) -> list
                 word_partial.append(
                     _match_result(e, "relationship_word_partial"))
         else:
-            synonym.append(_match_result(e, "relationship_synonym"))
+            # No direct q_word overlap — hit is via synonym expansion.
+            if rel_words <= match_targets:
+                synonym_full.append(_match_result(e, "relationship_synonym"))
+            else:
+                synonym_partial.append(
+                    _match_result(e, "relationship_synonym_partial"))
 
     if direct:
         return direct
     if word_full:
         return word_full
-    if bare_query and synonym:
-        return synonym
-    return word_partial + synonym
+    if bare_query and synonym_full:
+        return synonym_full
+    return word_partial + synonym_full + synonym_partial
 
 
 def _phase_compound(query_norm: str, entities: list[dict[str, Any]]) -> list[dict[str, Any]]:

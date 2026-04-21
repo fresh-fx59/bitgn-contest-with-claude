@@ -121,6 +121,21 @@ def test_wife_query_is_unambiguous(tmp_path):
     assert names == ["Petra"], hits
 
 
+def test_bare_spouse_query_resolves_to_life_partner(tmp_path):
+    """After the symmetric synonym-class expansion, 'my spouse' / 'my
+    husband' / 'my wife' should also resolve deterministically to the
+    life partner (Petra, relationship=wife), not surface the compound
+    startup_partner via the expanded 'partner' synonym."""
+    cast = _load_cast(tmp_path, {
+        "petra.md": _PETRA_MD,
+        "nina.md": _NINA_MD,
+    })
+    for q in ("my spouse", "my husband"):
+        hits = _phase_relationship(normalize_name(q), cast)
+        names = [h["canonical"] for h in hits]
+        assert names == ["Petra"], (q, hits)
+
+
 def test_direct_substring_preempts_synonym_candidates(tmp_path):
     """When a direct substring match exists, synonym/word candidates
     should be suppressed — keeps 'our dog' from pulling in Petra/Nina."""
