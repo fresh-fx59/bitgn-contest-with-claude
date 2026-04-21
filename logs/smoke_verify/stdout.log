@@ -1,0 +1,160 @@
+2026-04-21 16:37:38,152 INFO task=- run=- skill=- category=- trace=- __main__ max_trials=5: running 5 of 104 trials (leaderboard run run-22KUNAgTZezAbmBorBBNRj9eN)
+2026-04-21 16:37:38,388 INFO task=t001 run=0 skill=- category=- trace=t001__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Give me the start date for the project the health baseline project.
+Format:
+Month DD, YYYY
+Date only.
+2026-04-21 16:37:38,390 INFO task=t001 run=0 skill=- category=- trace=t001__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=project-involvement source=tier1_regex confidence=1.00 details=vars={'group_1': 'project'}
+2026-04-21 16:37:38,392 INFO task=t002 run=0 skill=- category=- trace=t002__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Quote me the last recorded message from Vesela Jana. Return only the exact message text.
+2026-04-21 16:37:38,393 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Give me the birthday for myself.
+Format:
+Month DD, YYYY
+Date only.
+2026-04-21 16:37:40,459 INFO task=t002 run=0 skill=- category=- trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:37:40,469 WARNING task=t002 run=0 skill=- category=- trace=t002__run0.jsonl bitgn_contest_agent.classifier classify attempt 1: JSON parse failed at char 0: Expecting value
+2026-04-21 16:37:40,823 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:37:40,824 WARNING task=t000 run=0 skill=- category=- trace=t000__run0.jsonl bitgn_contest_agent.classifier classify attempt 1: JSON parse failed at char 0: Expecting value
+2026-04-21 16:37:41,600 INFO task=t002 run=0 skill=- category=- trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:37:42,035 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:37:42,715 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:37:42,716 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] source=tier2_llm
+2026-04-21 16:37:42,860 INFO task=t002 run=0 skill=- category=- trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:37:42,861 INFO task=t002 run=0 skill=- category=- trace=t002__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=entity-message-lookup source=tier2_llm confidence=0.95 details=vars={'query': 'Vesela Jana'}
+2026-04-21 16:37:59,150 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:01,946 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:02,652 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:04,467 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:06,573 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:07,051 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:08,817 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:10,033 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:10,069 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:12,303 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:12,990 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:13,985 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:14,315 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:16,934 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:18,014 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:20,554 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:21,276 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:21,736 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:22,621 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:24,034 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:24,135 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:25,524 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:26,214 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:27,402 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:28,290 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:29,766 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:30,083 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:31,477 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:32,907 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:32,931 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:35,837 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:37,105 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:37,393 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:38,912 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK
+2026-04-21 16:38:40,331 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:41,362 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:43,271 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:43,342 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:43,832 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:46,839 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:48,883 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:50,749 INFO task=t003 run=0 skill=- category=- trace=t003__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=In which projects is the lab server involved? Return only the exact project names, one per line, sorted alphabetically.
+2026-04-21 16:38:52,435 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:52,505 INFO task=t003 run=0 skill=- category=- trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:52,506 WARNING task=t003 run=0 skill=- category=- trace=t003__run0.jsonl bitgn_contest_agent.classifier classify attempt 1: JSON parse failed at char 0: Expecting value
+2026-04-21 16:38:52,902 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:54,233 INFO task=t003 run=0 skill=- category=- trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:55,159 INFO task=t003 run=0 skill=- category=- trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:55,160 INFO task=t003 run=0 skill=- category=- trace=t003__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=project-involvement source=tier2_llm confidence=0.95 details=vars={'query': 'lab server'}
+2026-04-21 16:38:56,178 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:57,849 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:38:59,318 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:00,721 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:01,167 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:04,785 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:04,786 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=12 trigger=inbox_read
+2026-04-21 16:39:06,449 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:06,451 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=12 trigger=inbox_read result=OK
+2026-04-21 16:39:07,338 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:09,012 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:11,072 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:11,747 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:15,005 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:15,311 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:16,366 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:19,303 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:19,438 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:19,655 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:19,967 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:22,298 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:22,438 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:23,280 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:24,208 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:26,907 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:27,444 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:27,635 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK
+2026-04-21 16:39:27,642 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:30,426 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:31,312 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:32,348 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:34,401 INFO task=t001 run=0 skill=project-involvement category=project_involvement trace=t001__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:34,973 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:36,299 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:37,866 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:40,535 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:40,773 INFO task=t004 run=0 skill=- category=- trace=t004__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=How many STALLED projects involve Omar Haddad? Answer with a number only
+2026-04-21 16:39:41,206 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:42,151 INFO task=t004 run=0 skill=- category=- trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:42,152 WARNING task=t004 run=0 skill=- category=- trace=t004__run0.jsonl bitgn_contest_agent.classifier classify attempt 1: JSON parse failed at char 0: Expecting value
+2026-04-21 16:39:42,494 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:43,605 INFO task=t004 run=0 skill=- category=- trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:43,965 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:45,386 INFO task=t004 run=0 skill=- category=- trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:45,388 INFO task=t004 run=0 skill=- category=- trace=t004__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=project-involvement source=tier2_llm confidence=0.95 details=vars={'query': 'Omar Haddad STALLED projects'}
+2026-04-21 16:39:45,473 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:49,798 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:51,226 INFO task=t002 run=0 skill=entity-message-lookup category=entity_message_lookup trace=t002__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_NONE_CLARIFICATION
+2026-04-21 16:39:53,131 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:55,889 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:39:58,332 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:01,112 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:02,884 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:05,033 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:06,178 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:08,099 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:12,869 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:15,683 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:17,500 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:25,308 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:28,080 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:31,262 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:32,698 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:37,093 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:37,933 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:41,260 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:45,954 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:40:56,403 INFO task=t003 run=0 skill=project-involvement category=project_involvement trace=t003__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK
+2026-04-21 16:41:33,308 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:41:37,024 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:41:37,992 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:41:45,514 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:41:51,864 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:41:54,234 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:41:54,851 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:41:58,129 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:41:59,332 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:42:02,640 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:42:04,490 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:42:08,814 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:42:12,503 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:42:18,592 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:42:21,510 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:42:24,220 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:42:31,915 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK
+2026-04-21 16:42:36,703 INFO task=t004 run=0 skill=project-involvement category=project_involvement trace=t004__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 16:42:43,478 INFO task=- run=- skill=- category=- trace=- __main__ submitted run run_id=run-22KUNAgTZezAbmBorBBNRj9eN force=True state=3
+bench summary → artifacts/bench/fa86094_verify_smoke_p3i6_prod_runs1.json
+run metrics → artifacts/bench/fa86094_verify_smoke_p3i6_prod_runs1.run_metrics.json
+pass rate: 5/5 (100.0%)
