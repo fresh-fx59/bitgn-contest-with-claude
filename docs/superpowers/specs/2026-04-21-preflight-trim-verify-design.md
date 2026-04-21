@@ -48,7 +48,11 @@ One sentence: **remove dead matcher code, keep the rulebook pre-read, add a nume
 
 1. Remove `routed_preflight` dispatch pipeline and the five per-skill preflight modules.
 2. Keep `prepass` (tree + AGENTS.MD crawl + workflow discovery) unchanged.
-3. Add a **numeric-answer verification trigger**: when the agent is about to call `report_completion` with an all-digits/scalar answer AND ≥2 candidate records were read during the run, inject one extra LLM call asking "re-derive the answer from the evidence you cited."
+3. Add a **pre-completion verification trigger** with four reason codes:
+   - `MISSING_REF` — answer cites a path not in the agent's read history (addresses the BitGN scorer "missing required reference" failure shape from t026).
+   - `ATTACHMENT_GAP` — an outbox email was written with attachments, but one or more attached files were never read in this run. Also applies to other write/move ops that reference specific paths.
+   - `NUMERIC_MULTIREF` — answer is a numeric/date scalar and the agent read ≥2 candidate records (t030/t055/t026 aggregation/disambiguation shape).
+   - `INBOX_GIVEUP` — an inbox-routed task emits `NONE_CLARIFICATION` without having written to outbox (t072 premature-giveup shape).
 4. Retag any remaining preflight-style hints as **guesses**, not canonical facts, so the agent doesn't blindly trust a wrong entity resolution.
 
 ### Out of scope (explicitly deferred)
@@ -100,37 +104,90 @@ Keep:
 
 ### Verification trigger (NEW)
 
-Location: `src/bitgn_contest_agent/verify.py` (new file, ~120 lines).
+Location: `src/bitgn_contest_agent/verify.py` (new file, ~250 lines).
+
+The verification trigger fires before `report_completion` is emitted, not only for numeric/date answers. It covers four distinct risk shapes observed in PROD task logs and scorer behavior:
+
+**Risk shape 1 — reference-read discipline.**
+BitGN scorer penalizes answers that cite file paths the agent never opened (t026 detail: *"answer missing required reference '40_projects/2026_04_01_hearthline/README.MD'"*). Verification must confirm that every path cited in the answer (or in any outbox file written earlier in the run) appears in the agent's read history for this run.
+
+**Risk shape 2 — attachment completeness.**
+Inbox tasks writing an outbox email with `attachments:` frontmatter require each attached file to (a) exist in the workspace, (b) have been read during this run, and (c) satisfy the requested filter (e.g. "oldest 1 Nina-linked invoice"). Scorer checks attached paths resolve. Verification must open the written outbox file, read back its frontmatter attachments, and confirm each path was visited.
+
+**Risk shape 3 — numeric/date answer shape with multiple candidates.**
+Original t030/t055/t026 shape — answer is scalar, multiple candidate records were read. Verification asks the model to re-derive the answer citing evidence paths for each component.
+
+**Risk shape 4 — premature `NONE_CLARIFICATION` on inbox action.**
+t072 shape — agent concludes it can't act, but evidence suggests an alternate entity resolution it never tried. Trigger when `outcome_leaning == "NONE_CLARIFICATION"` on an inbox-routed task that never wrote to outbox. Verification asks: *"Before giving up, did you check every entity alias/relationship in the workspace? Re-open the inbox `from:` and body, then re-resolve."*
 
 Contract:
 ```python
-def should_verify(next_step: NextStep, session: Session) -> bool:
-    """Return True when the verification trigger should fire.
+def classify_answer_shape(next_step: NextStep, task_text: str) -> AnswerShape:
+    """Return one of: NUMERIC, DATE, PATH_LIST, MESSAGE_QUOTE, ACTION_CONFIRMATION,
+    NONE_CLARIFICATION, FREEFORM. Regex + task-text heuristics, no LLM."""
 
-    Criteria (all must hold):
-    - next_step.function.tool == "report_completion"
-    - next_step.function.answer matches numeric regex (^-?\d+(\.\d+)?$)
-      OR the task text contains 'Answer with a number only' / 'number only'
-    - session.session_after.seen_refs_count >= 2
+
+def should_verify(
+    next_step: NextStep,
+    session: Session,
+    read_cache: dict[str, str],
+    write_history: list[WriteOp],
+    task_text: str,
+) -> VerifyReason | None:
+    """Return a reason enum when verification should fire, else None.
+
+    Trigger reasons (any one fires verification):
+    - MISSING_REF:      answer cites a path not in read_cache
+    - ATTACHMENT_GAP:   outbox email written but one+ attachments not in read_cache
+    - NUMERIC_MULTIREF: answer shape ∈ {NUMERIC, DATE} AND
+                        session.session_after.seen_refs_count >= 2
+    - INBOX_GIVEUP:     task routed to inbox-processing AND
+                        outcome_leaning == NONE_CLARIFICATION AND
+                        no outbox write in write_history
     """
 
 
-def build_verification_message(next_step: NextStep, messages: list[Message]) -> str:
-    """Produce a single user message asking the model to re-derive the answer
-    from the evidence it has already read. Fixed-format, not LLM-authored."""
+def build_verification_message(
+    reason: VerifyReason,
+    next_step: NextStep,
+    read_cache: dict[str, str],
+    write_history: list[WriteOp],
+) -> str:
+    """Produce a single, reason-specific user message. Fixed templates,
+    not LLM-authored. Includes concrete evidence (list of paths read,
+    attachments claimed, candidate records) so the model can self-check
+    against its own history."""
 ```
 
-Integration point: in `agent.py` main loop, after the model returns `report_completion` but **before** emitting the outcome:
+Integration point: in `agent.py` main loop, after the model returns `report_completion` but **before** the outcome is emitted to the harness:
 
 ```python
-if should_verify(next_step, session):
-    messages.append(Message(role="user",
-        content=build_verification_message(next_step, messages)))
-    # run one more backend call; use its answer if it differs from the
-    # original, log both; never loop more than once
+reason = should_verify(next_step, session, read_cache, write_history, task_text)
+if reason is not None:
+    messages.append(Message(
+        role="user",
+        content=build_verification_message(reason, next_step, read_cache, write_history),
+    ))
+    # One more backend call. If the model emits a DIFFERENT report_completion
+    # (different answer, different attachments, or a tool call instead of
+    # completion), use that. If it re-emits the same completion, accept it.
+    # Never loop more than once — bounded overhead per task.
+    trace_writer.append_verify(reason=reason.name, changed=bool(differs))
 ```
 
-**Cost:** ≤1 extra LLM call per numeric-answer task with ≥2 refs. From log data, that's ~15-20 tasks/run, so overhead is ~1-2% of total calls.
+**Tracked state the trigger reads from (already present in the loop):**
+- `read_cache: dict[path → content]` — every file the agent's own steps read
+- `write_history: list[WriteOp]` — every write the agent performed (outbox, inbox deletion, etc.)
+
+`read_cache` already exists in `agent.py:320`. `write_history` is a small new accumulator; append on every `pcm_op` with op in `{"write", "delete", "move"}`.
+
+**Cost:** ≤1 extra LLM call per task that fires any trigger. Expected trigger rate from PROD log review:
+- NUMERIC_MULTIREF: ~15-20 tasks/run
+- MISSING_REF: ~2-5 tasks/run (rare but high-value — t026 pattern)
+- ATTACHMENT_GAP: ~3-6 tasks/run (inbox tasks with attachments)
+- INBOX_GIVEUP: ~2-4 tasks/run (t072 pattern + false NONE_CLAR cases)
+
+Overlap expected; total ≤25 tasks/run fire verification, so overhead is ~2% of LLM calls.
 
 ### Trust-signal fix (NEW)
 
@@ -154,13 +211,28 @@ This is a prompt-template change only — no new code paths. It lives in `prompt
 
 ## 5. Failure-mode mapping
 
-| Failure | Root cause | How this design addresses it |
-|---|---|---|
-| t026 | Read 1 of 2 candidate READMEs | Verification trigger fires (answer is a date, but see extension below); stronger answer-derivation prompt forces re-checking all candidates |
-| t030 / t055 | Returned 12, expected 6 (aggregation) | Verification trigger fires (numeric, ≥2 refs); re-derivation catches the sum/filter error |
-| t072 | Trusted wrong preflight entity | Change 3 removes trust signal; agent re-reads inbox `from:` field and resolves correctly |
+| Failure | Root cause | Trigger that fires | How it addresses the failure |
+|---|---|---|---|
+| t026 | Read 1 of 2 candidate READMEs; scorer flagged missing reference | `NUMERIC_MULTIREF` (DATE + 2 project folders listed); also `MISSING_REF` if the scorer-required path isn't in read_cache | Verification asks for evidence-path per answer component. Forces reading the second README before answering. |
+| t030 / t055 | Returned 12, expected 6 (aggregation/filter) | `NUMERIC_MULTIREF` (NUMERIC + 2 bills read) | Re-derivation prompt cites both bills and asks "which line items match the vendor + date window + line-item filter? Sum them." |
+| t072 | Trusted wrong preflight entity; gave up | Change 3 removes trust signal upstream; `INBOX_GIVEUP` also fires (inbox task, NONE_CLARIFICATION, no outbox write) | Verification asks the agent to re-resolve sender from `from:` header and check every cast entity's `relationship` / aliases before concluding "no match". |
+| *hypothetical* t093-like attachment failure | Outbox written but attachment path never opened by agent | `ATTACHMENT_GAP` | Verification asks the agent to read each claimed attachment to confirm existence + line-item content. |
 
-**t026 extension:** the base trigger is numeric-answer + multi-ref. For date-format answers (`YYYY-MM-DD`, `MM/DD/YYYY`, `DD-MM-YYYY`) we extend the regex. Dates are the other high-risk answer shape (5 of the 104 tasks ask for date-only answers).
+### Answer-shape classifier (`classify_answer_shape`)
+
+Non-LLM heuristics. Used both for trigger selection and for the verification message template:
+
+| Shape | Matches when |
+|---|---|
+| `NUMERIC` | answer matches `^-?\d+(\.\d+)?$` OR task contains `"number only"` / `"Answer with a number"` |
+| `DATE` | answer matches one of `YYYY-MM-DD`, `DD-MM-YYYY`, `MM/DD/YYYY`, `Month DD, YYYY`, OR task contains `"Date only"` / `"Answer YYYY-MM-DD"` / `"format"` + any date-token |
+| `PATH_LIST` | answer contains ≥1 `/`-separated token with extension (e.g. `50_finance/...`), one per line |
+| `MESSAGE_QUOTE` | task contains `"Quote"` / `"exact message"` / `"return only the"` + "message/text" |
+| `ACTION_CONFIRMATION` | task contains `"take care of"` / `"handle"` / `"work"` + inbox; answer is empty or status string |
+| `NONE_CLARIFICATION` | next_step `outcome_leaning == "NONE_CLARIFICATION"` |
+| `FREEFORM` | none of the above |
+
+The classifier is deterministic and cheap. Failing to classify defaults to `FREEFORM` → no trigger.
 
 ---
 
@@ -168,13 +240,22 @@ This is a prompt-template change only — no new code paths. It lives in `prompt
 
 ### Unit tests (added alongside implementation)
 
-- `tests/test_verify.py` — `should_verify` matrix over (tool, answer_shape, seen_refs_count)
-- `tests/test_verify.py` — `build_verification_message` formats candidate evidence correctly
+- `tests/test_verify_classify.py` — `classify_answer_shape` matrix covering each shape with positive + negative cases
+- `tests/test_verify_trigger.py` — `should_verify` decision matrix over the four trigger conditions:
+  - `NUMERIC_MULTIREF`: (NUMERIC/DATE answer, seen_refs ≥ 2) → fires; (FREEFORM + refs) → no fire
+  - `MISSING_REF`: answer cites path not in read_cache → fires; all paths in read_cache → no fire
+  - `ATTACHMENT_GAP`: outbox write exists, attachment path not in read_cache → fires; all attachments in read_cache → no fire
+  - `INBOX_GIVEUP`: inbox task + NONE_CLARIFICATION + no outbox writes → fires; inbox + OK → no fire
+- `tests/test_verify_message.py` — `build_verification_message` returns distinct message templates per reason, each including the concrete evidence (candidate paths, claimed attachments, etc.)
 
 ### Integration tests
 
-- `tests/integration/test_agent_verify_trigger.py` — mock backend returns `report_completion(answer="12")` on step N; assert verification injected; assert second call invoked.
+- `tests/integration/test_agent_verify_numeric.py` — mock backend returns `report_completion(answer="12")` after reading 2 bills; assert verification injected; assert second call invoked; assert trace has `verify` event.
+- `tests/integration/test_agent_verify_missing_ref.py` — mock agent cites a path it never read; assert `MISSING_REF` fires.
+- `tests/integration/test_agent_verify_attachment_gap.py` — mock agent writes outbox with `attachments: [X.md]` but never read `X.md`; assert `ATTACHMENT_GAP` fires and verification message names the gap.
+- `tests/integration/test_agent_verify_inbox_giveup.py` — mock inbox-routed task emits NONE_CLARIFICATION with no outbox write; assert `INBOX_GIVEUP` fires.
 - `tests/integration/test_agent_no_routed_preflight.py` — ensure the agent runs end-to-end without the removed modules; no ImportError, no missing-attribute errors.
+- `tests/integration/test_verify_no_infinite_loop.py` — second verification call re-emits same `report_completion`; assert loop terminates after 1 verification, no third call.
 
 ### Regression (bench)
 
@@ -201,9 +282,11 @@ All work on `feat/preflight-trim-verify`. Single PR when green.
    - Update `prompts.py` to re-phrase any remaining preflight-derived hints as guesses.
    - Unit test asserting the new phrasing.
 
-3. **Phase C — Verification trigger** (one commit)
-   - Add `verify.py` + tests.
-   - Wire into `agent.py` main loop after `report_completion`.
+3. **Phase C — Verification trigger** (split across 4 TDD commits, one per reason code)
+   - C1: `classify_answer_shape` + unit tests + trace event schema.
+   - C2: `NUMERIC_MULTIREF` trigger + unit + integration test + wire into `agent.py`.
+   - C3: `MISSING_REF` trigger + `ATTACHMENT_GAP` trigger (share `read_cache` / `write_history` plumbing) + tests.
+   - C4: `INBOX_GIVEUP` trigger + test + verify single-retry cap holds across all four reasons.
 
 4. **Phase D — Bench validation**
    - PROD smoke on t026, t030, t055, t072, t051 (run-level n=1, small parallelism).
@@ -225,16 +308,26 @@ If any phase regresses below baseline (100/104):
 ## 9. Risks and counter-arguments
 
 **Risk 1 — losing the 18 "preflight cites" we observed.**
-Those 18 tasks explicitly referenced preflight in their `current_state`. Eight of them were the inbox file-pointer (still available post-delete via workflow docs + a single `list` call). The other ~10 cited finance bill narrowing, which is 1–2 `list/search` ops the agent already does anyway. Worst case, +1–2 steps per affected task. Step budget (30) has headroom.
+Those 18 tasks explicitly referenced preflight in their `current_state`. Eight were the inbox file-pointer (still available post-delete via workflow docs + a single `list` call). The other ~10 cited finance bill narrowing, which is 1–2 `list/search` ops the agent already does anyway. Worst case, +1–2 steps per affected task. Step budget (30) has headroom.
 
 **Risk 2 — verification trigger false positives.**
-If the model flips from a correct answer to an incorrect one after re-derivation, we regress. Mitigation: the verification prompt asks the model to *cite evidence paths* for each part of the answer; if the evidence doesn't match the answer, change it. If it does match, keep it. Log both. Initial deployment with n=1 bench watches for exactly this.
+If the model flips from a correct answer to an incorrect one after re-derivation, we regress. Mitigation: the verification prompt is reason-specific and asks the model to *cite evidence paths*; if evidence matches the original answer, keep it. Log both. Initial deployment with n=1 bench watches for exactly this.
 
-**Risk 3 — date-regex too narrow.**
-We extend the verification trigger to cover date formats, but task wording for dates varies (`YYYY-MM-DD`, `DD-MM-YYYY`, `MM/DD/YYYY`, `Month DD, YYYY`). The regex will cover common shapes; rare formats silently skip verification. Acceptable — better false negative than false positive blocking.
+**Risk 3 — answer-shape classifier too narrow.**
+Task wording for dates varies (`YYYY-MM-DD`, `DD-MM-YYYY`, `MM/DD/YYYY`, `Month DD, YYYY`, free-text). The regex + task-text heuristics will cover common shapes; rare formats silently skip verification (false negative). Acceptable — better to skip verification than to block a correct answer on a misclassified shape.
 
 **Risk 4 — hidden coupling with adapter.**
 The adapter may depend on `Req_Preflight*` schemas. Phase A must remove those dependencies in lockstep. A deletion sweep with `grep -r Req_Preflight src/` is required as a dry-run before committing.
+
+**Risk 5 — `MISSING_REF` and `ATTACHMENT_GAP` may thrash on edge cases.**
+- The scorer's "required reference" rules aren't fully documented — our trigger only checks for paths *cited in the answer text* that weren't read. That's the direct signal from t026's failure detail. It won't catch cases where the scorer silently requires a file that the agent never mentioned either. Acceptable — a subset of real coverage is better than no check.
+- Attachment paths in outbox frontmatter might be written with different casing or leading-slash style than the read path. The check normalizes both sides via `Path(...).resolve()` before comparing.
+
+**Risk 6 — `INBOX_GIVEUP` misfires on legitimate NONE_CLARIFICATION.**
+Some inbox tasks legitimately lack information (t010/t035 timed out as NONE_UNSUPPORTED, not CLARIFICATION, and still passed). Our trigger only fires on `NONE_CLARIFICATION` (agent explicitly asking for more info) not `NONE_UNSUPPORTED`. Even so, the verification is *advisory* — the agent can re-emit the same NONE_CLARIFICATION after re-checking. Budgeted ≤1 retry.
+
+**Risk 7 — verification message pushes the agent over the step budget.**
+The verification call is counted against `max_steps` (30). Tasks already at step 29 skip verification (hard cap check). Separately, tasks that trigger verification tend to be short-path cases (numeric answer, inbox resolution) — average step count at trigger time observed at 8-12, well below the budget.
 
 ---
 
