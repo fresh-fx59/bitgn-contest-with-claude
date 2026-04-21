@@ -95,12 +95,17 @@ Suggested template:
       --log-dir logs/smoke_<label>
     ```
     `--max-trials N` caps the leaderboard run to first N trials (rest left unstarted, no VM cost). Use this — NOT `--smoke`, whose hardcoded task IDs (t02/t15/t41/t42/t43) are stale and no longer in PROD.
-  - **Local LM Studio runs on `http://localhost:1236/v1`, not the default 1234.** Probe `/v1/models` before launching a local benchmark; if 1234 fails, try 1236. Set `OPENAI_BASE_URL=http://localhost:1236/v1` and pick a loaded model id (`qwen3.5-35b-a3b`, `openai/gpt-oss-20b`). Standard local qwen3.5 launch (single-slot, LM Studio memory-pressure safe):
+  - **Local LM Studio runs on `http://localhost:1236/v1`, not the default 1234.** Probe `/v1/models` before launching a local benchmark; if 1234 fails, try 1236. Local launches MUST override **both** `OPENAI_BASE_URL` and `CLIPROXY_BASE_URL` — the router/classifier read `CLIPROXY_BASE_URL` (which defaults to `neuraldeep` in `.env`); if only `OPENAI_BASE_URL` is overridden, classifier calls 401 on the neuraldeep key allowlist and the agent degrades to `UNKNOWN` category — the documented runaway trigger (PROD t012 2026-04-19: 120k tokens, 3h27m). Standard local qwen3.5 launch (single-slot, LM Studio memory-pressure safe):
     ```
+    set -a && source .env && set +a
+    CLIPROXY_BASE_URL=http://localhost:1236/v1 \
+    CLIPROXY_API_KEY=lm-studio \
     OPENAI_BASE_URL=http://localhost:1236/v1 \
     OPENAI_API_KEY=lm-studio \
     AGENT_MODEL=qwen3.5-35b-a3b \
+    BITGN_CLASSIFIER_MODEL=qwen3.5-35b-a3b \
     AGENT_TOOLCALLING=1 \
+    AGENT_REASONING_EFFORT=high \
     .venv/bin/python -m bitgn_contest_agent.cli run-benchmark \
       --benchmark bitgn/pac1-prod \
       --max-parallel 1 --max-inflight-llm 1 \
