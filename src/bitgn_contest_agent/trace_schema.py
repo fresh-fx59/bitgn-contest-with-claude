@@ -157,6 +157,14 @@ class TraceEvent(_BaseRecord):
     repeated_tuple: Optional[List[str]] = None
 
 
+class TraceVerify(_BaseRecord):
+    """A pre-completion verification round fired by verify.should_verify."""
+    kind: Literal["verify"] = "verify"
+    at_step: int
+    reasons: list[str]
+    changed: bool   # True if the post-verify completion differed
+
+
 class TracePcmOp(_BaseRecord):
     """One raw PCM runtime call — logged by the tracing wrapper around
     PcmRuntimeClientSync. Captures the same ops the BitGN dashboard

@@ -23,6 +23,7 @@ from bitgn_contest_agent.trace_schema import (
     TracePrepass,
     TraceStep,
     TraceTask,
+    TraceVerify,
 )
 
 
@@ -119,6 +120,20 @@ class TraceWriter:
             attempt=attempt,
             details=details,
             repeated_tuple=repeated_tuple,
+        )
+        self._write(rec.model_dump(mode="json"))
+
+    def append_verify(
+        self,
+        *,
+        at_step: int,
+        reasons: list[str],
+        changed: bool,
+    ) -> None:
+        rec = TraceVerify(
+            at_step=at_step,
+            reasons=reasons,
+            changed=changed,
         )
         self._write(rec.model_dump(mode="json"))
 

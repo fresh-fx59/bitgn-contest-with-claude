@@ -51,6 +51,7 @@ from bitgn_contest_agent.trace_schema import (
 )
 from bitgn_contest_agent.format_validator import validate_yaml_frontmatter
 from bitgn_contest_agent.trace_writer import TraceWriter
+from bitgn_contest_agent.verify import VerifyReason, WriteOp
 
 
 _LOG = logging.getLogger(__name__)
@@ -309,6 +310,8 @@ class AgentLoop:
         pending_validation: Optional[str] = None
         reactive_injected: set[str] = set()
         read_cache: dict[str, str] = {}  # path → content at read time
+        write_history: list[WriteOp] = []  # every successful write/delete/move
+        verify_attempts = 0  # hard cap ≤1 per task
 
         step_idx = 0  # visible in except block before first iteration
         try:
@@ -510,6 +513,12 @@ class AgentLoop:
                 if tool_name in ("write", "delete", "move"):
                     mut_path = getattr(fn, "path", "") or getattr(fn, "from_name", "")
                     session.mutations.append((tool_name, mut_path))
+                    write_history.append(WriteOp(
+                        op=tool_name,
+                        path=mut_path,
+                        step=step_idx,
+                        content=getattr(fn, "content", None) if tool_name == "write" else None,
+                    ))
                 # Track outbox attachments for terminal R5 check.
                 if tool_name == "write" and "outbox" in mut_path.lower():
                     _extract_outbox_attachments(
