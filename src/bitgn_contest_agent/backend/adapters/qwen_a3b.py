@@ -61,6 +61,12 @@ class QwenA3bAdapter(ModelAdapter):
                 max_parallel_tasks=2,
                 max_inflight_llm=2,
                 reasoning_effort="high",
+                # 100k token cap: the 2026-04-20 PROD run saw t012 runaway
+                # reasoning past 120k tokens while our 600s HTTP client had
+                # already given up — LM Studio kept generating. Paired with
+                # the operator setting the LM Studio context cap to 101720,
+                # this bounds worst-case generation on the wire.
+                max_completion_tokens=100_000,
             ),
         )
 

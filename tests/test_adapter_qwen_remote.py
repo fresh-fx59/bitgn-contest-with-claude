@@ -169,6 +169,13 @@ def test_remote_profile_conservative_concurrency() -> None:
     assert prof.max_inflight_llm <= 6
 
 
+def test_remote_profile_max_completion_tokens_matches_local() -> None:
+    """Runaway-reasoning cap: same failure mode as local qwen (high-effort
+    CoT blowing past wall-clock budgets). Keep parity with local so behavior
+    is predictable across runtime swaps."""
+    assert QwenA3bRemoteAdapter().profile.max_completion_tokens == 100_000
+
+
 # ---------------------------------------------------------------------------
 # Salvage chain reused from the local qwen adapter
 # ---------------------------------------------------------------------------

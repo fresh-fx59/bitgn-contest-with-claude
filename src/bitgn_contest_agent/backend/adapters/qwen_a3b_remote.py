@@ -49,6 +49,11 @@ class QwenA3bRemoteAdapter(ModelAdapter):
                 max_parallel_tasks=4,
                 max_inflight_llm=4,
                 reasoning_effort="high",
+                # Parity with local qwen3.5: cap runaway reasoning. The
+                # neuraldeep gateway's 60s server cap enforces wall-clock
+                # independently, but a token cap still protects against
+                # the gateway returning a 120k-token blob in one burst.
+                max_completion_tokens=100_000,
             ),
         )
 

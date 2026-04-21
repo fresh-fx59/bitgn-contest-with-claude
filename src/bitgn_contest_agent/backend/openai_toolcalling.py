@@ -701,7 +701,12 @@ class OpenAIToolCallingBackend(Backend):
             "tools": self._tools,
             "tool_choice": "required",
             "timeout": timeout_sec,
-            "max_tokens": 4096,
+            # Per-adapter ceiling. 4096 for terse gpt-oss-style models;
+            # ~100k for reasoning-heavy qwen-a3b where high-effort CoT can
+            # run away on UNKNOWN-category tasks and chew wall-clock past
+            # our HTTP timeout (LM Studio keeps generating after client
+            # disconnect). See ``ModelProfile.max_completion_tokens``.
+            "max_tokens": self._adapter.profile.max_completion_tokens,
             "extra_body": {"reasoning": {"effort": self._reasoning_effort}},
         }
         # Adapters that need outbound payload shaping (e.g. qwen's
@@ -728,6 +733,19 @@ class OpenAIToolCallingBackend(Backend):
             raise
 
         choice = completion.choices[0]
+        # Surface the cap-hit signal. When LM Studio hits ``max_tokens``
+        # it returns ``finish_reason="length"`` with whatever it had
+        # generated so far (often no tool_call, partial reasoning). The
+        # salvage/retry layers handle the missing structure; we log the
+        # cap hit at WARNING so operators can tell "agent gave up mid-
+        # reasoning" apart from "model chose the wrong tool."
+        finish_reason = getattr(choice, "finish_reason", None)
+        if finish_reason == "length":
+            _LOG.warning(
+                "llm completion hit max_tokens cap (model=%s, max_tokens=%d)",
+                self._model,
+                self._adapter.profile.max_completion_tokens,
+            )
         tool_calls = getattr(choice.message, "tool_calls", None) or []
         content = getattr(choice.message, "content", None) or ""
         # LM Studio 0.3.23+ surfaces gpt-oss CoT on ``message.reasoning``.
@@ -931,6 +949,7 @@ class OpenAIToolCallingBackend(Backend):
                 messages=payload,
                 response_format=response_schema,
                 timeout=timeout_sec,
+                max_tokens=self._adapter.profile.max_completion_tokens,
                 extra_body={"reasoning": {"effort": self._reasoning_effort}},
             )
             parsed = completion.choices[0].message.parsed

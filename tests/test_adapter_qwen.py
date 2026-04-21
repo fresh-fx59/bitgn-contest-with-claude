@@ -365,3 +365,94 @@ def test_qwen_profile_reasoning_effort_is_high() -> None:
     AGENT_REASONING_EFFORT=high. The adapter default was 'medium' but was
     never measured. Align so the adapter default reproduces the tested run."""
     assert QwenA3bAdapter().profile.reasoning_effort == "high"
+
+
+# ---------------------------------------------------------------------------
+# Runaway-reasoning cap — 2026-04-20 t012 incident
+# ---------------------------------------------------------------------------
+
+
+def test_qwen_profile_max_completion_tokens_bounded_for_runaway() -> None:
+    """The 2026-04-20 PROD t012 ("Whose birthday is coming up next?") ran
+    classifier → UNKNOWN → raw agent with effort=high and the model produced
+    120k+ reasoning tokens over 3h27m of failed retries before giving up.
+
+    LM Studio keeps generating after our client HTTP timeout fires, so the
+    server-side cap is the only real stop. This profile value must be set so
+    LM Studio truncates the generation. Operator sets the LM Studio context
+    side to ~101720; our wire cap at 100k stays strictly below so LM Studio
+    will return ``finish_reason="length"`` before context overflow.
+    """
+    prof = QwenA3bAdapter().profile
+    assert prof.max_completion_tokens == 100_000
+
+
+def test_qwen_backend_forwards_max_completion_tokens_on_wire() -> None:
+    """Integration guard: the adapter's profile value must reach the wire
+    call, not be overridden by the backend's legacy 4096 default."""
+    fake_client = MagicMock()
+    msg = MagicMock()
+    msg.tool_calls = None
+    msg.content = ""
+    completion = MagicMock()
+    completion.choices = [MagicMock(message=msg, finish_reason="stop")]
+    completion.usage = MagicMock(
+        prompt_tokens=1,
+        completion_tokens=1,
+        completion_tokens_details=MagicMock(reasoning_tokens=0),
+    )
+    fake_client.chat.completions.create.return_value = completion
+    backend = OpenAIToolCallingBackend(
+        client=fake_client,
+        model="qwen3.5-35b-a3b",
+        reasoning_effort="high",
+        adapter=QwenA3bAdapter(),
+    )
+    # extract_next_step will fail (no tool_calls, empty content) — we only
+    # care that the request payload carries the cap.
+    try:
+        backend.next_step(
+            messages=[Message(role="user", content="t")],
+            response_schema=NextStep,
+            timeout_sec=5.0,
+        )
+    except Exception:
+        pass
+    seen = fake_client.chat.completions.create.call_args.kwargs
+    assert seen["max_tokens"] == 100_000
+
+
+def test_backend_logs_warning_when_finish_reason_is_length(caplog) -> None:
+    """Operator visibility: when LM Studio truncates at the cap (finish_reason
+    "length"), emit a WARNING. Distinguishes "model gave up mid-reasoning"
+    from "model chose the wrong tool" during post-run triage."""
+    fake_client = MagicMock()
+    msg = MagicMock()
+    msg.tool_calls = None
+    msg.content = ""
+    completion = MagicMock()
+    completion.choices = [MagicMock(message=msg, finish_reason="length")]
+    completion.usage = MagicMock(
+        prompt_tokens=1,
+        completion_tokens=100_000,
+        completion_tokens_details=MagicMock(reasoning_tokens=99_000),
+    )
+    fake_client.chat.completions.create.return_value = completion
+    backend = OpenAIToolCallingBackend(
+        client=fake_client,
+        model="qwen3.5-35b-a3b",
+        reasoning_effort="high",
+        adapter=QwenA3bAdapter(),
+    )
+    import logging as _logging
+    with caplog.at_level(_logging.WARNING,
+                         logger="bitgn_contest_agent.backend.openai_toolcalling"):
+        try:
+            backend.next_step(
+                messages=[Message(role="user", content="t")],
+                response_schema=NextStep,
+                timeout_sec=5.0,
+            )
+        except Exception:
+            pass
+    assert any("max_tokens cap" in r.message for r in caplog.records)

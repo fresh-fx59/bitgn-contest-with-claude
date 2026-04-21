@@ -34,6 +34,14 @@ class ModelProfile:
     max_parallel_tasks: int
     max_inflight_llm: int
     reasoning_effort: str  # "low" | "medium" | "high"
+    # Wire-level hard cap on completion tokens. Passed as ``max_tokens``
+    # to ``chat.completions.create``. The default (4096) is the terse gpt-oss
+    # ceiling tuned before per-adapter caps existed; reasoning-heavy models
+    # (qwen-a3b with effort="high") override to ~100k to prevent chain-of-
+    # thought runaways from consuming minutes of GPU time before our client
+    # HTTP timeout kills the call — at which point LM Studio keeps generating
+    # anyway. The server-side cap is the real stop; this is our signal.
+    max_completion_tokens: int = 4096
 
 
 class ModelAdapter:
