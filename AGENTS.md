@@ -95,6 +95,20 @@ Suggested template:
       --log-dir logs/smoke_<label>
     ```
     `--max-trials N` caps the leaderboard run to first N trials (rest left unstarted, no VM cost). Use this — NOT `--smoke`, whose hardcoded task IDs (t02/t15/t41/t42/t43) are stale and no longer in PROD.
+  - **Local LM Studio runs on `http://localhost:1236/v1`, not the default 1234.** Probe `/v1/models` before launching a local benchmark; if 1234 fails, try 1236. Set `OPENAI_BASE_URL=http://localhost:1236/v1` and pick a loaded model id (`qwen3.5-35b-a3b`, `openai/gpt-oss-20b`). Standard local qwen3.5 launch (single-slot, LM Studio memory-pressure safe):
+    ```
+    OPENAI_BASE_URL=http://localhost:1236/v1 \
+    OPENAI_API_KEY=lm-studio \
+    AGENT_MODEL=qwen3.5-35b-a3b \
+    AGENT_TOOLCALLING=1 \
+    .venv/bin/python -m bitgn_contest_agent.cli run-benchmark \
+      --benchmark bitgn/pac1-prod \
+      --max-parallel 1 --max-inflight-llm 1 \
+      --runs 1 \
+      --output artifacts/bench/<commit>_qwen35_local_p1i1_prod_runs1.json \
+      --log-dir logs
+    ```
+    `p1i1` encodes `--max-parallel 1 --max-inflight-llm 1`; raising either is the qwen adapter's documented crash trigger on LM Studio.
   - Do not advance to the next implementation step until the active regression or validation target is confirmed fixed by the required verification for that step.
 
 <lore_commit_protocol>
