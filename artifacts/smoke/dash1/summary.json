@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.1.0",
+  "overall": {
+    "total_runs": 1,
+    "total_passes": 0,
+    "pass_rate": 0.0,
+    "runs_per_task": 1,
+    "pass_rate_median": 0.0,
+    "pass_rate_min": 0.0,
+    "pass_rate_ci_lower": 0.0,
+    "pass_rate_ci_upper": 0.0,
+    "total_input_tokens": 8955,
+    "total_output_tokens": 437,
+    "total_reasoning_tokens": 137,
+    "trace_dir": "/home/claude-developer/bitgn-contest-with-claude/artifacts/smoke/dash1/20260416_074631",
+    "divergence_count": 2
+  },
+  "tasks": {
+    "t000": {
+      "runs": 1,
+      "passes": 0,
+      "median_steps": 2,
+      "passes_per_run": [
+        0
+      ],
+      "input_tokens": 8955,
+      "output_tokens": 437,
+      "reasoning_tokens": 137,
+      "harness_url": "https://vm-03o5hy5huyza0hvgeu.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2
+      ],
+      "step_texts": [
+        "Need perform mandatory identity bootstrap before task work: tree '/', read AGENTS.md, context.",
+        "Completed first bootstrap step (tree). Next required bootstrap step is reading AGENTS.md; filesystem shows uppercase extension, but must attempt required path."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 15820,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true
+    }
+  }
+}

@@ -12,13 +12,12 @@ __pycache__/
 .venv/
 build/
 dist/
-logs/
-artifacts/bench/*_scratch.json
-artifacts/bench/*.stderr.log
-artifacts/bench/*.stdout.log
-artifacts/bench/*.log
-artifacts/smoke/
 uv.lock
+
+# Note: logs/ and artifacts/ are tracked — bench history, workspace snapshots,
+# and score detail are primary analysis inputs. Only ephemeral scratch files
+# from in-flight runs are excluded.
+artifacts/bench/*_scratch.json
 
 # Secrets — BITGN profile key, cliproxyapi token, etc.
 .env

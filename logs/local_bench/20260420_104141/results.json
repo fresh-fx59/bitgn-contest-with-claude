@@ -1,0 +1,24 @@
+[
+  {
+    "task_id": "local_t093_ocr_inbox",
+    "passed": true,
+    "detail": "superset match (extra: {'processed the next inbox request successfully. i reviewed the inbox note, executed ocr workflow on all 8 explicitly listed finance documents, added yaml frontmatter to the 4 purchase records that lacked it, verified the 4 listed invoice records were already structured, and then deleted the processed inbox item.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Processed the next inbox request successfully. I reviewed the inbox note, executed OCR workflow on all 8 explicitly listed finance documents, added YAML frontmatter to the 4 purchase records that lacked it, verified the 4 listed invoice records were already structured, and then deleted the processed inbox item.",
+    "expected": "",
+    "steps": 30,
+    "llm_calls": 30,
+    "wall_sec": 283.8
+  },
+  {
+    "task_id": "local_t097_design_partner_4inv",
+    "passed": true,
+    "detail": "superset match (extra: {'i could not safely complete this inbox request because the phrase “my design partner” is not canonically resolved to a specific entity in the available records, so the exact set of invoices cannot be determined without guessing.'})",
+    "outcome": "OUTCOME_NONE_CLARIFICATION",
+    "answer": "I could not safely complete this inbox request because the phrase “my design partner” is not canonically resolved to a specific entity in the available records, so the exact set of invoices cannot be determined without guessing.",
+    "expected": "",
+    "steps": 26,
+    "llm_calls": 26,
+    "wall_sec": 191.7
+  }
+]

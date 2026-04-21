@@ -1,0 +1,55 @@
+2026-04-20 10:32:35,465 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=In which projects is my son involved? Return only the exact project names, one per line, sorted alphabetically.
+2026-04-20 10:32:35,486 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:32:35,487 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.476668 seconds
+2026-04-20 10:32:35,968 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:32:35,969 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.937714 seconds
+2026-04-20 10:32:36,911 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:32:36,912 WARNING task=t028 run=0 skill=- category=- trace=t028__run0.jsonl bitgn_contest_agent.router task text normalisation failed: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:32:36,936 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:32:36,936 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.412920 seconds
+2026-04-20 10:32:37,353 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:32:37,354 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.977910 seconds
+2026-04-20 10:32:38,349 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:32:38,350 WARNING task=t028 run=0 skill=- category=- trace=t028__run0.jsonl bitgn_contest_agent.router classifier failed, degrading to UNKNOWN: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:32:38,356 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] source=none
+2026-04-20 10:33:01,949 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:33:09,556 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:33:13,665 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:33:15,638 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:33:15,639 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.417949 seconds
+2026-04-20 10:33:16,064 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:33:16,065 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.989058 seconds
+2026-04-20 10:33:17,080 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:33:17,088 WARNING task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:33:18,212 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:33:22,014 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:33:29,339 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:33:41,372 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.474701 seconds
+2026-04-20 10:33:49,389 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:33:52,244 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:33:54,709 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:04,120 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:05,722 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:06,696 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:11,350 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:13,246 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:15,923 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:17,975 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:23,501 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:27,141 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:30,714 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:32,448 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:35,303 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:37,202 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:42,045 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:44,881 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:49,235 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:51,037 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:51,868 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:55,413 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:56,244 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:34:59,240 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:35:01,803 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:35:05,025 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:35:15,086 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:35:23,285 INFO task=t028 run=0 skill=- category=UNKNOWN trace=t028__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK

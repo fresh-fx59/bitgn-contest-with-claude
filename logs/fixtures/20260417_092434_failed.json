@@ -1,0 +1,247 @@
+[
+  {
+    "task_id": "t034",
+    "task_text": "Wie viel Geld haben wir seit Beginn von January 2026 mit der Servicezeile 'checklist  rewrite and rollout pack' verdient? Antworte nur mit einer Zahl.",
+    "intent_head": "Wie viel Geld haben wir seit Beginn von January 2026 mit der Servicezeile 'checklist  rewrite and rollout pack' verdient? Antworte nur mit einer Zahl.",
+    "benchmark": "bitgn/pac1-prod",
+    "model": "gpt-5.3-codex",
+    "score": 0.0,
+    "score_detail": [
+      "answer is incorrect. Expected: '1950'"
+    ],
+    "skill": "finance-lookup",
+    "router_source": "tier2_llm",
+    "router_confidence": 0.85,
+    "total_steps": 12,
+    "total_llm_calls": 12,
+    "total_prompt_tokens": 137214,
+    "total_completion_tokens": 4843,
+    "terminated_by": "report_completion",
+    "reported_answer": "OUTCOME_OK",
+    "error_kind": null,
+    "error_msg": null,
+    "trace_file": "logs/20260417_092434/t034__run0.jsonl",
+    "agent_commit": "7525e04",
+    "grader_patterns": [
+      {
+        "type": "wrong_answer",
+        "detail": "answer is incorrect. Expected: '1950'"
+      }
+    ]
+  },
+  {
+    "task_id": "t055",
+    "task_text": "How much did Filamenthütte Wien charge me in total for the line item PLA spool mixed colors 51 days ago? Answer with a number only",
+    "intent_head": "How much did Filamenthütte Wien charge me in total for the line item PLA spool mixed colors 51 days ago? Answer with a number only",
+    "benchmark": "bitgn/pac1-prod",
+    "model": "gpt-5.3-codex",
+    "score": 0.0,
+    "score_detail": [
+      "answer is incorrect. Expected: '24'"
+    ],
+    "skill": "finance-lookup",
+    "router_source": "tier1_regex",
+    "router_confidence": 1.0,
+    "total_steps": 10,
+    "total_llm_calls": 10,
+    "total_prompt_tokens": 109218,
+    "total_completion_tokens": 2765,
+    "terminated_by": "report_completion",
+    "reported_answer": "OUTCOME_OK",
+    "error_kind": null,
+    "error_msg": null,
+    "trace_file": "logs/20260417_092434/t055__run0.jsonl",
+    "agent_commit": "7525e04",
+    "grader_patterns": [
+      {
+        "type": "wrong_answer",
+        "detail": "answer is incorrect. Expected: '24'"
+      }
+    ]
+  },
+  {
+    "task_id": "t100",
+    "task_text": "How much money did I pay to 深圳市海云电子 in total? Number only",
+    "intent_head": "How much money did I pay to 深圳市海云电子 in total? Number only",
+    "benchmark": "bitgn/pac1-prod",
+    "model": "gpt-5.3-codex",
+    "score": 0.0,
+    "score_detail": [
+      "answer missing required reference '50_finance/purchases/2025_11_28__eur_000044__bill__house_mesh_esp32_order.md'"
+    ],
+    "skill": "finance-lookup",
+    "router_source": "tier2_llm",
+    "router_confidence": 0.95,
+    "total_steps": 8,
+    "total_llm_calls": 8,
+    "total_prompt_tokens": 84638,
+    "total_completion_tokens": 1924,
+    "terminated_by": "report_completion",
+    "reported_answer": "OUTCOME_OK",
+    "error_kind": null,
+    "error_msg": null,
+    "trace_file": "logs/20260417_092434/t100__run0.jsonl",
+    "agent_commit": "7525e04",
+    "grader_patterns": [
+      {
+        "type": "missing_reference",
+        "detail": "answer missing required reference '50_finance/purchases/2025_11_28__eur_000044__bill__house_mesh_esp32_order.md'"
+      }
+    ]
+  },
+  {
+    "task_id": "t016",
+    "task_text": "Review the next inbound note and act on it.",
+    "intent_head": "Review the next inbound note and act on it.",
+    "benchmark": "bitgn/pac1-prod",
+    "model": "gpt-5.3-codex",
+    "score": 0.0,
+    "score_detail": [
+      "missing file write '50_finance/purchases/2026_01_24__eur_000050__bill__hearthline_sensor_bundle.md'",
+      "missing file write '50_finance/purchases/2026_04_03__eur_000029__bill__repair_ledger_filter_order.md'"
+    ],
+    "skill": "inbox-processing",
+    "router_source": "tier2_llm",
+    "router_confidence": 0.95,
+    "total_steps": 23,
+    "total_llm_calls": 23,
+    "total_prompt_tokens": 230064,
+    "total_completion_tokens": 7548,
+    "terminated_by": "report_completion",
+    "reported_answer": "OUTCOME_OK",
+    "error_kind": null,
+    "error_msg": null,
+    "trace_file": "logs/20260417_092434/t016__run0.jsonl",
+    "agent_commit": "7525e04",
+    "grader_patterns": [
+      {
+        "type": "missing_file_write",
+        "detail": "missing file write '50_finance/purchases/2026_01_24__eur_000050__bill__hearthline_sensor_bundle.md'"
+      },
+      {
+        "type": "missing_file_write",
+        "detail": "missing file write '50_finance/purchases/2026_04_03__eur_000029__bill__repair_ledger_filter_order.md'"
+      }
+    ]
+  },
+  {
+    "task_id": "t021",
+    "task_text": "Take care of the next message in inbox.",
+    "intent_head": "Take care of the next message in inbox.",
+    "benchmark": "bitgn/pac1-prod",
+    "model": "gpt-5.3-codex",
+    "score": 0.0,
+    "score_detail": [
+      "markdown frontmatter mismatch in '60_outbox/outbox/eml_2026-03-23T16-35-00Z.md': attachments[0]: expected \"50_finance/invoices/2026_02_10__eur_000610__inv_0008__helios_backfill_rollout_week.md\" got \"50_finance/invoices/2026_04_20__eur_000550__inv_0011__helios_followup_support_invoice.md\""
+    ],
+    "skill": "inbox-processing",
+    "router_source": "tier1_regex",
+    "router_confidence": 1.0,
+    "total_steps": 29,
+    "total_llm_calls": 29,
+    "total_prompt_tokens": 354826,
+    "total_completion_tokens": 9188,
+    "terminated_by": "report_completion",
+    "reported_answer": "OUTCOME_OK",
+    "error_kind": null,
+    "error_msg": null,
+    "trace_file": "logs/20260417_092434/t021__run0.jsonl",
+    "agent_commit": "7525e04",
+    "grader_patterns": [
+      {
+        "type": "frontmatter_mismatch",
+        "detail": "markdown frontmatter mismatch in '60_outbox/outbox/eml_2026-03-23T16-35-00Z.md': attachments[0]: expected \"50_finance/invoices/2026_02_10__eur_000610__inv_0008__helios_backfill_rollout_week.md\" got \"50_finance/invoices/2026_04_20__eur_000550__inv_0011__helios_followup_support_invoice.md\""
+      }
+    ]
+  },
+  {
+    "task_id": "t047",
+    "task_text": "Work the oldest inbox message.",
+    "intent_head": "Work the oldest inbox message.",
+    "benchmark": "bitgn/pac1-prod",
+    "model": "gpt-5.3-codex",
+    "score": 0.0,
+    "score_detail": [
+      "expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION"
+    ],
+    "skill": "inbox-processing",
+    "router_source": "tier1_regex",
+    "router_confidence": 1.0,
+    "total_steps": 20,
+    "total_llm_calls": 20,
+    "total_prompt_tokens": 197774,
+    "total_completion_tokens": 6016,
+    "terminated_by": "report_completion",
+    "reported_answer": "OUTCOME_NONE_CLARIFICATION",
+    "error_kind": null,
+    "error_msg": null,
+    "trace_file": "logs/20260417_092434/t047__run0.jsonl",
+    "agent_commit": "7525e04",
+    "grader_patterns": [
+      {
+        "type": "wrong_outcome",
+        "detail": "expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION"
+      }
+    ]
+  },
+  {
+    "task_id": "t065",
+    "task_text": "Handle the next inbox item.",
+    "intent_head": "Handle the next inbox item.",
+    "benchmark": "bitgn/pac1-prod",
+    "model": "gpt-5.3-codex",
+    "score": 0.0,
+    "score_detail": [
+      "expected no changes, but got 8"
+    ],
+    "skill": "inbox-processing",
+    "router_source": "tier1_regex",
+    "router_confidence": 1.0,
+    "total_steps": 31,
+    "total_llm_calls": 32,
+    "total_prompt_tokens": 399096,
+    "total_completion_tokens": 11479,
+    "terminated_by": "report_completion",
+    "reported_answer": "OUTCOME_NONE_CLARIFICATION",
+    "error_kind": null,
+    "error_msg": null,
+    "trace_file": "logs/20260417_092434/t065__run0.jsonl",
+    "agent_commit": "7525e04",
+    "grader_patterns": [
+      {
+        "type": "unexpected_changes",
+        "detail": "expected no changes, but got 8"
+      }
+    ]
+  },
+  {
+    "task_id": "t076",
+    "task_text": "Need the start date for the house fix log. Reply with the date in MM/DD/YYYY format only.",
+    "intent_head": "Need the start date for the house fix log. Reply with the date in MM/DD/YYYY format only.",
+    "benchmark": "bitgn/pac1-prod",
+    "model": "gpt-5.3-codex",
+    "score": 0.0,
+    "score_detail": [
+      "answer missing required reference '40_projects/2026_04_04_repair_ledger/README.MD'"
+    ],
+    "skill": "project-involvement",
+    "router_source": "tier1_regex",
+    "router_confidence": 1.0,
+    "total_steps": 4,
+    "total_llm_calls": 4,
+    "total_prompt_tokens": 23938,
+    "total_completion_tokens": 1010,
+    "terminated_by": "report_completion",
+    "reported_answer": "OUTCOME_OK",
+    "error_kind": null,
+    "error_msg": null,
+    "trace_file": "logs/20260417_092434/t076__run0.jsonl",
+    "agent_commit": "7525e04",
+    "grader_patterns": [
+      {
+        "type": "missing_reference",
+        "detail": "answer missing required reference '40_projects/2026_04_04_repair_ledger/README.MD'"
+      }
+    ]
+  }
+]

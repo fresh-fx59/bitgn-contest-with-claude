@@ -1,0 +1,32 @@
+2026-04-16 09:46:31,476 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=When was myself born? Answer YYYY-MM-DD. Date only
+2026-04-16 09:46:35,076 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 09:46:35,089 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] source=tier2_llm
+2026-04-16 09:46:50,781 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 09:46:57,876 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 09:47:00,766 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 09:47:02,395 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-16 09:47:03,408 ERROR task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl bitgn_contest_agent.agent unhandled crash at step 3 of task t000: read tcp [2a02:c207:2308:5355::1]:36860->[2a06:98c1:3100::6812:202f]:443: read: connection reset by peer
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/agent.py", line 314, in run
+    maybe_step = self._call_backend_with_retry(
+        messages, at_step=step_idx
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/agent.py", line 819, in _call_backend_with_retry
+    return _do_retry_loop()
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/agent.py", line 793, in _do_retry_loop
+    result = self._backend.next_step(
+        messages=messages,
+        response_schema=NextStep,
+        timeout_sec=self._llm_http_timeout_sec,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/backend/openai_compat.py", line 175, in next_step
+    for chunk in stream:
+                 ^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_streaming.py", line 49, in __iter__
+    for item in self._iterator:
+                ^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_streaming.py", line 95, in __stream__
+    raise APIError(
+    ...<3 lines>...
+    )
+openai.APIError: read tcp [2a02:c207:2308:5355::1]:36860->[2a06:98c1:3100::6812:202f]:443: read: connection reset by peer

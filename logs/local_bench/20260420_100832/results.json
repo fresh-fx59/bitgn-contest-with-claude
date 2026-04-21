@@ -1,0 +1,24 @@
+[
+  {
+    "task_id": "local_t093_ocr_inbox",
+    "passed": true,
+    "detail": "superset match (extra: {'processed the next inbox request successfully. i ran the exact 8 listed finance documents through the ocr/frontmatter workflow: verified the 4 invoice records were already compliant, added required bill frontmatter to the 4 listed purchase records while preserving their original bodies, and then deleted the handled inbox item.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Processed the next inbox request successfully. I ran the exact 8 listed finance documents through the OCR/frontmatter workflow: verified the 4 invoice records were already compliant, added required bill frontmatter to the 4 listed purchase records while preserving their original bodies, and then deleted the handled inbox item.",
+    "expected": "",
+    "steps": 29,
+    "llm_calls": 29,
+    "wall_sec": 237.5
+  },
+  {
+    "task_id": "local_t097_design_partner_4inv",
+    "passed": true,
+    "detail": "superset match (extra: {'1) 50_finance/invoices/2026_01_17__eur_000890__inv_0004__northstar_design_partner_sprint.md', 'created: 60_outbox/outbox/eml_2026-03-02t10-00-00z.md', '3) 50_finance/invoices/2025_11_03__eur_000770__inv_0002__northstar_backfill_beta.md', 'attachments included (oldest-4 set, ordered newest-first per outbox rule):', '4) 50_finance/invoices/2025_10_06__eur_000610__inv_0001__northstar_backfill_alpha.md', '2) 50_finance/invoices/2025_12_01__eur_000530__inv_0003__northstar_backfill_gamma.md', 'recipient: miles@novak.example', 'handled the next inbox item by preparing a reply draft with the oldest 4 invoices linked to miles’s design partner and then removing the processed inbox file.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Handled the next inbox item by preparing a reply draft with the oldest 4 invoices linked to Miles’s design partner and then removing the processed inbox file.\n\nCreated: 60_outbox/outbox/eml_2026-03-02T10-00-00Z.md\nRecipient: miles@novak.example\nAttachments included (oldest-4 set, ordered newest-first per outbox rule):\n1) 50_finance/invoices/2026_01_17__eur_000890__inv_0004__northstar_design_partner_sprint.md\n2) 50_finance/invoices/2025_12_01__eur_000530__inv_0003__northstar_backfill_gamma.md\n3) 50_finance/invoices/2025_11_03__eur_000770__inv_0002__northstar_backfill_beta.md\n4) 50_finance/invoices/2025_10_06__eur_000610__inv_0001__northstar_backfill_alpha.md",
+    "expected": "",
+    "steps": 30,
+    "llm_calls": 30,
+    "wall_sec": 230.2
+  }
+]

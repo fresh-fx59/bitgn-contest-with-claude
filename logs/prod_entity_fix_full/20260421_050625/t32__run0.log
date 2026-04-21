@@ -1,0 +1,29 @@
+2026-04-21 07:19:00,390 INFO task=t32 run=0 skill=- category=- trace=t32__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=CanalPort Shipping asked to move the next follow-up to 2026-08-19. Fix the follow-up date regression and keep the diff focused. Audit context is in docs/follow-up-audit.json.
+2026-04-21 07:19:01,208 INFO task=t32 run=0 skill=- category=- trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:01,209 INFO task=t32 run=0 skill=- category=- trace=t32__run0.jsonl bitgn_contest_agent.router normalised task text → CanalPort Shipping asked to move the next follow-up to 2026-08-19. Fix the follow-up date regression and keep the diff f
+2026-04-21 07:19:01,951 INFO task=t32 run=0 skill=- category=- trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:01,953 INFO task=t32 run=0 skill=- category=- trace=t32__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] source=tier2_llm
+2026-04-21 07:19:11,239 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:18,490 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:26,214 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:28,717 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:29,648 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:33,161 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:36,523 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:37,678 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:40,836 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:42,120 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:46,557 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:52,289 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:54,588 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:19:57,257 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:20:02,944 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:20:02,946 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl bitgn_contest_agent.arch_log [ARCH:REACTIVE] step=9 skill=outbox-writing source=tier2_llm confidence=0.95 details=trigger=write(reminders/rem_007.json)
+2026-04-21 07:20:02,972 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=9 trigger=first_transition details=leaning=OUTCOME_OK
+2026-04-21 07:20:07,743 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:20:07,746 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=9 trigger=first_transition result=OK
+2026-04-21 07:20:10,152 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:20:18,688 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:20:27,292 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 07:20:27,296 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL_R4] result=CONSISTENT confidence=0.95 details=actual=2 cat=CONSISTENT
+2026-04-21 07:20:27,296 INFO task=t32 run=0 skill=- category=UNKNOWN trace=t32__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK

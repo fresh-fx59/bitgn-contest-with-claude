@@ -1,0 +1,41 @@
+2026-04-14 20:59:27,830 INFO task=t089 run=0 skill=- category=- trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Take care of the next message in inbox.
+2026-04-14 20:59:28,703 INFO task=t089 run=0 skill=- category=- trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 20:59:28,705 INFO task=t089 run=0 skill=- category=- trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] source=tier2_llm
+2026-04-14 20:59:30,656 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 20:59:35,246 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 20:59:38,318 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 20:59:38,320 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=2 trigger=inbox_read
+2026-04-14 20:59:40,013 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 20:59:40,014 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=2 trigger=inbox_read result=OK
+2026-04-14 20:59:43,907 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 20:59:47,730 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 20:59:52,845 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 20:59:55,418 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 20:59:56,833 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:00:00,613 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:00:04,527 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:00:15,262 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:REACTIVE] step=7 skill=inbox-security source=tier1_regex confidence=1.00 details=trigger=read(99_system/workflows/process-next-inbox-item.md)
+2026-04-14 21:00:21,746 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:00:24,595 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:00:31,812 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:00:36,477 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:00:38,891 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:00:49,097 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:00:51,909 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:00:55,335 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:01:07,218 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:01:16,398 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:01:16,399 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:REACTIVE] step=16 skill=outbox-writing source=tier2_llm confidence=0.95 details=trigger=write(50_finance/invoices/2025_11_19__eur_000520__inv_0006__helios_backfill_intake_audit.md)
+2026-04-14 21:01:16,399 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=16 trigger=first_transition details=leaning=OUTCOME_OK
+2026-04-14 21:01:19,036 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:01:19,038 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=16 trigger=first_transition result=OK
+2026-04-14 21:01:23,074 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:01:26,181 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:01:38,400 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:01:38,401 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL_R4] result=CONSISTENT confidence=0.92 details=actual=2 cat=CONSISTENT
+2026-04-14 21:01:38,401 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=REJECT reasons=["grounding_ref 'AGENTS.MD' never successfully read"]
+2026-04-14 21:01:38,402 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] step=18 result=REJECT reasons=["grounding_ref 'AGENTS.MD' never successfully read"] details=action=reject
+2026-04-14 21:01:44,413 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:01:55,998 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-14 21:01:55,999 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL_R4] result=MISMATCH confidence=0.95 details=actual=2 detail=Agent claimed multiple read operations and a generic 'write updated invoice' but actual mutations show only one specific write to a dated invoice file and one delete that matches the claimed delete.
+2026-04-14 21:01:55,999 INFO task=t089 run=0 skill=- category=UNKNOWN trace=t089__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=REJECT reasons=["grounding_ref 'AGENTS.MD' never successfully read", "mutation integrity: agent claims operations that don't match the 2 actual mutation(s). Agent claimed multiple read operations and a generic 'write updated invoice' but actual mutations show only one specific write to a dated invoice file and one delete that matches the claimed delete.. Re-check which operations actually succeeded."]

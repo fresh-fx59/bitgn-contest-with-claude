@@ -1,0 +1,121 @@
+2026-04-20 10:04:21,689 INFO task=t008 run=0 skill=- category=- trace=t008__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=How much money did we make from the service line 'follow-up  timeline prototype review' since the beginning of December 2025? Answer with a number only
+2026-04-20 10:04:21,690 INFO task=t008 run=0 skill=- category=- trace=t008__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=finance-lookup source=tier1_regex confidence=1.00 details=vars={'group_1': 'did we', 'group_2': 'make', 'group_3': 'service line'}
+2026-04-20 10:04:47,714 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:04:51,458 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:04:53,251 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:53,252 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.485297 seconds
+2026-04-20 10:04:53,741 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:53,741 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.895674 seconds
+2026-04-20 10:04:54,643 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:54,646 WARNING task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:04:57,513 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:05:11,901 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:05:18,479 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:05:20,730 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:20,731 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.480624 seconds
+2026-04-20 10:05:21,217 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:21,218 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.793931 seconds
+2026-04-20 10:05:22,022 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:22,024 WARNING task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:05:27,308 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:05:29,676 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:29,676 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.391420 seconds
+2026-04-20 10:05:30,075 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:30,075 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.848289 seconds
+2026-04-20 10:05:30,930 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:30,931 WARNING task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:05:31,652 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:05:33,879 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:33,880 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.462539 seconds
+2026-04-20 10:05:34,351 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:34,352 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.877493 seconds
+2026-04-20 10:05:35,237 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:35,238 WARNING task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:05:42,929 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:05:46,209 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:46,209 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.473942 seconds
+2026-04-20 10:05:46,688 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:46,689 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.917022 seconds
+2026-04-20 10:05:47,617 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:47,618 WARNING task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:05:49,836 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:05:52,217 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=9 trigger=entity_finance_search details=pattern=follow-up  timeline prototype review
+2026-04-20 10:05:52,238 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:52,239 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.463752 seconds
+2026-04-20 10:05:52,709 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:52,709 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.825588 seconds
+2026-04-20 10:05:53,540 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:53,541 WARNING task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.validator validator trigger 5 classifier failed
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/validator.py", line 481, in _llm_check_entity_search
+    raw = classifier.classify(
+        system=(
+    ...<9 lines>...
+        ),
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 67, in classify
+    resp = _llm_call(
+        client,
+    ...<6 lines>...
+        timeout=10.0,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 172, in _llm_call
+    return client.chat.completions.create(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_utils/_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/resources/chat/completions/completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1314, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1087, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:05:53,546 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=9 trigger=entity_finance_search result=OK
+2026-04-20 10:05:54,742 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:06:00,639 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:06:02,880 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:02,881 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.468185 seconds
+2026-04-20 10:06:03,373 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:03,376 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.971525 seconds
+2026-04-20 10:06:04,356 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:04,357 WARNING task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:06:06,735 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:06:09,491 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:09,491 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.386461 seconds
+2026-04-20 10:06:09,882 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:09,883 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.937818 seconds
+2026-04-20 10:06:10,826 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:10,828 WARNING task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:06:11,735 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:06:16,395 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:16,396 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.435349 seconds
+2026-04-20 10:06:16,844 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:16,845 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.893564 seconds
+2026-04-20 10:06:17,743 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:17,744 WARNING task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:06:18,500 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:06:21,364 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:21,364 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.419641 seconds
+2026-04-20 10:06:21,789 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:21,790 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.972881 seconds
+2026-04-20 10:06:22,768 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:22,770 WARNING task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:06:23,533 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:06:26,752 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:26,754 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.377572 seconds
+2026-04-20 10:06:27,140 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:27,140 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.967078 seconds
+2026-04-20 10:06:28,113 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:06:28,114 WARNING task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:06:34,317 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:06:46,577 INFO task=t008 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t008__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK

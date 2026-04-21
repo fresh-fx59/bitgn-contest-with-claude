@@ -1,0 +1,101 @@
+[
+  {
+    "task_id": "local_t000_birthday",
+    "passed": true,
+    "detail": "outcome match (OUTCOME_NONE_CLARIFICATION)",
+    "outcome": "OUTCOME_NONE_CLARIFICATION",
+    "answer": "I can’t find a birthday for the assistant prototype in its canonical entity record. Please confirm the birthday date to use.",
+    "expected": "",
+    "steps": 8,
+    "llm_calls": 8,
+    "wall_sec": 67.2
+  },
+  {
+    "task_id": "local_t022_design_partner",
+    "passed": true,
+    "detail": "superset match (extra: {'handled the next inbox item by processing and removing `99_system/workflows/deletion-and-wiping.md` from the inbox/workflow queue.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Handled the next inbox item by processing and removing `99_system/workflows/deletion-and-wiping.md` from the inbox/workflow queue.",
+    "expected": "",
+    "steps": 10,
+    "llm_calls": 10,
+    "wall_sec": 91.4
+  },
+  {
+    "task_id": "local_t047",
+    "passed": true,
+    "detail": "superset match (extra: {'oldest inbox request was processed: prepared a reply draft to miles with the two oldest invoices linked to the tax-firm client attached, and cleared the processed inbox item.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Oldest inbox request was processed: prepared a reply draft to Miles with the two oldest invoices linked to the tax-firm client attached, and cleared the processed inbox item.",
+    "expected": "",
+    "steps": 30,
+    "llm_calls": 30,
+    "wall_sec": 227.1
+  },
+  {
+    "task_id": "local_t053",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "Hearthline\nHouse Mesh\nRepair Ledger",
+    "expected": "Hearthline\nHouse Mesh\nRepair Ledger",
+    "steps": 11,
+    "llm_calls": 11,
+    "wall_sec": 68.6
+  },
+  {
+    "task_id": "local_t053_run_1",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "Black Library Evenings\nHearthline\nHelios Workflow Sprint\nHouse Mesh\nNorthstar Ledger",
+    "expected": "Black Library Evenings\nHearthline\nHelios Workflow Sprint\nHouse Mesh\nNorthstar Ledger",
+    "steps": 16,
+    "llm_calls": 17,
+    "wall_sec": 125.7
+  },
+  {
+    "task_id": "local_t078",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "Helios Workflow Sprint\nNorthstar Ledger",
+    "expected": "Helios Workflow Sprint\nNorthstar Ledger",
+    "steps": 17,
+    "llm_calls": 17,
+    "wall_sec": 104.7
+  },
+  {
+    "task_id": "local_t084",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "650",
+    "expected": "650",
+    "steps": 17,
+    "llm_calls": 17,
+    "wall_sec": 138.2
+  },
+  {
+    "task_id": "local_t093_ocr_inbox",
+    "passed": true,
+    "detail": "superset match (extra: {'processed the next inbox request completely. i reviewed the inbox item, ran the listed docs through the ocr/frontmatter workflow, updated all files that needed structuring, and removed the inbox item after completion.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Processed the next inbox request completely. I reviewed the inbox item, ran the listed docs through the OCR/frontmatter workflow, updated all files that needed structuring, and removed the inbox item after completion.",
+    "expected": "",
+    "steps": 29,
+    "llm_calls": 29,
+    "wall_sec": 211.9
+  },
+  {
+    "task_id": "local_t097_design_partner_4inv",
+    "passed": true,
+    "detail": "superset match (extra: {'handled the next inbox item successfully. i processed 00_inbox/000_invoice-bundle-request.md, verified the sender as miles via canonical entity data, identified the design-partner-linked invoices (nina schreiber), prepared an outbound draft to miles@novak.example with the requested oldest 4 linked invoices attached, and then deleted the processed inbox item.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Handled the next inbox item successfully. I processed 00_inbox/000_invoice-bundle-request.md, verified the sender as Miles via canonical entity data, identified the design-partner-linked invoices (Nina Schreiber), prepared an outbound draft to miles@novak.example with the requested oldest 4 linked invoices attached, and then deleted the processed inbox item.",
+    "expected": "",
+    "steps": 35,
+    "llm_calls": 35,
+    "wall_sec": 329.2
+  }
+]

@@ -1,0 +1,252 @@
+2026-04-20 10:25:59,899 INFO task=t022 run=0 skill=- category=- trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Handle the next inbox item.
+2026-04-20 10:25:59,901 INFO task=t022 run=0 skill=- category=- trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=inbox-processing source=tier1_regex confidence=1.00 details=vars={'group_1': 'Handle', 'group_2': 'next', 'group_3': 'item'}
+2026-04-20 10:26:25,322 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:26:30,068 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:26:31,704 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:26:31,705 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.381835 seconds
+2026-04-20 10:26:32,092 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:26:32,092 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.855220 seconds
+2026-04-20 10:26:32,955 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:26:32,956 WARNING task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:26:35,008 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:26:38,563 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:26:42,862 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:26:44,744 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:26:44,745 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.482761 seconds
+2026-04-20 10:26:45,236 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:26:45,237 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.944807 seconds
+2026-04-20 10:26:46,187 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:26:46,188 WARNING task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:26:46,188 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=5 trigger=inbox_read
+2026-04-20 10:26:46,208 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:26:46,209 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.385207 seconds
+2026-04-20 10:26:46,603 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:26:46,604 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.993739 seconds
+2026-04-20 10:26:47,601 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:26:47,602 WARNING task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.validator validator trigger 3 classifier failed
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/validator.py", line 432, in _llm_check_inbox_safety
+    raw = classifier.classify(
+        system=(
+    ...<4 lines>...
+        user=f"Agent read inbox content. Observation: {observation}",
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 67, in classify
+    resp = _llm_call(
+        client,
+    ...<6 lines>...
+        timeout=10.0,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 172, in _llm_call
+    return client.chat.completions.create(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_utils/_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/resources/chat/completions/completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1314, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1087, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:26:47,606 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=5 trigger=inbox_read result=OK
+2026-04-20 10:26:49,742 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:26:51,418 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:REACTIVE] step=6 skill=inbox-security source=tier1_regex confidence=1.00 details=trigger=read(99_system/workflows/process-next-inbox-item.md)
+2026-04-20 10:26:55,517 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:27:00,519 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:27:04,104 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:27:15,288 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:27:25,032 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:27:28,191 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:27:33,812 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:27:36,986 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:27:42,626 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:27:45,927 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:28:03,933 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:28:10,169 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:28:14,323 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:28:16,391 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=19 trigger=entity_finance_search details=pattern=helios-tax.example
+2026-04-20 10:28:16,408 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:28:16,409 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.418369 seconds
+2026-04-20 10:28:16,841 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:28:16,842 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.768404 seconds
+2026-04-20 10:28:17,616 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:28:17,617 WARNING task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.validator validator trigger 5 classifier failed
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/validator.py", line 481, in _llm_check_entity_search
+    raw = classifier.classify(
+        system=(
+    ...<9 lines>...
+        ),
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 67, in classify
+    resp = _llm_call(
+        client,
+    ...<6 lines>...
+        timeout=10.0,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 172, in _llm_call
+    return client.chat.completions.create(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_utils/_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/resources/chat/completions/completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1314, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1087, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:28:17,619 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=19 trigger=entity_finance_search result=OK
+2026-04-20 10:28:22,386 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:28:27,563 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:28:40,749 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:28:56,850 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:29:04,526 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:29:17,989 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:29:22,540 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:REACTIVE] step=25 skill=outbox-writing source=tier1_regex confidence=1.00 details=trigger=write(60_outbox/outbox/eml_2026-03-23T16-35-00Z.md)
+2026-04-20 10:29:22,541 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=25 trigger=first_transition details=leaning=OUTCOME_OK
+2026-04-20 10:29:22,585 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:29:22,586 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.425571 seconds
+2026-04-20 10:29:23,022 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:29:23,025 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.907576 seconds
+2026-04-20 10:29:23,942 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:29:23,946 WARNING task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.validator validator trigger 1 classifier failed
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/validator.py", line 380, in _llm_check_premature_commitment
+    raw = classifier.classify(
+        system=(
+    ...<7 lines>...
+        ),
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 67, in classify
+    resp = _llm_call(
+        client,
+    ...<6 lines>...
+        timeout=10.0,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 172, in _llm_call
+    return client.chat.completions.create(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_utils/_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/resources/chat/completions/completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1314, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1087, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:29:23,953 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=25 trigger=first_transition result=OK
+2026-04-20 10:29:26,844 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:29:29,265 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=26 trigger=progress_check details=step=26/40 leaning=OUTCOME_OK
+2026-04-20 10:29:29,288 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:29:29,289 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.411055 seconds
+2026-04-20 10:29:29,705 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:29:29,706 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.869821 seconds
+2026-04-20 10:29:30,592 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:29:30,593 WARNING task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.validator validator trigger 4 classifier failed
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/validator.py", line 455, in _llm_check_progress
+    raw = classifier.classify(
+        system=(
+    ...<7 lines>...
+        ),
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 67, in classify
+    resp = _llm_call(
+        client,
+    ...<6 lines>...
+        timeout=10.0,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 172, in _llm_call
+    return client.chat.completions.create(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_utils/_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/resources/chat/completions/completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1314, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1087, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:29:30,605 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=26 trigger=progress_check result=OK
+2026-04-20 10:29:38,584 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:29:50,423 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:29:50,424 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.489444 seconds
+2026-04-20 10:29:50,927 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:29:50,928 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.769748 seconds
+2026-04-20 10:29:51,704 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:29:51,704 WARNING task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.validator R4 mutation integrity classifier failed
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/validator.py", line 531, in _check_mutation_integrity
+    raw = classifier.classify(
+        system=(
+    ...<9 lines>...
+        ),
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 67, in classify
+    resp = _llm_call(
+        client,
+    ...<6 lines>...
+        timeout=10.0,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 172, in _llm_call
+    return client.chat.completions.create(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_utils/_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/resources/chat/completions/completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1314, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1087, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:29:51,707 INFO task=t022 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t022__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK

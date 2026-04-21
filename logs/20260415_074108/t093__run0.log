@@ -1,0 +1,60 @@
+2026-04-15 10:00:51,475 INFO task=t093 run=0 skill=- category=- trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Review the next inbound note and act on it.
+2026-04-15 10:00:52,414 INFO task=t093 run=0 skill=- category=- trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:00:52,416 WARNING task=t093 run=0 skill=- category=- trace=t093__run0.jsonl bitgn_contest_agent.classifier classify attempt 1: JSON parse failed at char 0: Expecting value
+2026-04-15 10:00:53,417 INFO task=t093 run=0 skill=- category=- trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:00:53,419 INFO task=t093 run=0 skill=- category=- trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] source=tier2_llm
+2026-04-15 10:00:58,604 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:00:59,794 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:GATE] step=1 details=preflight_gate_reject tool=tree
+2026-04-15 10:01:04,536 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:01:15,631 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:01:28,005 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:01:39,209 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:01:50,742 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:01:57,033 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:01,242 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:03,663 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:03,666 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=6 trigger=inbox_read
+2026-04-15 10:02:05,002 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:05,011 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=6 trigger=inbox_read result=OK
+2026-04-15 10:02:06,252 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:13,210 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:18,455 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:23,107 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:25,466 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:27,523 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:REACTIVE] step=10 skill=inbox-security source=tier1_regex confidence=1.00 details=trigger=read(/99_system/workflows/process-next-inbox-item.md)
+2026-04-15 10:02:30,686 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:34,349 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:42,908 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:02:48,514 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:01,692 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:13,571 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:16,654 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:21,935 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:25,320 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:31,584 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:35,340 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:39,096 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:43,915 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:47,793 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:52,250 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:54,636 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=25 trigger=progress_check details=step=25/40 leaning=GATHERING_INFORMATION
+2026-04-15 10:03:56,730 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:03:56,731 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=25 trigger=progress_check result=OK
+2026-04-15 10:04:11,048 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:04:19,342 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:04:19,343 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:REACTIVE] step=26 skill=outbox-writing source=tier2_llm confidence=0.95 details=trigger=write(/50_finance/invoices/2025_10_06__eur_000610__inv_0001__northstar_backfill_alpha.md)
+2026-04-15 10:04:19,344 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=26 trigger=first_transition details=leaning=OUTCOME_OK
+2026-04-15 10:04:21,018 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:04:21,020 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=26 trigger=first_transition result=OK
+2026-04-15 10:04:30,867 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:04:54,528 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:05:11,853 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:05:36,090 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:05:57,818 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:06:12,117 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:06:24,217 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:06:46,606 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:06:51,244 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:07:07,919 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:07:07,921 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL_R4] result=CONSISTENT confidence=0.95 details=actual=9 cat=CONSISTENT
+2026-04-15 10:07:07,921 INFO task=t093 run=0 skill=- category=UNKNOWN trace=t093__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK

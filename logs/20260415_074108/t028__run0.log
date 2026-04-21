@@ -1,0 +1,10 @@
+2026-04-15 09:45:56,325 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=In which projects is Omar involved? Return only the exact project names, one per line, sorted alphabetically.
+2026-04-15 09:45:57,083 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:45:57,084 INFO task=t028 run=0 skill=- category=- trace=t028__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=project-involvement source=tier2_llm confidence=0.95 details=vars={'target_name': 'Omar'}
+2026-04-15 09:46:00,899 INFO task=t028 run=0 skill=project-involvement category=project_involvement trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:46:02,665 INFO task=t028 run=0 skill=project-involvement category=project_involvement trace=t028__run0.jsonl bitgn_contest_agent.arch_log [ARCH:GATE] step=1 details=preflight_gate_reject tool=tree
+2026-04-15 09:46:07,844 INFO task=t028 run=0 skill=project-involvement category=project_involvement trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:46:15,903 INFO task=t028 run=0 skill=project-involvement category=project_involvement trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:46:17,389 INFO task=t028 run=0 skill=project-involvement category=project_involvement trace=t028__run0.jsonl bitgn_contest_agent.arch_log [ARCH:GATE] step=3 details=preflight_gate_reject tool=read
+2026-04-15 09:46:22,775 INFO task=t028 run=0 skill=project-involvement category=project_involvement trace=t028__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:46:28,088 INFO task=t028 run=0 skill=project-involvement category=project_involvement trace=t028__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_NONE_UNSUPPORTED

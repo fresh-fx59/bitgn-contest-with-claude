@@ -1,0 +1,33 @@
+2026-04-15 14:28:19,653 INFO task=t086 run=0 skill=- category=- trace=t086__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Take care of the next message in inbox.
+2026-04-15 14:28:20,674 INFO task=t086 run=0 skill=- category=- trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 14:28:20,675 INFO task=t086 run=0 skill=- category=- trace=t086__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] source=tier2_llm
+2026-04-15 14:28:21,078 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:21,079 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.448471 seconds
+2026-04-15 14:28:21,531 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:21,532 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.972067 seconds
+2026-04-15 14:28:22,510 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:22,511 WARNING task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl bitgn_contest_agent.agent transient backend error (attempt 0 at step 1): Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-15 14:28:23,016 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:23,016 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.376105 seconds
+2026-04-15 14:28:23,398 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:23,398 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.828791 seconds
+2026-04-15 14:28:24,235 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:24,237 WARNING task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl bitgn_contest_agent.agent transient backend error (attempt 1 at step 1): Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-15 14:28:25,744 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:25,745 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.426725 seconds
+2026-04-15 14:28:26,177 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:26,177 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.965244 seconds
+2026-04-15 14:28:27,150 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:27,151 WARNING task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl bitgn_contest_agent.agent transient backend error (attempt 2 at step 1): Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-15 14:28:31,159 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:31,162 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.494709 seconds
+2026-04-15 14:28:31,661 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:31,662 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.875438 seconds
+2026-04-15 14:28:32,544 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:32,545 WARNING task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl bitgn_contest_agent.agent transient backend error (attempt 3 at step 1): Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-15 14:28:42,551 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:42,552 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.455269 seconds
+2026-04-15 14:28:43,011 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:43,012 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.810610 seconds
+2026-04-15 14:28:43,826 INFO task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-15 14:28:43,827 WARNING task=t086 run=0 skill=- category=UNKNOWN trace=t086__run0.jsonl bitgn_contest_agent.agent transient backend error (attempt 4 at step 1): Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}

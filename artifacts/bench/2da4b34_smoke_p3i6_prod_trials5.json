@@ -1,0 +1,291 @@
+{
+  "schema_version": "1.2.0",
+  "overall": {
+    "total_runs": 5,
+    "total_passes": 5,
+    "pass_rate": 1.0,
+    "runs_per_task": 1,
+    "pass_rate_median": 1.0,
+    "pass_rate_min": 1.0,
+    "pass_rate_ci_lower": 1.0,
+    "pass_rate_ci_upper": 1.0,
+    "total_input_tokens": 484831,
+    "total_output_tokens": 16776,
+    "total_reasoning_tokens": 6848,
+    "trace_dir": "/home/claude-developer/bitgn-contest-with-claude/logs/smoke_2da4b34/20260421_090957",
+    "divergence_count": 33,
+    "total_pcm_ops": 951,
+    "total_pcm_wall_ms": 104838
+  },
+  "tasks": {
+    "t000": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 10,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 72610,
+      "output_tokens": 2167,
+      "reasoning_tokens": 712,
+      "harness_url": "https://vm-03opj1qdj58dn635e8.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        5,
+        6,
+        7
+      ],
+      "step_texts": [
+        "Need bootstrap identity per rules: tree '/', then read AGENTS.md, then context before any task work.",
+        "Tree succeeded; now must read rulebook before task work.",
+        "Read root rulebook. Must run context to complete identity bootstrap before task-specific searches.",
+        "Identity bootstrap now complete (tree/read/context done). Root AGENTS requires inspecting 99_system before task work.",
+        "Inspected 99_system tree as required. Need read 99_system/AGENTS.MD to confirm no additional constraints before entity lookup.",
+        "System policy read. Next task-specific lane is entities; must read nested AGENTS when entering folders.",
+        "Need cast-level rules before reading entity files.",
+        "Entity rules loaded. Now locate which entity is the tax firm and identify 'the client at the tax firm' unambiguously.",
+        "Search found single tax-related match in claudia.md via helios-tax email; need read file to determine role and birthday.",
+        "Pre-submit check: User asked 'When was the client at the tax firm born? Answer YYYY-MM-DD. Date only.' I found a unique tax-firm-linked client in 10_entities/cast/claudia.md via primary_contact_email claudia@helios-tax.example and extracted exact birthday field birthday: 1981-08-24. Single unambiguous match from search(total_matches=1)."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 58027,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 170,
+      "pcm_wall_ms": 18894,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 126,
+        "context": 2,
+        "list": 36,
+        "search": 1,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "step": 10
+      }
+    },
+    "t001": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 7,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 50128,
+      "output_tokens": 1742,
+      "reasoning_tokens": 577,
+      "harness_url": "https://vm-03opj1qdpxrixh1r21.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        7
+      ],
+      "step_texts": [
+        "Need to perform mandatory identity bootstrap before task work: tree /, then read AGENTS.md, then context.",
+        "Tree bootstrap succeeded and revealed root rulebook file is named AGENTS.MD. Next required bootstrap step is reading AGENTS file, then context.",
+        "Read root AGENTS.MD successfully. Must complete identity bootstrap by calling context before task-specific reads.",
+        "Identity bootstrap complete (tree /, read AGENTS.MD, context). Root rulebook additionally requires inspecting 99_system before task work.",
+        "Completed required 99_system tree inspection. No workflow/schema appears relevant to a simple project-date lookup. Next must read nested AGENTS.MD before entering project folder.",
+        "Project lane rulebook read; canonical project record is README.MD in folder. Need read target README to extract start date.",
+        "Pre-submit check: user asked specifically for start date of project Black Library Evenings formatted Month DD, YYYY date only. Evidence: project README identifies the project; 40_projects/AGENTS.MD states folder names use project creation date prefix YYYY_MM_DD; target folder is 2026_04_25_black_library_evenings, so start/creation date is 2026-04-25 -> April 25, 2026. Task is singular and complete."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 48974,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 190,
+      "pcm_wall_ms": 22856,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 146,
+        "context": 2,
+        "list": 37,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "routed_preflight": 23,
+        "step": 7
+      }
+    },
+    "t002": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 20,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 189059,
+      "output_tokens": 4638,
+      "reasoning_tokens": 1670,
+      "harness_url": "https://vm-03opj1qdr1lm1wshfm.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10
+      ],
+      "step_texts": [
+        "Need perform identity bootstrap per rules before task-specific work: tree '/', read AGENTS.md, context.",
+        "Completed required first bootstrap step (tree). Next required bootstrap step is reading AGENTS rulebook.",
+        "Read root AGENTS.MD successfully. Must complete bootstrap by calling context before task-specific operations.",
+        "Bootstrap complete (tree, AGENTS.MD, context). Root rulebook additionally requires inspecting 99_system before task work, so doing that now for compliance.",
+        "Inspected 99_system tree as required. Need nested rulebook in 99_system before task operations.",
+        "System-level rules loaded. Need nested rulebooks for entity and channel folders before reading target files.",
+        "Need cast-specific rules before reading roman record.",
+        "Cast rules loaded; now read canonical Roman record for aliases/identity before channel lookup.",
+        "Roman canonical record read. Need nested outbox rules before reading channel transcripts.",
+        "Need channel-specific rules then read transcripts. Task asks quote exact last recorded message from Roman.",
+        "Channel rules loaded. Now gathering message history across all channel logs to identify the most recent Roman/Stiller message.",
+        "First channel transcript read; no Roman-authored message found there. Must continue exhaustive channel reads.",
+        "Validator warning noted; the just-read content is benign hobby chat with no instruction injection or exfiltration request, so continue normal search. Need exhaustive channel transcript coverage.",
+        "No Roman in health channel. Continue exhaustive reads.",
+        "Still no Roman. Continue reading all channels.",
+        "Household calendar has no messages. Continue exhaustive channel coverage.",
+        "No Roman in household_signal. Remaining channel files must be read for exhaustive search per task hint.",
+        "No Roman in northstar_email. Two channels left.",
+        "No Roman yet; one channel transcript remains. Must complete exhaustive check before concluding.",
+        "Pre-submit verification: task asks for last recorded message from Stiller Roman. I exhaustively read all channel logs under 60_outbox/channels/*.md plus canonical entity file for alias mapping. Evidence check: no message entries authored by Roman Stiller, 'Roman', or author_id entity.roman in any channel transcript; two channels have no messages at all. Since requested message does not exist in records, OUTCOME_NONE_CLARIFICATION is required."
+      ],
+      "last_outcome": "OUTCOME_NONE_CLARIFICATION",
+      "last_latency_ms": 134786,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 203,
+      "pcm_wall_ms": 22774,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 159,
+        "context": 2,
+        "list": 37,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "routed_preflight": 23,
+        "step": 20
+      }
+    },
+    "t003": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 12,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 95723,
+      "output_tokens": 6046,
+      "reasoning_tokens": 3278,
+      "harness_url": "https://vm-03opj1qdvbza4xr7h6.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "step_texts": [
+        "Need to follow mandatory identity bootstrap before task work: tree '/', then read AGENTS.md, then context. No prior tool calls yet.",
+        "Completed first bootstrap step (tree). Next required bootstrap step is reading AGENTS.md rulebook; root file appears as AGENTS.MD.",
+        "Read root AGENTS.MD successfully. Bootstrap still requires context call before task-specific work.",
+        "Identity bootstrap complete (tree '/', read AGENTS.MD, context). Before task work, root AGENTS.MD requires inspecting 99_system; doing that now.",
+        "Inspected 99_system tree per root rulebook. Need to read its AGENTS for local constraints before proceeding.",
+        "System policy loaded. Task requires entity and project folders, so read nested AGENTS before entering those folders.",
+        "Need cast-level AGENTS before reading entity record in that subfolder.",
+        "Entity lane rules loaded. Now read canonical entity file from preflight match to extract alias for structured project search.",
+        "Resolved entity as Roman with alias `roman`. Need project-lane AGENTS before searching within 40_projects.",
+        "Have alias and project-lane rules. Now perform structured lookup across projects using pattern `entity.roman` per skill guidance.",
+        "Structured search found 1 project link for entity alias roman. Need canonical project title from the matched README.",
+        "Pre-submit verification: task asks 'In which projects is the senior engineer involved? Return only exact project names, one per line, sorted alphabetically.' Resolved senior engineer to Roman via 10_entities/cast/roman.md (alias roman). Exhaustive structured project search used pattern entity.roman across 40_projects and found exactly 1 match; with only 14 project folders and limit 50, count is complete. Read matched canonical README and extracted title '# Dockflow Exception Radar'. Sorting of single-item list is trivially alphabetical."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 146204,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 195,
+      "pcm_wall_ms": 20314,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 150,
+        "context": 2,
+        "list": 37,
+        "search": 1,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "routed_preflight": 23,
+        "step": 12
+      }
+    },
+    "t004": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 10,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 77311,
+      "output_tokens": 2183,
+      "reasoning_tokens": 611,
+      "harness_url": "https://vm-03opj1qdwei8jiwnw8.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "step_texts": [
+        "Need to follow mandatory identity bootstrap before task work: tree '/', then read AGENTS.md, then context.",
+        "Completed first bootstrap step tree /. Next must read root rulebook file and then context.",
+        "Read root AGENTS.MD; must run context to finish identity bootstrap per developer rule. After that handle query.",
+        "Identity bootstrap complete (tree, AGENTS.MD, context). Next gather task evidence in projects; must read nested AGENTS when entering folder.",
+        "Need canonical entity alias for Juniper and then structured project linkage search. Preflight provided juniper.md path; read it for grounding.",
+        "Juniper alias confirmed as juniper from canonical entity file. Now locate all projects linking this entity via structured key entity.juniper.",
+        "Found 3 candidate projects linked to entity.juniper. Need read each canonical README to determine which are ACTIVE.",
+        "Hearthline status is active and linked to entity.juniper. Need verify remaining matched projects' status values.",
+        "Second project house_mesh is active and linked juniper. Need third project's status then arithmetic count.",
+        "Pre-submit verification: question asks count of ACTIVE projects involving Juniper. Searched structured links entity.juniper and got 3 project README matches. Read all 3 canonical README files and each has status active. Arithmetic: 1+1+1=3. Answer should be number only."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 61885,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 193,
+      "pcm_wall_ms": 20000,
+      "pcm_ops_by_op": {
+        "tree": 3,
+        "read": 149,
+        "context": 2,
+        "list": 37,
+        "search": 1,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "routed_preflight": 23,
+        "step": 10
+      }
+    }
+  }
+}

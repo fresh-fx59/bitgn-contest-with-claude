@@ -1,0 +1,11 @@
+# Next inbox item
+
+Please handle this request:
+
+OCR these:
+
+1. 50_finance/purchases/2026_04_01__eur_000089__bill__black_library_terrain_spool.md
+2. 50_finance/purchases/2026_03_05__eur_000033__bill__studio_parts_nozzle_and_inserts.md
+3. 50_finance/purchases/2026_01_19__eur_000030__bill__northstar_domain_and_mail.md
+4. 50_finance/purchases/2025_12_05__eur_000044__bill__house_mesh_esp32_order.md
+5. 50_finance/purchases/_2025_12_05__eur_000044__bill__house_mesh_esp32_order.md

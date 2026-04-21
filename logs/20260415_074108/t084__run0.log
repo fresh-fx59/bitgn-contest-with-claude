@@ -1,0 +1,33 @@
+2026-04-15 09:58:00,217 INFO task=t084 run=0 skill=- category=- trace=t084__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Combien d'argent avons-nous gagne avec la ligne de service 'checklist  rewrite and rollout pack' depuis le debut de January 2026 ? Reponds avec un nombre uniquement.
+2026-04-15 09:58:01,151 INFO task=t084 run=0 skill=- category=- trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:58:01,152 INFO task=t084 run=0 skill=- category=- trace=t084__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=finance-lookup source=tier2_llm confidence=0.85 details=vars={'target_name': 'checklist rewrite and rollout pack'}
+2026-04-15 09:58:04,398 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:58:10,683 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl bitgn_contest_agent.arch_log [ARCH:GATE] step=1 details=preflight_gate_reject tool=tree
+2026-04-15 09:58:17,466 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:58:23,370 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:58:30,753 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:58:37,138 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:58:42,522 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:58:45,188 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:58:48,807 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:58:52,342 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:58:57,231 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:59:01,200 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:59:04,923 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:59:08,046 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:59:11,231 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:59:14,482 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:59:44,517 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.436803 seconds
+2026-04-15 10:00:14,970 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.889937 seconds
+2026-04-15 10:00:26,611 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:00:28,859 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=11 trigger=entity_finance_search details=pattern=checklist rewrite and rollout pack
+2026-04-15 10:00:30,283 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:00:30,285 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=11 trigger=entity_finance_search result=OK
+2026-04-15 10:00:37,921 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:00:42,002 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:00:46,550 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:00:50,337 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:00:52,925 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:00:57,278 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:01:06,133 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 10:01:11,209 INFO task=t084 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t084__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK

@@ -1,0 +1,56 @@
+2026-04-20 10:07:31,067 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=What is my startup sounding board's DoB? Return only DD-MM-YYYY.
+2026-04-20 10:07:31,779 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:07:31,779 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.441583 seconds
+2026-04-20 10:07:32,226 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:07:32,227 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.921720 seconds
+2026-04-20 10:07:33,159 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:07:33,161 WARNING task=t000 run=0 skill=- category=- trace=t000__run0.jsonl bitgn_contest_agent.router task text normalisation failed: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:07:33,225 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:07:33,226 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.453596 seconds
+2026-04-20 10:07:33,688 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:07:33,688 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.850624 seconds
+2026-04-20 10:07:34,544 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:07:34,545 WARNING task=t000 run=0 skill=- category=- trace=t000__run0.jsonl bitgn_contest_agent.router classifier failed, degrading to UNKNOWN: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:07:34,545 INFO task=t000 run=0 skill=- category=- trace=t000__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] source=none
+2026-04-20 10:07:58,136 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:08:10,514 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:08:16,625 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:08:18,412 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:18,412 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.480399 seconds
+2026-04-20 10:08:18,906 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:18,909 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.873923 seconds
+2026-04-20 10:08:19,790 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:19,790 WARNING task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:08:20,915 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:08:26,697 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:08:31,244 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:08:32,719 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:32,720 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.477690 seconds
+2026-04-20 10:08:33,203 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:33,204 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.817728 seconds
+2026-04-20 10:08:34,026 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:34,027 WARNING task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:08:37,477 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:08:39,671 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:39,671 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.383965 seconds
+2026-04-20 10:08:40,061 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:40,062 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.855444 seconds
+2026-04-20 10:08:40,931 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:40,932 WARNING task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:08:42,247 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:08:44,465 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:44,465 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.457386 seconds
+2026-04-20 10:08:44,927 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:44,928 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.889285 seconds
+2026-04-20 10:08:45,821 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:45,822 WARNING task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:08:48,540 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:08:54,033 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:08:54,646 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:54,647 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.429119 seconds
+2026-04-20 10:08:55,108 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:55,109 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.916877 seconds
+2026-04-20 10:08:56,033 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:08:56,034 WARNING task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:09:00,935 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:09:06,804 INFO task=t000 run=0 skill=- category=UNKNOWN trace=t000__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK

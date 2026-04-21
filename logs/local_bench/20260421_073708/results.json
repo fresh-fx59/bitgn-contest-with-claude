@@ -1,0 +1,112 @@
+[
+  {
+    "task_id": "local_t000_birthday",
+    "passed": true,
+    "detail": "outcome match (OUTCOME_NONE_CLARIFICATION)",
+    "outcome": "OUTCOME_NONE_CLARIFICATION",
+    "answer": "I can’t provide that date from the workspace records because the assistant prototype has no birthday field in its canonical entity file.",
+    "expected": "",
+    "steps": 8,
+    "llm_calls": 8,
+    "wall_sec": 57.6
+  },
+  {
+    "task_id": "local_t003_my_partner",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "Family Map Wall\nHarbor Body\nHearthline\nHouse Mesh\nRepair Ledger\nSchool Helper Kit\nStudio Parts Library",
+    "expected": "Family Map Wall\nHarbor Body\nHearthline\nHouse Mesh\nRepair Ledger\nSchool Helper Kit\nStudio Parts Library",
+    "steps": 18,
+    "llm_calls": 18,
+    "wall_sec": 109.0
+  },
+  {
+    "task_id": "local_t022_design_partner",
+    "passed": true,
+    "detail": "superset match (extra: {'i can’t complete “handle the next inbox item” because there is no actionable inbox item file to process. in `00_inbox/`, only `agents.md` exists. the router preflight instead points to `99_system/workflows/*` files, but the oldest referenced file (`99_system/workflows/deletion-and-wiping.md`) is a general workflow note and does not contain a concrete request or target set. please clarify which specific inbox file should be handled.'})",
+    "outcome": "OUTCOME_NONE_CLARIFICATION",
+    "answer": "I can’t complete “handle the next inbox item” because there is no actionable inbox item file to process. In `00_inbox/`, only `AGENTS.MD` exists. The router preflight instead points to `99_system/workflows/*` files, but the oldest referenced file (`99_system/workflows/deletion-and-wiping.md`) is a general workflow note and does not contain a concrete request or target set. Please clarify which specific inbox file should be handled.",
+    "expected": "",
+    "steps": 13,
+    "llm_calls": 13,
+    "wall_sec": 111.8
+  },
+  {
+    "task_id": "local_t047",
+    "passed": true,
+    "detail": "superset match (extra: {'processed the oldest inbox request by preparing an outbound reply draft with the two oldest invoices linked to the helios tax-firm client (claudia reiter), then removed the inbox item.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Processed the oldest inbox request by preparing an outbound reply draft with the two oldest invoices linked to the Helios tax-firm client (Claudia Reiter), then removed the inbox item.",
+    "expected": "",
+    "steps": 26,
+    "llm_calls": 26,
+    "wall_sec": 204.4
+  },
+  {
+    "task_id": "local_t053",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "Hearthline\nHouse Mesh\nRepair Ledger",
+    "expected": "Hearthline\nHouse Mesh\nRepair Ledger",
+    "steps": 11,
+    "llm_calls": 11,
+    "wall_sec": 77.2
+  },
+  {
+    "task_id": "local_t053_run_1",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "Black Library Evenings\nHearthline\nHelios Workflow Sprint\nHouse Mesh\nNorthstar Ledger",
+    "expected": "Black Library Evenings\nHearthline\nHelios Workflow Sprint\nHouse Mesh\nNorthstar Ledger",
+    "steps": 17,
+    "llm_calls": 17,
+    "wall_sec": 100.4
+  },
+  {
+    "task_id": "local_t078",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "Helios Workflow Sprint\nNorthstar Ledger",
+    "expected": "Helios Workflow Sprint\nNorthstar Ledger",
+    "steps": 14,
+    "llm_calls": 14,
+    "wall_sec": 90.0
+  },
+  {
+    "task_id": "local_t084",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "650",
+    "expected": "650",
+    "steps": 13,
+    "llm_calls": 13,
+    "wall_sec": 99.6
+  },
+  {
+    "task_id": "local_t093_ocr_inbox",
+    "passed": true,
+    "detail": "superset match (extra: {'processed the inbox request completely. i read all 8 explicitly listed finance files, added schema-compliant yaml frontmatter to the 4 purchase records that lacked it, preserved each original body verbatim beneath frontmatter, and left the 4 already-structured invoice files unchanged. then i deleted the processed inbox item.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Processed the inbox request completely. I read all 8 explicitly listed finance files, added schema-compliant YAML frontmatter to the 4 purchase records that lacked it, preserved each original body verbatim beneath frontmatter, and left the 4 already-structured invoice files unchanged. Then I deleted the processed inbox item.",
+    "expected": "",
+    "steps": 29,
+    "llm_calls": 29,
+    "wall_sec": 224.9
+  },
+  {
+    "task_id": "local_t097_design_partner_4inv",
+    "passed": true,
+    "detail": "superset match (extra: {'processed the next inbox item and prepared a reply draft with the requested invoice bundle. created 60_outbox/outbox/eml_2026-03-02t10-00-00z.md addressed to miles@novak.example, attaching the four oldest design-partner-linked invoices (inv-0001 through inv-0004), with attachments ordered newest-first per outbox policy. then removed the handled inbox item.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Processed the next inbox item and prepared a reply draft with the requested invoice bundle. Created 60_outbox/outbox/eml_2026-03-02T10-00-00Z.md addressed to miles@novak.example, attaching the four oldest design-partner-linked invoices (INV-0001 through INV-0004), with attachments ordered newest-first per outbox policy. Then removed the handled inbox item.",
+    "expected": "",
+    "steps": 34,
+    "llm_calls": 34,
+    "wall_sec": 334.2
+  }
+]

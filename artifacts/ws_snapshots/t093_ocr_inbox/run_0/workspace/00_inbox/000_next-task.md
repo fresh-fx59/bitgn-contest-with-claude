@@ -1,0 +1,14 @@
+# Next inbox item
+
+Please handle this request:
+
+run these docs through our OCR workflow:
+
+1. 50_finance/invoices/2025_11_03__eur_000770__inv_0002__northstar_backfill_beta.md
+2. 50_finance/invoices/2025_11_19__eur_000520__inv_0006__helios_backfill_intake_audit.md
+3. 50_finance/invoices/2026_01_19__eur_000610__inv_0008__helios_backfill_rollout_week.md
+4. 50_finance/invoices/2026_02_19__eur_000600__inv_0009__helios_discovery_invoice.md
+5. 50_finance/purchases/2026_02_04__eur_000033__bill__studio_parts_nozzle_and_inserts.md
+6. 50_finance/purchases/2026_02_23__eur_000022__bill__toy_forge_wheel_and_magnet_pack.md
+7. 50_finance/purchases/2026_03_11__eur_000029__bill__repair_ledger_filter_order.md
+8. 50_finance/purchases/2026_03_13__eur_000020__bill__studio_parts_magnet_and_felt.md

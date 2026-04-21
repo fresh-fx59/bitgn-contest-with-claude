@@ -1,0 +1,29 @@
+2026-04-19 10:07:25,687 INFO task=t103 run=0 skill=- category=- trace=t103__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Doing my accounting cleanup and not liking what I see. 2026_01_04__eur_000080__bill__studio_parts_petg_batch.md looks overpriced. How much did I pay to these guys in total? Number only
+2026-04-19 10:07:27,266 INFO task=t103 run=0 skill=- category=- trace=t103__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:07:27,267 INFO task=t103 run=0 skill=- category=- trace=t103__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=finance-lookup source=tier2_llm confidence=0.95 details=vars={'query': 'studio_parts_petg_batch'}
+2026-04-19 10:07:52,556 INFO task=t103 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t103__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:08:16,302 ERROR task=t103 run=0 skill=finance-lookup category=FINANCE_LOOKUP trace=t103__run0.jsonl bitgn_contest_agent.agent unhandled crash at step 1 of task t103: stream error: stream ID 2957; INTERNAL_ERROR; received from peer
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/agent.py", line 322, in run
+    maybe_step = self._call_backend_with_retry(
+        messages, at_step=step_idx
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/agent.py", line 839, in _call_backend_with_retry
+    return _do_retry_loop()
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/agent.py", line 813, in _do_retry_loop
+    result = self._backend.next_step(
+        messages=messages,
+        response_schema=NextStep,
+        timeout_sec=self._llm_http_timeout_sec,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/backend/openai_compat.py", line 224, in next_step
+    for chunk in stream:
+                 ^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_streaming.py", line 49, in __iter__
+    for item in self._iterator:
+                ^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_streaming.py", line 95, in __stream__
+    raise APIError(
+    ...<3 lines>...
+    )
+openai.APIError: stream error: stream ID 2957; INTERNAL_ERROR; received from peer

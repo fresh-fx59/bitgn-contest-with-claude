@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.1.0",
+  "overall": {
+    "total_runs": 1,
+    "total_passes": 1,
+    "pass_rate": 1.0,
+    "runs_per_task": 1,
+    "pass_rate_median": 1.0,
+    "pass_rate_min": 1.0,
+    "pass_rate_ci_lower": 1.0,
+    "pass_rate_ci_upper": 1.0,
+    "total_input_tokens": 35310,
+    "total_output_tokens": 1410,
+    "total_reasoning_tokens": 514,
+    "trace_dir": "/home/claude-developer/bitgn-contest-with-claude/artifacts/smoke/dash2/20260416_074718",
+    "divergence_count": 4
+  },
+  "tasks": {
+    "t000": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 6,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 35310,
+      "output_tokens": 1410,
+      "reasoning_tokens": 514,
+      "harness_url": "https://vm-03o5i0xw4enctn1net.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "step_texts": [
+        "Must perform identity bootstrap in order: tree /, read AGENTS.md, context. Then locate Hanna Oberleitner entity file and extract birthday.",
+        "Completed first bootstrap step (tree). Next must read root rulebook file, then context.",
+        "Root AGENTS read successfully. Must run context to complete identity bootstrap before task-specific lookup.",
+        "Identity bootstrap complete (tree, root AGENTS, context). Now entering 10_entities/cast, so must read nested AGENTS before reading hanna record.",
+        "Ready to retrieve the authoritative birthday from Hanna's canonical entity file.",
+        "Extracted birthday from canonical entity file and converted to requested format."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 45932,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true
+    }
+  }
+}

@@ -1,0 +1,27 @@
+2026-04-19 10:01:03,349 INFO task=t060 run=0 skill=- category=- trace=t060__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Traite le prochain element de la boite de reception.
+2026-04-19 10:01:04,646 INFO task=t060 run=0 skill=- category=- trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:01:04,650 INFO task=t060 run=0 skill=- category=- trace=t060__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=inbox-processing source=tier2_llm confidence=0.95 details=vars={}
+2026-04-19 10:01:29,418 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:01:34,556 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:01:39,190 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:01:39,191 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=2 trigger=inbox_read
+2026-04-19 10:01:41,000 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:01:41,002 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=2 trigger=inbox_read result=OK
+2026-04-19 10:01:42,798 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:02:13,264 WARNING task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl bitgn_contest_agent.agent transient backend error (attempt 0 at step 3): timed out
+2026-04-19 10:02:39,979 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:02:44,093 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:02:48,326 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:02:51,891 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:02:54,488 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:02:57,077 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:02:58,424 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:03:00,954 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl bitgn_contest_agent.arch_log [ARCH:REACTIVE] step=7 skill=inbox-security source=tier1_regex confidence=1.00 details=trigger=read(99_system/workflows/inbox-processing-v2-update.md)
+2026-04-19 10:03:03,695 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:03:07,948 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:03:11,089 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:03:25,364 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:03:29,918 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:03:40,177 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:03:51,090 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 10:04:01,033 INFO task=t060 run=0 skill=inbox-processing category=INBOX_PROCESSING trace=t060__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_NONE_UNSUPPORTED

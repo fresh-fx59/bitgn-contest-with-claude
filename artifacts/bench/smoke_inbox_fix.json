@@ -1,0 +1,182 @@
+{
+  "schema_version": "1.2.0",
+  "overall": {
+    "total_runs": 3,
+    "total_passes": 3,
+    "pass_rate": 1.0,
+    "runs_per_task": 1,
+    "pass_rate_median": 1.0,
+    "pass_rate_min": 1.0,
+    "pass_rate_ci_lower": 1.0,
+    "pass_rate_ci_upper": 1.0,
+    "total_input_tokens": 292729,
+    "total_output_tokens": 10472,
+    "total_reasoning_tokens": 3768,
+    "trace_dir": "/home/claude-developer/bitgn-contest-with-claude/logs/smoke_inbox_fix/20260419_074909",
+    "divergence_count": 19,
+    "total_pcm_ops": 555,
+    "total_pcm_wall_ms": 56986
+  },
+  "tasks": {
+    "t000": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 8,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 53245,
+      "output_tokens": 2115,
+      "reasoning_tokens": 860,
+      "harness_url": "https://vm-03ohdwv0uuzmj5etbr.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "step_texts": [
+        "Need perform identity bootstrap before task-specific work: tree /, read AGENTS.md, context.",
+        "Completed first bootstrap step (tree). Need read root rulebook file, then context.",
+        "Read root AGENTS.MD; requires reading nested AGENTS when entering folders and says entity files authoritative for birthdays. Must still call context to complete identity bootstrap.",
+        "Identity bootstrap completed (tree, root AGENTS, context). Now must follow nested rulebooks before entering entity folders.",
+        "Entered 10_entities and read its local rules. Need nested cast rulebook before reading records there.",
+        "All required identity/rulebook checks done. Need find canonical cast record corresponding to '3D printer'.",
+        "Found a single cast match for phrase '3D printer' in badger.md; need verify birthday from that canonical file.",
+        "Canonical 3D printer entity identified as badger.md. File has created_on and commissioned_on but no explicit birthday field; rulebook says if canonical file does not show needed fact, ask clarification instead of guessing."
+      ],
+      "last_outcome": "OUTCOME_NONE_CLARIFICATION",
+      "last_latency_ms": 59507,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 168,
+      "pcm_wall_ms": 17172,
+      "pcm_ops_by_op": {
+        "tree": 3,
+        "read": 125,
+        "context": 2,
+        "list": 36,
+        "search": 1,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "step": 8
+      }
+    },
+    "t001": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 8,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 57494,
+      "output_tokens": 1724,
+      "reasoning_tokens": 528,
+      "harness_url": "https://vm-03ohdwv0vpnkb2389v.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "step_texts": [
+        "Need perform mandatory identity bootstrap before task-specific work: tree /, read AGENTS.md, context. Then read preflight project file to ground answer date.",
+        "Completed first bootstrap step (tree). Next must read top-level AGENTS rulebook, then context.",
+        "Read root AGENTS.MD. Must call context to complete identity bootstrap. Then per AGENTS before task work should inspect 99_system with tree and read relevant workflow/schema docs; for simple question maybe relevant workflow not needed but instruction says before starting task work inspect 99_system with tree then read relevant workflow/schema docs. Need comply likely tree 99_system maybe enough maybe no relevant workflow for read-only query. We'll do context first per developer order tree/read/context. Then do tree 99_system to satisfy AGENTS.",
+        "Identity bootstrap complete (tree /, read AGENTS.MD, context). Need satisfy rulebook by inspecting 99_system before task work.",
+        "Inspected 99_system tree. Need read nested rulebook for entered folder, then read preflight project README to ground answer.",
+        "Read 99_system rulebook. Now moving into 40_projects so must read its AGENTS before project file, then read canonical README identified by preflight.",
+        "Need grounding read of canonical project file from preflight before answering.",
+        "Have canonical project README and folder prefix date; can answer exactly."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 48997,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 184,
+      "pcm_wall_ms": 19087,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 140,
+        "context": 2,
+        "list": 37,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "routed_preflight": 16,
+        "step": 8
+      }
+    },
+    "t002": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 20,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 181990,
+      "output_tokens": 6633,
+      "reasoning_tokens": 2380,
+      "harness_url": "https://vm-03ohdwv0ymyjgue6km.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "step_texts": [
+        "Need comply with bootstrap rules before task work. First call tree root='/' as required.",
+        "Tree succeeded. Next bootstrap step is reading root rulebook file.",
+        "Loaded root AGENTS. Must call context to complete required identity bootstrap before task-specific work.",
+        "Bootstrap core complete; identity can be considered verified after this. Root rulebook requires inspecting 99_system via tree before task work.",
+        "Inspected 99_system tree. Need rules in 99_system/AGENTS.MD to determine any required workflow/schema reads for this lookup task.",
+        "System policy read; now proceeding with task-specific lookup. Need entity aliases from canonical cast file per hint, so enter entities lane with nested rulebooks.",
+        "Entered entities lane; need cast-level rules before reading canonical person record.",
+        "Need canonical record for aliases/handles before scanning transcripts.",
+        "Canonical entity read: name appears as Tobias Kern with alias tobias. Need channel-lane rules before transcript reads.",
+        "Need channel-specific rules before reading transcript files in channels subfolder.",
+        "Ready to perform exhaustive transcript review across all channel logs to find latest message attributed to Tobias Kern/Kern Tobias/alias forms.",
+        "First channel transcript read; no Tobias/Kern message found there. Must continue exhaustive reads across remaining channel files.",
+        "Second transcript also no Tobias. Continue exhaustive channel reads.",
+        "No Tobias yet. Need continue through all transcripts.",
+        "Still no Tobias; continue exhaustive reads of remaining channels.",
+        "Household calendar empty. Continue remaining channel transcripts.",
+        "No Tobias in household_signal. Need finish exhaustive channel coverage before conclusion.",
+        "Found a Tobias Kern message in northstar_email, but must complete exhaustive channel-file review per task hint before finalizing last recorded message.",
+        "No Tobias in studio channel. Need final channel file read to complete exhaustive check.",
+        "Exhaustive read of all channel logs completed; only one Tobias-attributed message exists and is therefore the last recorded message from Kern Tobias."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 170871,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 203,
+      "pcm_wall_ms": 20727,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 159,
+        "context": 2,
+        "list": 37,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "routed_preflight": 23,
+        "step": 20
+      }
+    }
+  }
+}

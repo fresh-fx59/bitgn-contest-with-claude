@@ -1,0 +1,101 @@
+[
+  {
+    "task_id": "local_t000_birthday",
+    "passed": true,
+    "detail": "outcome match (OUTCOME_NONE_CLARIFICATION)",
+    "outcome": "OUTCOME_NONE_CLARIFICATION",
+    "answer": "I can’t provide that date from the canonical records: the assistant prototype entity (NORA) has no `birthday` field.",
+    "expected": "",
+    "steps": 9,
+    "llm_calls": 9,
+    "wall_sec": 63.7
+  },
+  {
+    "task_id": "local_t022_design_partner",
+    "passed": true,
+    "detail": "superset match (extra: {'handled the next inbox item by processing and removing `99_system/workflows/deletion-and-wiping.md` from the inbox queue.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Handled the next inbox item by processing and removing `99_system/workflows/deletion-and-wiping.md` from the inbox queue.",
+    "expected": "",
+    "steps": 14,
+    "llm_calls": 14,
+    "wall_sec": 141.7
+  },
+  {
+    "task_id": "local_t047",
+    "passed": true,
+    "detail": "superset match (extra: {'processed the oldest inbox request end-to-end: prepared a reply draft to the verified sender with the two oldest invoices linked to the tax-firm client, then cleared the inbox item.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Processed the oldest inbox request end-to-end: prepared a reply draft to the verified sender with the two oldest invoices linked to the tax-firm client, then cleared the inbox item.",
+    "expected": "",
+    "steps": 28,
+    "llm_calls": 28,
+    "wall_sec": 220.6
+  },
+  {
+    "task_id": "local_t053",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "Hearthline\nHouse Mesh\nRepair Ledger",
+    "expected": "Hearthline\nHouse Mesh\nRepair Ledger",
+    "steps": 13,
+    "llm_calls": 13,
+    "wall_sec": 132.7
+  },
+  {
+    "task_id": "local_t053_run_1",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "Black Library Evenings\nHearthline\nHelios Workflow Sprint\nHouse Mesh\nNorthstar Ledger",
+    "expected": "Black Library Evenings\nHearthline\nHelios Workflow Sprint\nHouse Mesh\nNorthstar Ledger",
+    "steps": 13,
+    "llm_calls": 13,
+    "wall_sec": 65.2
+  },
+  {
+    "task_id": "local_t078",
+    "passed": false,
+    "detail": "missing: {'helios workflow sprint', 'northstar ledger'}",
+    "outcome": "OUTCOME_OK",
+    "answer": "Studio Parts Library",
+    "expected": "Helios Workflow Sprint\nNorthstar Ledger",
+    "steps": 13,
+    "llm_calls": 13,
+    "wall_sec": 93.2
+  },
+  {
+    "task_id": "local_t084",
+    "passed": true,
+    "detail": "exact match",
+    "outcome": "OUTCOME_OK",
+    "answer": "650",
+    "expected": "650",
+    "steps": 15,
+    "llm_calls": 15,
+    "wall_sec": 92.6
+  },
+  {
+    "task_id": "local_t093_ocr_inbox",
+    "passed": true,
+    "detail": "superset match (extra: {'processed the next inbound note successfully. i followed the inbox item’s explicit 8-file list exactly, ran ocr/frontmatter structuring as requested, preserved original bodies, and removed the inbox item after completion. four invoice files were already schema-compliant; four purchase files were updated with bill frontmatter.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Processed the next inbound note successfully. I followed the inbox item’s explicit 8-file list exactly, ran OCR/frontmatter structuring as requested, preserved original bodies, and removed the inbox item after completion. Four invoice files were already schema-compliant; four purchase files were updated with bill frontmatter.",
+    "expected": "",
+    "steps": 29,
+    "llm_calls": 29,
+    "wall_sec": 276.6
+  },
+  {
+    "task_id": "local_t097_design_partner_4inv",
+    "passed": true,
+    "detail": "superset match (extra: {\"handled the next inbox item end-to-end: verified sender identity, prepared a reply draft with the oldest 4 invoices linked to miles's design partner, and cleared the processed inbox item.\"})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Handled the next inbox item end-to-end: verified sender identity, prepared a reply draft with the oldest 4 invoices linked to Miles's design partner, and cleared the processed inbox item.",
+    "expected": "",
+    "steps": 30,
+    "llm_calls": 30,
+    "wall_sec": 217.3
+  }
+]

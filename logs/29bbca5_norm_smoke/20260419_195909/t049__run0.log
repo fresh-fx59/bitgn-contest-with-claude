@@ -1,0 +1,25 @@
+2026-04-19 22:37:53,034 INFO task=t049 run=0 skill=- category=- trace=t049__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=What is the purchased date in DD-MM-YYYY format (return only date) of bill from Filamenthütte Wien issued around Feb 1, 2026-Feb 4
+2026-04-19 22:37:55,190 INFO task=t049 run=0 skill=- category=- trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:37:55,192 WARNING task=t049 run=0 skill=- category=- trace=t049__run0.jsonl bitgn_contest_agent.classifier classify attempt 1: JSON parse failed at char 0: Expecting value
+2026-04-19 22:37:56,663 INFO task=t049 run=0 skill=- category=- trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:37:57,790 INFO task=t049 run=0 skill=- category=- trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:37:57,791 INFO task=t049 run=0 skill=- category=- trace=t049__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=bill-query source=tier2_llm confidence=0.95 details=vars={'query': 'Filamenthütte Wien purchased date Feb 1-4 2026'}
+2026-04-19 22:38:22,992 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:38:26,967 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:38:29,763 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:38:31,674 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:38:42,399 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:38:47,798 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:38:50,904 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:38:52,882 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:38:56,093 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:38:57,338 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:39:03,511 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:39:08,958 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:39:14,175 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:39:15,052 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:39:18,267 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:39:20,014 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:39:23,154 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:39:28,714 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-19 22:39:36,025 INFO task=t049 run=0 skill=bill-query category=BILL_QUERY trace=t049__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK

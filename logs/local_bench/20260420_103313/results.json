@@ -1,0 +1,24 @@
+[
+  {
+    "task_id": "local_t093_ocr_inbox",
+    "passed": true,
+    "detail": "superset match (extra: {'i reviewed the next inbound note, but it does not contain a concrete task to execute. it is a general workflow document (deletion policy) without a specific target set or requested operation, so i cannot act without guessing.'})",
+    "outcome": "OUTCOME_NONE_CLARIFICATION",
+    "answer": "I reviewed the next inbound note, but it does not contain a concrete task to execute. It is a general workflow document (deletion policy) without a specific target set or requested operation, so I cannot act without guessing.",
+    "expected": "",
+    "steps": 12,
+    "llm_calls": 12,
+    "wall_sec": 97.8
+  },
+  {
+    "task_id": "local_t097_design_partner_4inv",
+    "passed": true,
+    "detail": "superset match (extra: {'processed the next inbox item by drafting a reply email with the requested invoices and then clearing the inbox entry. created `60_outbox/outbox/eml_2026-03-02t10-00-00z.md` addressed to `miles@novak.example` with the four oldest design-partner-linked invoices attached (attachments ordered newest-first per outbox policy), then deleted `00_inbox/000_invoice-bundle-request.md`.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Processed the next inbox item by drafting a reply email with the requested invoices and then clearing the inbox entry. Created `60_outbox/outbox/eml_2026-03-02T10-00-00Z.md` addressed to `miles@novak.example` with the four oldest design-partner-linked invoices attached (attachments ordered newest-first per outbox policy), then deleted `00_inbox/000_invoice-bundle-request.md`.",
+    "expected": "",
+    "steps": 33,
+    "llm_calls": 33,
+    "wall_sec": 262.8
+  }
+]

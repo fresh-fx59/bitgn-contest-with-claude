@@ -1,0 +1,5 @@
+2026-04-21 09:23:46,641 INFO task=t017 run=0 skill=- category=- trace=t017__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Queue up these docs for migration to my NORA:design-constraints-for-a-household-assistant.md, parking-lot.md.
+2026-04-21 09:23:47,915 INFO task=t017 run=0 skill=- category=- trace=t017__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 09:23:47,917 INFO task=t017 run=0 skill=- category=- trace=t017__run0.jsonl bitgn_contest_agent.router normalised task text → Queue up these docs for migration to my NORA:design-constraints-for-a-household-assistant.md, parking-lot.md.
+2026-04-21 09:23:48,997 INFO task=t017 run=0 skill=- category=- trace=t017__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-21 09:23:49,001 INFO task=t017 run=0 skill=- category=- trace=t017__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=document-migration source=tier2_llm confidence=0.95 details=vars={'query': 'NORA'}

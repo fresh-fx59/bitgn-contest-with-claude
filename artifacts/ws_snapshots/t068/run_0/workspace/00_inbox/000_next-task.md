@@ -1,0 +1,12 @@
+# Next inbox item
+
+Please handle this request:
+
+run these docs through our OCR workflow:
+
+1. 50_finance/invoices/2026_02_14__eur_000890__inv_0004__northstar_design_partner_sprint.md
+2. 50_finance/invoices/2026_04_21__eur_000780__inv_0010__helios_checklist_pack_invoice.md
+3. 50_finance/invoices/2026_04_27__eur_000550__inv_0011__helios_followup_support_invoice.md
+4. 50_finance/purchases/2025_12_27__eur_000066__bill__hearthline_epaper_panel.md
+5. 50_finance/purchases/2026_01_31__eur_000050__bill__hearthline_sensor_bundle.md
+6. 50_finance/purchases/2026_04_09__eur_000029__bill__repair_ledger_filter_order.md

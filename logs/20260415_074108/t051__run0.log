@@ -1,0 +1,15 @@
+2026-04-15 09:49:54,007 INFO task=t051 run=0 skill=- category=- trace=t051__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=When did the project the house systems layer start? Return only DD-MM-YYYY.
+2026-04-15 09:49:54,714 INFO task=t051 run=0 skill=- category=- trace=t051__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:49:54,715 INFO task=t051 run=0 skill=- category=- trace=t051__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=project-involvement source=tier2_llm confidence=0.85 details=vars={'target_name': 'the house systems layer'}
+2026-04-15 09:49:57,334 INFO task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:50:27,976 WARNING task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl bitgn_contest_agent.agent transient backend error (attempt 0 at step 1): timed out
+2026-04-15 09:50:56,855 INFO task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:51:01,263 INFO task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl bitgn_contest_agent.arch_log [ARCH:GATE] step=1 details=preflight_gate_reject tool=tree
+2026-04-15 09:51:09,273 INFO task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:51:24,924 INFO task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:51:29,418 INFO task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:51:31,790 INFO task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl bitgn_contest_agent.arch_log [ARCH:GATE] step=4 details=preflight_gate_reject tool=read
+2026-04-15 09:51:36,991 INFO task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:51:50,210 INFO task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:52:20,508 INFO task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 09:52:27,899 INFO task=t051 run=0 skill=project-involvement category=project_involvement trace=t051__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_NONE_UNSUPPORTED

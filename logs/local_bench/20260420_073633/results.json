@@ -1,0 +1,24 @@
+[
+  {
+    "task_id": "local_t000_birthday",
+    "passed": false,
+    "detail": "missing: {'12/01/2025'}",
+    "outcome": "OUTCOME_NONE_CLARIFICATION",
+    "answer": "I can’t determine this from the workspace: the assistant prototype’s canonical file has no birthday field. Please confirm which date to use (e.g., created_on or prototype_started).",
+    "expected": "12/01/2025",
+    "steps": 8,
+    "llm_calls": 8,
+    "wall_sec": 86.3
+  },
+  {
+    "task_id": "local_t022_design_partner",
+    "passed": true,
+    "detail": "superset match (extra: {'handled the next inbox item by drafting a reply email to miles with the oldest 1 invoice linked to his design partner and then deleting the processed inbox file.'})",
+    "outcome": "OUTCOME_OK",
+    "answer": "Handled the next inbox item by drafting a reply email to Miles with the oldest 1 invoice linked to his design partner and then deleting the processed inbox file.",
+    "expected": "",
+    "steps": 30,
+    "llm_calls": 30,
+    "wall_sec": 315.1
+  }
+]

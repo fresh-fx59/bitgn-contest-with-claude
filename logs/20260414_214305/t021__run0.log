@@ -1,0 +1,43 @@
+2026-04-14 23:43:07,298 INFO task=t021 run=0 skill=- category=- trace=t021__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Work the oldest inbox message.
+2026-04-14 23:43:07,354 INFO task=t021 run=0 skill=- category=- trace=t021__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/chat/completions "HTTP/1.1 404 Not Found"
+2026-04-14 23:43:07,369 WARNING task=t021 run=0 skill=- category=- trace=t021__run0.jsonl bitgn_contest_agent.router classifier failed, degrading to UNKNOWN: 404 page not found
+2026-04-14 23:43:07,369 INFO task=t021 run=0 skill=- category=- trace=t021__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] source=none
+2026-04-14 23:43:07,794 INFO task=t021 run=0 skill=- category=UNKNOWN trace=t021__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/chat/completions "HTTP/1.1 404 Not Found"
+2026-04-14 23:43:07,795 ERROR task=t021 run=0 skill=- category=UNKNOWN trace=t021__run0.jsonl bitgn_contest_agent.agent unhandled crash at step 1 of task t021: 404 page not found
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/agent.py", line 286, in run
+    maybe_step = self._call_backend_with_retry(
+        messages, at_step=step_idx
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/agent.py", line 713, in _call_backend_with_retry
+    return _do_retry_loop()
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/agent.py", line 687, in _do_retry_loop
+    result = self._backend.next_step(
+        messages=messages,
+        response_schema=NextStep,
+        timeout_sec=self._llm_http_timeout_sec,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/backend/openai_compat.py", line 165, in next_step
+    stream = self._client.chat.completions.create(
+        model=self._model,
+    ...<4 lines>...
+        extra_body={"reasoning": {"effort": self._reasoning_effort}},
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_utils/_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/resources/chat/completions/completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1314, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1087, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.NotFoundError: 404 page not found

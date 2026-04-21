@@ -1,0 +1,186 @@
+2026-04-20 10:03:20,365 INFO task=t006 run=0 skill=- category=- trace=t006__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TASK_START] details=Locate every purchase record mentioning "relay modules". Delete all matching receipts and nothing else. Return only the deleted paths, one per line, sorted alphabetically.
+2026-04-20 10:03:22,742 INFO task=t006 run=0 skill=- category=- trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:03:22,742 INFO task=t006 run=0 skill=- category=- trace=t006__run0.jsonl bitgn_contest_agent.router normalised task text → Locate every purchase record mentioning "relay modules". Delete all matching receipts and nothing else. Return only the 
+2026-04-20 10:03:23,479 INFO task=t006 run=0 skill=- category=- trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:03:23,481 INFO task=t006 run=0 skill=- category=- trace=t006__run0.jsonl bitgn_contest_agent.arch_log [ARCH:SKILL_ROUTER] skill=bill-query source=tier2_llm confidence=0.85 details=vars={'query': 'relay modules'}
+2026-04-20 10:03:48,244 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:03:51,786 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:03:53,522 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:03:53,523 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.443247 seconds
+2026-04-20 10:03:53,970 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:03:53,971 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.842705 seconds
+2026-04-20 10:03:54,818 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:03:54,819 WARNING task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:03:56,709 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:04:00,154 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:04:06,936 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:04:08,936 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:08,936 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.433701 seconds
+2026-04-20 10:04:09,375 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:09,376 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.776311 seconds
+2026-04-20 10:04:10,158 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:10,160 WARNING task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:04:11,544 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:04:13,267 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:13,268 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.450433 seconds
+2026-04-20 10:04:13,724 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:13,725 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.871523 seconds
+2026-04-20 10:04:14,604 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:14,604 WARNING task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:04:21,952 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:04:23,627 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:23,628 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.476269 seconds
+2026-04-20 10:04:24,109 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:24,110 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.864575 seconds
+2026-04-20 10:04:24,980 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:24,981 WARNING task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:04:26,058 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:04:28,134 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:28,134 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.479452 seconds
+2026-04-20 10:04:28,618 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:28,619 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.872186 seconds
+2026-04-20 10:04:29,497 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:29,498 WARNING task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:04:33,444 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:04:35,575 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=9 trigger=entity_finance_search details=pattern=relay modules
+2026-04-20 10:04:35,598 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:35,598 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.388201 seconds
+2026-04-20 10:04:35,991 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:35,991 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.791944 seconds
+2026-04-20 10:04:36,791 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:36,792 WARNING task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.validator validator trigger 5 classifier failed
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/validator.py", line 481, in _llm_check_entity_search
+    raw = classifier.classify(
+        system=(
+    ...<9 lines>...
+        ),
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 67, in classify
+    resp = _llm_call(
+        client,
+    ...<6 lines>...
+        timeout=10.0,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 172, in _llm_call
+    return client.chat.completions.create(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_utils/_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/resources/chat/completions/completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1314, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1087, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:04:36,801 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=9 trigger=entity_finance_search result=OK
+2026-04-20 10:04:41,143 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:04:42,321 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:42,322 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.427655 seconds
+2026-04-20 10:04:42,754 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:42,755 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.931901 seconds
+2026-04-20 10:04:43,693 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:43,694 WARNING task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:04:55,300 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:04:58,203 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:58,203 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.447946 seconds
+2026-04-20 10:04:58,662 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:58,663 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.802238 seconds
+2026-04-20 10:04:59,470 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:04:59,471 WARNING task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.reactive_router reactive classifier failed, skipping: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:05:01,422 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:05:04,337 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=12 trigger=first_transition details=leaning=OUTCOME_OK
+2026-04-20 10:05:04,364 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:04,369 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.387420 seconds
+2026-04-20 10:05:04,769 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:04,770 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.858319 seconds
+2026-04-20 10:05:05,635 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:05,636 WARNING task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.validator validator trigger 1 classifier failed
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/validator.py", line 380, in _llm_check_premature_commitment
+    raw = classifier.classify(
+        system=(
+    ...<7 lines>...
+        ),
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 67, in classify
+    resp = _llm_call(
+        client,
+    ...<6 lines>...
+        timeout=10.0,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 172, in _llm_call
+    return client.chat.completions.create(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_utils/_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/resources/chat/completions/completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1314, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1087, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:05:05,640 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.arch_log [ARCH:VALIDATOR_T2] step=12 trigger=first_transition result=OK
+2026-04-20 10:05:11,057 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:05:18,402 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 10:05:28,346 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:28,347 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.375634 seconds
+2026-04-20 10:05:28,729 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:28,730 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl openai._base_client Retrying request to /chat/completions in 0.917176 seconds
+2026-04-20 10:05:29,655 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl httpx HTTP Request: POST http://127.0.0.1:8317/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-20 10:05:29,657 WARNING task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.validator R4 mutation integrity classifier failed
+Traceback (most recent call last):
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/validator.py", line 531, in _check_mutation_integrity
+    raw = classifier.classify(
+        system=(
+    ...<9 lines>...
+        ),
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 67, in classify
+    resp = _llm_call(
+        client,
+    ...<6 lines>...
+        timeout=10.0,
+    )
+  File "/home/claude-developer/bitgn-contest-with-claude/src/bitgn_contest_agent/classifier.py", line 172, in _llm_call
+    return client.chat.completions.create(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_utils/_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/resources/chat/completions/completions.py", line 1211, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/chat/completions",
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<47 lines>...
+        stream_cls=Stream[ChatCompletionChunk],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1314, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude-developer/bitgn-contest-with-claude/.venv/lib/python3.14/site-packages/openai/_base_client.py", line 1087, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'error': {'message': 'auth_unavailable: no auth available', 'type': 'server_error', 'code': 'internal_server_error'}}
+2026-04-20 10:05:29,674 INFO task=t006 run=0 skill=bill-query category=BILL_QUERY trace=t006__run0.jsonl bitgn_contest_agent.arch_log [ARCH:TERMINAL] result=ACCEPT details=outcome=OUTCOME_OK

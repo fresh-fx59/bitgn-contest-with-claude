@@ -1,0 +1,10 @@
+{"kind":"meta","agent_version":"0.1.6","agent_commit":"a999a7e","model":"gpt-5.3-codex","backend":"openai_compat","reasoning_effort":"medium","benchmark":"bitgn/pac1-prod","task_id":"t074","task_index":76,"started_at":"2026-04-13T22:36:25.339786+00:00","trace_schema_version":"1.0.0","harness_url":"https://vm-03nw0v8ls1p8v1zep8.eu.bitgn.com","cancelled":false}
+{"kind":"prepass","cmd":"tree","ok":true,"bytes":6996,"wall_ms":202,"error":null,"error_code":null}
+{"kind":"prepass","cmd":"read_agents_md","ok":true,"bytes":1902,"wall_ms":104,"error":null,"error_code":null}
+{"kind":"prepass","cmd":"context","ok":true,"bytes":59,"wall_ms":105,"error":null,"error_code":null}
+{"kind":"task","task_id":"t074","task_text":"What is the quantity of faucet cartridge (return only number) of bill from Hörnbach Österreich issued around Jan 1, 2026-Jan 4"}
+{"kind":"event","at_step":1,"event_kind":"rate_limit_backoff","wait_ms":500,"attempt":1,"details":null,"repeated_tuple":null}
+{"kind":"event","at_step":1,"event_kind":"rate_limit_backoff","wait_ms":1500,"attempt":2,"details":null,"repeated_tuple":null}
+{"kind":"event","at_step":1,"event_kind":"rate_limit_backoff","wait_ms":4000,"attempt":3,"details":null,"repeated_tuple":null}
+{"kind":"event","at_step":1,"event_kind":"rate_limit_backoff","wait_ms":10000,"attempt":4,"details":null,"repeated_tuple":null}
+{"kind":"outcome","terminated_by":"error","reported":null,"enforcer_bypassed":false,"error_kind":"BACKEND_ERROR","error_msg":"transient backend exhausted","total_steps":0,"total_llm_calls":0,"total_prompt_tokens":0,"total_completion_tokens":0,"total_cached_tokens":0,"total_reasoning_tokens":0,"score":0.0,"score_detail":["no answer provided"]}
