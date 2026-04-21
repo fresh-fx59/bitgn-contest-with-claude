@@ -77,12 +77,157 @@ def classify_answer_shape(next_step: NextStep, task_text: str) -> AnswerShape:
     return AnswerShape.FREEFORM
 
 
-# should_verify and build_verification_message are added in C2/C3.
-def should_verify(*args, **kwargs):
-    """Placeholder until C2 introduces the real trigger logic."""
-    return []
+# Paths cited in answer text that look like workspace paths.
+# Matches e.g. "40_projects/hearthline/README.md" or "50_finance/.../foo.md".
+_PATH_RE = re.compile(
+    r"\b[0-9]{2}_[a-z_]+/[^\s,;()]+?\.(?:md|MD|yaml|yml|txt)\b"
+)
 
 
-def build_verification_message(*args, **kwargs):
-    """Placeholder until C2 introduces the real message builder."""
-    raise NotImplementedError
+def _is_workspace_path(p: str) -> bool:
+    """Return True if the string looks like a workspace-root-relative path.
+
+    Workspace paths start with a two-digit prefix followed by an underscore
+    and category name, e.g. '40_projects/...', '50_finance/...'.
+    We only flag these; plain filenames like 'AGENTS.md' are NOT flagged.
+    """
+    return bool(_PATH_RE.fullmatch(p.strip()) or _PATH_RE.search(p))
+
+
+def _paths_cited_in_answer(ns: NextStep) -> list[str]:
+    fn = ns.function
+    if not isinstance(fn, ReportTaskCompletion):
+        return []
+    candidates: list[str] = []
+    # grounding_refs — only those that look like workspace paths.
+    for ref in (fn.grounding_refs or []):
+        if _is_workspace_path(ref):
+            candidates.append(ref)
+    # Also harvest path-shaped tokens from the free-text message so the
+    # agent can't evade the check by moving references out of refs[].
+    candidates.extend(_PATH_RE.findall(fn.message or ""))
+    # De-duplicate while preserving order.
+    seen: set[str] = set()
+    out: list[str] = []
+    for p in candidates:
+        if p and p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+
+def _read_cache_has(read_cache: dict[str, str], path: str) -> bool:
+    """Normalized membership check.
+
+    Workspace paths may be stored with or without a leading slash; compare
+    both side's `.lstrip("/")` form.
+    """
+    norm = path.lstrip("/")
+    return any(k.lstrip("/") == norm for k in read_cache.keys())
+
+
+def should_verify(
+    *,
+    next_step: NextStep,
+    session,  # bitgn_contest_agent.session.Session — unused in v1, kept for future
+    read_cache: dict[str, str],
+    write_history: list[WriteOp],
+    task_text: str,
+    skill_name: Optional[str],
+) -> list[VerifyReason]:
+    """Return triggered verification reasons, in priority order.
+
+    Priority (spec §4): MISSING_REF > INBOX_GIVEUP > NUMERIC_MULTIREF.
+    """
+    del session  # reserved for v2; silence linters
+    fn = next_step.function
+    if not isinstance(fn, ReportTaskCompletion):
+        return []
+
+    reasons: list[VerifyReason] = []
+    shape = classify_answer_shape(next_step, task_text)
+
+    # MISSING_REF — paths cited but not read.
+    cited = _paths_cited_in_answer(next_step)
+    missing = [p for p in cited if not _read_cache_has(read_cache, p)]
+    if missing:
+        reasons.append(VerifyReason.MISSING_REF)
+
+    # NUMERIC_MULTIREF — scalar answer, ≥2 same-shape records read.
+    if shape in (AnswerShape.NUMERIC, AnswerShape.DATE):
+        if len(read_cache) >= 2:
+            reasons.append(VerifyReason.NUMERIC_MULTIREF)
+
+    # INBOX_GIVEUP — added in C3.
+
+    return reasons
+
+
+def _section_missing_ref(
+    next_step: NextStep, read_cache: dict[str, str],
+) -> str:
+    cited = _paths_cited_in_answer(next_step)
+    missing = [p for p in cited if not _read_cache_has(read_cache, p)]
+    read_list = "\n  ".join(sorted(read_cache.keys())) or "(nothing)"
+    return (
+        "## MISSING_REF\n"
+        "Your answer cites paths that you did not read this run. "
+        "The scorer rejects answers that reference files the agent "
+        "never opened.\n\n"
+        f"Paths cited in your answer:\n  " + "\n  ".join(cited) + "\n\n"
+        f"Paths you read this run:\n  {read_list}\n\n"
+        f"Missing (cited but not read):\n  " + "\n  ".join(missing) + "\n\n"
+        "Open each missing path before re-emitting report_completion."
+    )
+
+
+def _section_numeric_multiref(
+    next_step: NextStep, read_cache: dict[str, str], task_text: str,
+) -> str:
+    fn = next_step.function
+    answer = fn.message if isinstance(fn, ReportTaskCompletion) else ""
+    paths = "\n  ".join(sorted(read_cache.keys())) or "(nothing)"
+    return (
+        "## NUMERIC_MULTIREF\n"
+        f"Task: {task_text.strip()[:300]}\n"
+        f"Your scalar answer: {answer!r}\n"
+        f"You read {len(read_cache)} candidate record(s):\n  {paths}\n\n"
+        "Re-derive the answer citing one evidence path per numerical "
+        "component (e.g. 'bill_a.md amount=6, bill_b.md amount=6 → 12'). "
+        "Confirm every addend belongs to the set the task's filter asks "
+        "for (entity, date range, line-item). Re-emit report_completion "
+        "with the corrected answer if the derivation changed it, or the "
+        "same answer with explicit arithmetic in outcome_justification "
+        "if it was already right."
+    )
+
+
+def build_verification_message(
+    reasons: list[VerifyReason],
+    next_step: NextStep,
+    read_cache: dict[str, str],
+    write_history: list[WriteOp],
+    task_text: str,
+) -> str:
+    """Produce a single multi-section user message covering every reason.
+
+    Sections are emitted in priority order (same order as
+    `should_verify` returned them), each separated by a blank line.
+    """
+    del write_history  # unused until C3 adds INBOX_GIVEUP
+    intro = (
+        "Before the answer is accepted, address the following checks. "
+        "If the evidence confirms your current answer, you can re-emit "
+        "the same report_completion — just make the justification "
+        "explicit. If the evidence contradicts it, correct the answer.\n"
+    )
+    sections: list[str] = []
+    for r in reasons:
+        if r is VerifyReason.MISSING_REF:
+            sections.append(_section_missing_ref(next_step, read_cache))
+        elif r is VerifyReason.NUMERIC_MULTIREF:
+            sections.append(
+                _section_numeric_multiref(next_step, read_cache, task_text)
+            )
+        # INBOX_GIVEUP — added in C3.
+    return intro + "\n" + "\n\n".join(sections)

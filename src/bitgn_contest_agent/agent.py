@@ -402,6 +402,65 @@ class AgentLoop:
             if isinstance(fn, ReportTaskCompletion):
                 verdict = self._validator.check_terminal(session, step_obj)
                 if verdict.ok:
+                    # Pre-completion verification (spec 2026-04-21).
+                    # Hard cap: 1 verification round per task.
+                    if verify_attempts == 0:
+                        from bitgn_contest_agent.verify import (
+                            build_verification_message as _bv,
+                            should_verify as _sv,
+                        )
+                        v_reasons = _sv(
+                            next_step=step_obj,
+                            session=session,
+                            read_cache=read_cache,
+                            write_history=write_history,
+                            task_text=task_text,
+                            skill_name=(decision.skill_name if decision else None),
+                        )
+                    else:
+                        v_reasons = []
+                    if v_reasons:
+                        verify_attempts += 1
+                        verify_messages = list(messages) + [
+                            Message(
+                                role="assistant",
+                                content=step_obj.model_dump_json(),
+                            ),
+                            Message(
+                                role="user",
+                                content=_bv(
+                                    reasons=v_reasons,
+                                    next_step=step_obj,
+                                    read_cache=read_cache,
+                                    write_history=write_history,
+                                    task_text=task_text,
+                                ),
+                            ),
+                        ]
+                        try:
+                            verify_result = self._call_backend_with_retry(
+                                verify_messages, at_step=step_idx,
+                            )
+                        except ValidationError:
+                            verify_result = None
+                        changed = False
+                        if verify_result is not None:
+                            totals.prompt_tokens += verify_result.prompt_tokens
+                            totals.completion_tokens += verify_result.completion_tokens
+                            totals.reasoning_tokens += verify_result.reasoning_tokens
+                            totals.llm_calls += 1
+                            v_step = verify_result.parsed
+                            v_fn = v_step.function
+                            if isinstance(v_fn, ReportTaskCompletion):
+                                if v_fn.model_dump() != fn.model_dump():
+                                    changed = True
+                                    step_obj = v_step
+                                    fn = v_fn
+                        self._writer.append_verify(
+                            at_step=step_idx,
+                            reasons=[r.value for r in v_reasons],
+                            changed=changed,
+                        )
                     tool_result = self._adapter.submit_terminal(fn)
                     enforcer_action = "accept"
                 else:
