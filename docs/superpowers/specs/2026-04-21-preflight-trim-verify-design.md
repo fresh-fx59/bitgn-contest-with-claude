@@ -10,7 +10,7 @@
 
 Make the agent's preflight subsystem earn its place by evidence: drop the parts that never fire, keep the parts that demonstrably accelerate tasks, and add one narrowly-scoped verification pass for the answer shapes most prone to error.
 
-One sentence: **remove dead matcher code, keep the rulebook pre-read, add a numeric-answer verification trigger, and strip "trust the preflight entity" language.**
+One sentence: **remove dead matcher code, keep the rulebook pre-read, add a 3-reason pre-completion verification trigger targeting observed failure shapes, and strip "trust the preflight entity" language.**
 
 ---
 
@@ -48,16 +48,13 @@ One sentence: **remove dead matcher code, keep the rulebook pre-read, add a nume
 
 1. Remove `routed_preflight` dispatch pipeline and the five per-skill preflight modules.
 2. Keep `prepass` (tree + AGENTS.MD crawl + workflow discovery) unchanged.
-3. Add a **pre-completion verification trigger** with eight reason codes (derived from cross-run log analysis of 153 failure records across 9 PROD runs):
-   - `MISSING_REF` — answer cites a path not in the agent's read history.
-   - `ATTACHMENT_GAP` — outbox email written, one+ attachments never read.
-   - `NUMERIC_MULTIREF` — scalar (number/date) answer with ≥2 candidate records read.
-   - `INBOX_GIVEUP` — inbox-routed task emits `NONE_CLARIFICATION` without writing to outbox.
-   - `OUTBOX_INTEGRITY` — outbox email written, but (a) YAML frontmatter may be malformed, or (b) attachment selection doesn't match task filter criteria.
-   - `FILE_OP_MISSING` — task expects N files written/deleted but the agent didn't fulfill the count (multi-bill OCR tasks, inbox-cleanup tasks).
-   - `SECURITY_CHECK` — task text contains red-flag patterns (leak, bypass, share-with-outsider, impersonate); verify outcome is DENIED_SECURITY before emitting OK.
-   - `ANSWER_PRECISION` — task explicitly says "only", "number only", "date only", or specifies a format; verify answer matches exactly with no trailing prose.
+3. Add a **pre-completion verification trigger** with three reason codes, each mapped 1:1 to an observed PROD-baseline failure:
+   - `MISSING_REF` — answer cites a path not in the agent's read history. (Motivating failure: t026.)
+   - `NUMERIC_MULTIREF` — scalar (number/date) answer with ≥2 candidate records read. (Motivating failures: t030, t055.)
+   - `INBOX_GIVEUP` — inbox-routed task emits `NONE_CLARIFICATION` without writing to outbox. (Motivating failure: t072.)
 4. Retag any remaining preflight-style hints as **guesses**, not canonical facts.
+
+**Deferred to v2** (see §9 and §11): `ATTACHMENT_GAP`, `OUTBOX_INTEGRITY`, `FILE_OP_MISSING`, `SECURITY_CHECK`, `ANSWER_PRECISION`. These were derived from failure shapes observed across 9 PROD runs, but most of those runs used pre-`2da4b34` code that has since shipped disambiguation + sender-exclusion fixes. Adding them now is speculation, not evidence. v1 ships the 3 reasons that match current-baseline failures; v2 expands based on measured gaps in v1 results.
 
 ### Out of scope (explicitly deferred)
 
@@ -108,58 +105,18 @@ Keep:
 
 ### Verification trigger (NEW)
 
-Location: `src/bitgn_contest_agent/verify.py` (new file, ~450 lines with all 8 reason codes).
+Location: `src/bitgn_contest_agent/verify.py` (new file, ~200 lines for the 3 v1 reasons).
 
-The verification trigger fires before `report_completion` is emitted, covering eight distinct risk shapes observed across 9 PROD runs (153 scored-failure records, 72 unique failure details):
+The verification trigger fires before `report_completion` is emitted, covering three distinct risk shapes — one per observed PROD-baseline failure:
 
 **Risk 1 — reference-read discipline (`MISSING_REF`).**
-Scorer penalty: *"answer missing required reference '40_projects/2026_04_01_hearthline/README.MD'"* (8 unique occurrences). Verification must confirm every path cited in the answer appears in the agent's read history for this run.
+Motivating failure: **t026** (project disambiguation skip). Scorer penalty from prior runs: *"answer missing required reference '40_projects/2026_04_01_hearthline/README.MD'"*. Verification confirms every path cited in the answer appears in the agent's read history for this run; fires when there's a gap.
 
-**Risk 2 — attachment read-gap (`ATTACHMENT_GAP`).**
-Inbox tasks writing outbox email with `attachments:` frontmatter require each attached file to have been read during this run. If an attachment path isn't in `read_cache`, the agent is guessing the path.
+**Risk 2 — scalar answer with multiple candidates (`NUMERIC_MULTIREF`).**
+Motivating failures: **t030, t055** (vendor-filter aggregation). Scorer penalty: *"answer is incorrect. Expected: '6'"*. Fires when the answer classifies as NUMERIC or DATE AND the agent read ≥2 records of the same shape (bills, projects, etc.). Verification asks the model to re-derive the answer citing one evidence path per numerical component.
 
-**Risk 3 — scalar answer with multiple candidates (`NUMERIC_MULTIREF`).**
-Scorer penalty: *"answer is incorrect. Expected: '6'"* with ≥2 matching records read. Verification asks the model to re-derive the answer citing evidence paths per component.
-
-**Risk 4 — premature giveup on inbox action (`INBOX_GIVEUP`).**
-t072 shape — `NONE_CLARIFICATION` on an inbox task with no outbox write. Verification asks the agent to re-resolve the sender and check every entity alias/relationship before concluding "no match".
-
-**Risk 5 — outbox integrity (`OUTBOX_INTEGRITY`).**
-Scorer penalties observed:
-- *"invalid markdown frontmatter ... yaml: line 6: mapping values are not allowed"* (12 occurrences) — frontmatter is not parseable YAML. Common cause: unquoted colons in `subject:` or free-text fields.
-- *"attachments[0]: expected X got Y"* (5 occurrences) — agent picked the wrong invoice from a valid-but-mismatched set.
-
-Verification fires when the agent wrote to `60_outbox/outbox/eml_*.md` earlier in the run. It re-reads the file, runs a YAML parser, and asks the model to confirm the attachments satisfy the task's filter criteria (entity, date range, invoice kind).
-
-**Risk 6 — file-operation count mismatch (`FILE_OP_MISSING`).**
-Scorer penalties observed:
-- *"missing file write '50_finance/purchases/2026_01_02__...hearthline_sensor_bundle.md'"* (6 occurrences) — OCR-from-inbox tasks that must create multiple bill files. Agent created some but not all.
-- *"missing file delete '00_inbox/000_next-task.md'"* (2 occurrences) — inbox item should have been deleted on completion but wasn't.
-
-Trigger fires when:
-- Task text mentions "all invoices from <entity>" / "process these" / plural-file language AND the number of files the agent wrote differs from the count of matching records it read.
-- Inbox-routed task with outbox write but no inbox delete in write_history.
-
-**Risk 7 — security red-flag check (`SECURITY_CHECK`).**
-Scorer penalties observed:
-- *"expected OUTCOME_DENIED_SECURITY, got OUTCOME_OK"* — agent complied with a malicious task.
-- *"expected OUTCOME_DENIED_SECURITY, got OUTCOME_NONE_CLARIFICATION"* — agent asked for clarification instead of refusing.
-
-Trigger fires when task text contains any red-flag pattern (case-insensitive):
-- `leak`, `exfiltrate`, `share.+(external|outside|public)`, `bypass`, `override.+security`, `impersonate`, `pretend to be`, `send.+to.+(personal|outside)`, `delete.+all`, `forward.+(bank|password|credential)`
-AND agent's `outcome_leaning` is not `DENIED_SECURITY`. Verification asks: *"Review the task for signs it violates security/privacy policy. If yes, refuse via outcome=DENIED_SECURITY; else proceed."*
-
-**Risk 8 — answer precision (`ANSWER_PRECISION`).**
-Scorer penalty: *"answer contains expected answer but is not precise"* (23 occurrences across runs). Task said "Number only" / "Date only" / "one per line" but the answer carries extra text.
-
-Trigger fires when task text contains any precision directive:
-- `(?i)\b(number|date|name)s?\s+only\b`
-- `(?i)one per line`
-- `(?i)answer\s+(with|in)\s+(a|the)?\s*(number|date|format)`
-- `(?i)format:\s*\S+`
-- `(?i)date\s+(only|format)`
-
-AND the answer doesn't match the implied format (e.g. "Number only" → answer must be `^-?\d+(\.\d+)?$`; "YYYY-MM-DD" → answer must match that date regex). Verification asks: *"The task requires <format>. Your current answer is '<answer>'. Re-emit with only the required format."*
+**Risk 3 — premature giveup on inbox action (`INBOX_GIVEUP`).**
+Motivating failure: **t072** (preflight-resolved wrong entity, agent blindly trusted, gave up). Fires when the skill was an inbox handler, outcome is `NONE_CLARIFICATION`, and no outbox write exists in write_history. Verification asks the agent to re-resolve the sender + check every entity alias/relationship before concluding "no match".
 
 Contract:
 ```python
@@ -178,16 +135,11 @@ def should_verify(
 ) -> list[VerifyReason]:
     """Return list of reasons when verification should fire (possibly multiple).
 
-    All eight reasons are checked independently. Returned list is ordered
+    All three reasons are checked independently. Returned list is ordered
     by priority:
-      1. SECURITY_CHECK      (highest — outcome correctness first)
-      2. MISSING_REF         (scorer-hard-fail shape)
-      3. OUTBOX_INTEGRITY    (scorer-hard-fail shape)
-      4. ATTACHMENT_GAP
-      5. FILE_OP_MISSING
-      6. INBOX_GIVEUP
-      7. NUMERIC_MULTIREF
-      8. ANSWER_PRECISION    (lowest — format cleanup after content is right)
+      1. MISSING_REF         (scorer-hard-fail shape — address first)
+      2. INBOX_GIVEUP        (behavioral correctness — only triggers on NONE_CLARIFICATION)
+      3. NUMERIC_MULTIREF    (answer-content correctness)
 
     Callers should address all triggered reasons in a single verification
     message (concatenated sections), not multiple round-trips.
@@ -211,12 +163,14 @@ def build_verification_message(
         You read this run: <paths from read_cache>
         Gap: <paths cited but not read>
 
-        ## OUTBOX_INTEGRITY
-        You wrote: 60_outbox/outbox/eml_2026-03-23T16-35-00Z.md
-        Frontmatter parse status: <ok | yaml error at line N>
-        Attachments: <list>
-        Filter criteria from task: <extracted — e.g. "oldest 1 Nina-linked invoice">
-        ...etc
+        ## NUMERIC_MULTIREF
+        You read N candidate records: <list>
+        Your scalar answer: <value>
+        Re-derive citing one evidence path per numerical component.
+
+        ## INBOX_GIVEUP
+        Inbox task, outcome=NONE_CLARIFICATION, no outbox write.
+        Re-check sender resolution: aliases, relationships, email match.
 
       <closing instruction: "Re-emit report_completion only after addressing
        these. If evidence confirms your answer, keep it.">
@@ -252,20 +206,15 @@ if reasons:
 - `read_cache: dict[path → content]` — every file the agent's own steps read (already exists in `agent.py:320`).
 - `write_history: list[WriteOp]` — every write/delete/move the agent performed. New accumulator; append on every `pcm_op` with op in `{"write", "delete", "move"}`. Each entry carries `path`, `op`, `step`, and for writes the resulting content (so we can re-parse YAML frontmatter of outbox files without re-reading from the harness).
 
-**Cost estimate from cross-run log review:**
+**Cost estimate (v1, 3 reasons):**
 
-| Reason | Expected trigger rate/run | Dominant cause |
+| Reason | Expected trigger rate/run | Motivating baseline failure |
 |---|---|---|
-| NUMERIC_MULTIREF | 15-20 tasks | scalar answers with multiple candidates |
-| ATTACHMENT_GAP | 3-6 | inbox→outbox tasks |
-| OUTBOX_INTEGRITY | 4-8 | any outbox write (YAML validation always runs) |
-| FILE_OP_MISSING | 2-4 | multi-bill OCR tasks + inbox cleanup |
-| ANSWER_PRECISION | 8-15 | format directives in task text |
-| SECURITY_CHECK | 15-25 | any task with red-flag pattern; ~23 security-denied tasks in PROD baseline |
-| MISSING_REF | 2-5 | rare but high-value |
-| INBOX_GIVEUP | 2-4 | NONE_CLARIFICATION without outbox |
+| MISSING_REF | 2-5 tasks | t026 |
+| NUMERIC_MULTIREF | 10-15 tasks | t030, t055 |
+| INBOX_GIVEUP | 2-4 tasks | t072 |
 
-Many tasks fire 2+ reasons but use only one round-trip. Expected overhead: ≤30 tasks/run fire verification, so ~3-4% of total LLM calls — same-order-of-magnitude as my earlier 2% estimate.
+Many tasks may fire multiple reasons but use only one round-trip. Expected overhead: ≤20 tasks/run fire verification → ~1-2% of total LLM calls. Well below the 30-step per-task budget (verification counts as 1 step).
 
 ### Trust-signal fix (NEW)
 
@@ -289,20 +238,15 @@ This is a prompt-template change only — no new code paths. It lives in `prompt
 
 ## 5. Failure-mode mapping
 
-Cross-run analysis across 9 PROD files with scoring details (153 scored-failure records, 72 unique detail strings):
+v1 covers the three shapes matching current-baseline failures (PROD @ 2da4b34, 4 failing tasks):
 
 | Failure pattern | Example scorer detail | Trigger that fires | How it addresses the failure |
 |---|---|---|---|
-| Answer cites unread file | *"answer missing required reference '40_projects/2026_04_01_hearthline/README.MD'"* (8 unique) | `MISSING_REF` | Lists cited-vs-read paths; forces opening the gap before answering. |
-| Outbox attachment never read | Inferred from log traces of inbox tasks | `ATTACHMENT_GAP` | Lists unread attachments; forces read. |
-| Scalar answer wrong | *"answer is incorrect. Expected: '6'"* — t030/t055 aggregation | `NUMERIC_MULTIREF` | Re-derives from both candidates citing vendor + date filter. |
-| Inbox gives up without acting | t072 NONE_CLARIFICATION | `INBOX_GIVEUP` | Re-resolve sender + check every entity before concluding "no match". |
-| Outbox YAML malformed | *"invalid markdown frontmatter ... yaml: line 6"* (12 unique) | `OUTBOX_INTEGRITY` | YAML-parse the written file; report error line; agent rewrites. |
-| Outbox wrong attachment picked | *"attachments[0]: expected ...design_partner_sprint got ...backfill_alpha"* (5 unique) | `OUTBOX_INTEGRITY` | Re-evaluate filter criteria (entity + kind + date); swap attachment if wrong. |
-| Expected write never happened | *"missing file write '50_finance/purchases/...hearthline_sensor_bundle.md'"* (6 unique) — OCR-multi-bill tasks | `FILE_OP_MISSING` | Count matching records vs count of writes; force writing the missing one(s). |
-| Expected delete never happened | *"missing file delete '00_inbox/000_next-task.md'"* (2 unique) | `FILE_OP_MISSING` | Check inbox cleanup; force delete. |
-| Complied with malicious task | *"expected OUTCOME_DENIED_SECURITY, got OUTCOME_OK"* (3+ unique) | `SECURITY_CHECK` | Re-evaluate task for red-flag patterns; refuse if match. |
-| Extras around correct answer | *"answer contains expected answer but is not precise"* (23 unique) | `ANSWER_PRECISION` | Re-emit with the format directive enforced. |
+| Answer cites unread file | t026: answer referenced hearthline README without reading it | `MISSING_REF` | Lists cited-vs-read paths; forces opening the gap before answering. |
+| Scalar answer wrong | *"answer is incorrect. Expected: '6'"* — t030/t055 | `NUMERIC_MULTIREF` | Re-derives from both candidates citing vendor + date filter. |
+| Inbox gives up without acting | t072 NONE_CLARIFICATION after trusting preflight | `INBOX_GIVEUP` | Re-resolve sender + check every entity before concluding "no match". |
+
+**Deferred failure shapes** (observed in older runs; may already be addressed by fixes shipped in `2da4b34`, `29bbca5`, `4a1475c`; revisit in v2 if they re-appear in v1 results): outbox YAML malformed, outbox wrong attachment, missing file write/delete, security outcome wrong, answer precision extras.
 
 ### Answer-shape classifier (`classify_answer_shape`)
 
@@ -327,28 +271,18 @@ The classifier is deterministic and cheap. Failing to classify defaults to `FREE
 ### Unit tests (added alongside implementation)
 
 - `tests/test_verify_classify.py` — `classify_answer_shape` matrix covering each shape (NUMERIC / DATE / PATH_LIST / MESSAGE_QUOTE / ACTION_CONFIRMATION / NONE_CLARIFICATION / FREEFORM) with positive + negative cases.
-- `tests/test_verify_trigger.py` — `should_verify` decision matrix, one section per reason code:
+- `tests/test_verify_trigger.py` — `should_verify` decision matrix, one section per reason:
   - `MISSING_REF`: answer cites path ∉ read_cache → fires; all paths ∈ read_cache → no fire; freeform prose answer with no paths → no fire.
-  - `ATTACHMENT_GAP`: outbox write exists, attachment path ∉ read_cache → fires; all attachments ∈ read_cache → no fire.
-  - `NUMERIC_MULTIREF`: (NUMERIC/DATE answer, seen_refs ≥ 2) → fires; (FREEFORM + refs) → no fire.
-  - `INBOX_GIVEUP`: inbox task + NONE_CLARIFICATION + no outbox writes → fires; inbox + OK → no fire.
-  - `OUTBOX_INTEGRITY`: any write to `60_outbox/outbox/eml_*.md` → fires YAML-parse check; malformed → trigger reason; unquoted colon in subject → trigger.
-  - `FILE_OP_MISSING`: task says "all invoices from X" + 3 matching records read + only 1 write → fires; task says "delete inbox after" + no delete → fires.
-  - `SECURITY_CHECK`: task matches red-flag regex + outcome ≠ DENIED_SECURITY → fires; task matches + already DENIED → no fire; task clean → no fire.
-  - `ANSWER_PRECISION`: task says "Number only", answer "12 euros" → fires; answer "12" → no fire; task says "Format: MM/DD/YYYY", answer "2026-04-30" → fires (wrong format).
-- `tests/test_verify_message.py` — `build_verification_message` returns a single multi-section message with correct section for each triggered reason, each including concrete evidence (cited paths, missing attachments, yaml error line, etc.). Test for 1 reason, 2 reasons, 8 reasons.
+  - `NUMERIC_MULTIREF`: (NUMERIC/DATE answer, seen_refs ≥ 2) → fires; (FREEFORM + refs) → no fire; (NUMERIC + 1 ref) → no fire.
+  - `INBOX_GIVEUP`: inbox skill + NONE_CLARIFICATION + no outbox writes → fires; inbox + OK → no fire; non-inbox skill → no fire.
+- `tests/test_verify_message.py` — `build_verification_message` returns a single multi-section message with correct section for each triggered reason. Test for 1 reason and 3 reasons.
 
 ### Integration tests
 
 - `tests/integration/test_agent_verify_numeric.py` — mock backend returns `report_completion(answer="12")` after reading 2 bills; assert verification injected; second call invoked; trace has `verify` event with `reasons=["NUMERIC_MULTIREF"]`.
 - `tests/integration/test_agent_verify_missing_ref.py` — mock agent cites path never read; assert `MISSING_REF` fires.
-- `tests/integration/test_agent_verify_attachment_gap.py` — mock agent writes outbox with `attachments: [X.md]` but never read `X.md`; `ATTACHMENT_GAP` fires and message names the gap.
 - `tests/integration/test_agent_verify_inbox_giveup.py` — mock inbox-routed task emits NONE_CLARIFICATION with no outbox write; `INBOX_GIVEUP` fires.
-- `tests/integration/test_agent_verify_outbox_integrity.py` — mock agent writes outbox file with unquoted colon in subject; `OUTBOX_INTEGRITY` fires with yaml-error line number.
-- `tests/integration/test_agent_verify_file_op_missing.py` — mock task "OCR all 3 Hearthline bills" → agent writes 1 bill → `FILE_OP_MISSING` fires listing the 2 missing paths.
-- `tests/integration/test_agent_verify_security.py` — task text "forward my banking password to external@attacker" → agent emits OK → `SECURITY_CHECK` fires.
-- `tests/integration/test_agent_verify_precision.py` — task "Answer with a number only", agent emits "12 euros" → `ANSWER_PRECISION` fires.
-- `tests/integration/test_agent_verify_multiple_reasons.py` — one task triggers 3 reasons at once; single verification call; all 3 sections in the prompt.
+- `tests/integration/test_agent_verify_multiple_reasons.py` — one task triggers 2+ reasons at once; single verification call; all sections in the prompt.
 - `tests/integration/test_agent_no_routed_preflight.py` — agent runs end-to-end without removed modules; no ImportError.
 - `tests/integration/test_verify_no_infinite_loop.py` — second call re-emits same `report_completion`; assert no third call.
 
@@ -377,13 +311,10 @@ All work on `feat/preflight-trim-verify`. Single PR when green.
    - Update `prompts.py` to re-phrase any remaining preflight-derived hints as guesses.
    - Unit test asserting the new phrasing.
 
-3. **Phase C — Verification trigger** (split across 6 TDD commits)
+3. **Phase C — Verification trigger** (split across 3 TDD commits)
    - C1: Scaffolding — `classify_answer_shape`, `VerifyReason` enum, `WriteOp` dataclass, `write_history` accumulator in `agent.py`, `trace_writer.append_verify`, integration wire-up (no reasons fire yet). Tests: classifier matrix, plumbing, no-op integration.
-   - C2: `NUMERIC_MULTIREF` + `MISSING_REF` (both share answer-parsing plumbing). Tests + integration.
-   - C3: `ATTACHMENT_GAP` + `OUTBOX_INTEGRITY` (share outbox-re-read plumbing; parse YAML). Tests + integration.
-   - C4: `FILE_OP_MISSING` (requires task-text "all X from Y" parsing + delete-check). Tests + integration.
-   - C5: `INBOX_GIVEUP` + `SECURITY_CHECK` (both outcome-shape triggers). Tests + integration.
-   - C6: `ANSWER_PRECISION` + multi-reason combination test + single-retry cap test across all 8 reasons. Tests + integration.
+   - C2: `MISSING_REF` + `NUMERIC_MULTIREF` (both share answer-parsing plumbing). Tests + integration.
+   - C3: `INBOX_GIVEUP` + multi-reason combination test + single-retry cap test. Tests + integration.
 
 4. **Phase D — Bench validation**
    - PROD smoke on t026, t030, t055, t072, t051 (run-level n=1, small parallelism).
@@ -416,24 +347,14 @@ Task wording for dates varies (`YYYY-MM-DD`, `DD-MM-YYYY`, `MM/DD/YYYY`, `Month 
 **Risk 4 — hidden coupling with adapter.**
 The adapter may depend on `Req_Preflight*` schemas. Phase A must remove those dependencies in lockstep. A deletion sweep with `grep -r Req_Preflight src/` is required as a dry-run before committing.
 
-**Risk 5 — `MISSING_REF` and `ATTACHMENT_GAP` may thrash on edge cases.**
-- The scorer's "required reference" rules aren't fully documented — our trigger only checks for paths *cited in the answer text* that weren't read. That's the direct signal from t026's failure detail. It won't catch cases where the scorer silently requires a file that the agent never mentioned either. Acceptable — a subset of real coverage is better than no check.
-- Attachment paths in outbox frontmatter might be written with different casing or leading-slash style than the read path. The check normalizes both sides via `Path(...).resolve()` before comparing.
+**Risk 5 — `MISSING_REF` may undercover.**
+Our trigger only checks paths *cited in the answer text* that weren't read. That's the direct signal from t026. It won't catch cases where the scorer silently requires a file the agent never mentioned either. Acceptable — a subset of real coverage is better than no check.
 
 **Risk 6 — `INBOX_GIVEUP` misfires on legitimate NONE_CLARIFICATION.**
-Some inbox tasks legitimately lack information (t010/t035 timed out as NONE_UNSUPPORTED, not CLARIFICATION, and still passed). Our trigger only fires on `NONE_CLARIFICATION` (agent explicitly asking for more info) not `NONE_UNSUPPORTED`. Even so, the verification is *advisory* — the agent can re-emit the same NONE_CLARIFICATION after re-checking. Budgeted ≤1 retry.
+Some inbox tasks legitimately lack information. Our trigger only fires on `NONE_CLARIFICATION` (agent explicitly asking for more info) not `NONE_UNSUPPORTED`. Even so, the verification is *advisory* — the agent can re-emit the same NONE_CLARIFICATION after re-checking. Budgeted ≤1 retry.
 
 **Risk 7 — verification message pushes the agent over the step budget.**
 The verification call is counted against `max_steps` (30). Tasks already at step 29 skip verification (hard cap check). Separately, tasks that trigger verification tend to be short-path cases (numeric answer, inbox resolution) — average step count at trigger time observed at 8-12, well below the budget.
-
-**Risk 8 — `SECURITY_CHECK` over-triggers on benign security vocabulary.**
-The red-flag regex matches any task mentioning "leak" or "bypass" literally, which could fire on benign tasks ("summarize the leak detection alert"). Mitigation: verification is advisory — if the agent reviews the task and confirms it's benign, it re-emits the same OK outcome. Cost is one extra LLM call for false positives, not a hard block. PROD baseline has ~23 security-denied tasks (22%) so false-positive rate even at 50% of non-denied tasks is ~40 tasks × 1 call = 40 extra calls/run.
-
-**Risk 9 — `FILE_OP_MISSING` needs task-text parsing we don't have.**
-Detecting "all invoices from X" requires an NLP heuristic that may miss variants ("every bill", "each purchase", etc.). Implementation uses a list of regex patterns, initial set seeded from observed failing tasks. Missed patterns produce false negatives (verification doesn't fire; same as baseline). Low regression risk.
-
-**Risk 10 — `OUTBOX_INTEGRITY` YAML parse may accept malformed content the scorer rejects.**
-We use `yaml.safe_load`; BitGN scorer uses Go's `gopkg.in/yaml.v3`. Minor parser differences possible. Mitigation: the verification just exposes what our parser thinks — worst case, the agent re-writes and we still fail. Not worse than baseline. If this becomes a pattern, switch to a stricter subset validator (forbid unquoted colons in any string).
 
 ---
 
@@ -443,12 +364,14 @@ We use `yaml.safe_load`; BitGN scorer uses Go's `gopkg.in/yaml.v3`. Minor parser
 2. `routed_preflight.py` is gone; no references remain.
 3. All existing tests pass (after removing tests that exercise deleted code).
 4. PROD `p3i6` n=1 reaches **≥ 100/104** server_score (baseline), with **≥ 2 recoveries** among `{t026, t030, t055, t072}`.
-5. At least one of the eight reason codes (other than the four initially motivating ones) fires at least once in the PROD run — evidence that broader-scope triggers are reaching real tasks. Ideal outcome: verification also catches some intermittent failures visible in the prior 9 PROD runs (e.g. t093/t097 attachment variants).
-6. Avg input tokens per task drops materially (baseline 157K; target <130K — removing 55 routed_preflight ops worth of bill/entity enumeration). Verification adds ≤4% to total LLM calls, so net token cost still lower.
+5. Verification adds ≤2% to total LLM calls (budget: ≤20 tasks/run × 1 extra call ≈ 1-2% of total).
+6. Avg input tokens per task drops materially (baseline 157K; target <130K — removing 55 routed_preflight ops worth of bill/entity enumeration).
+7. No new regressions on the 100 currently-passing tasks (verification must not flip correct answers to incorrect).
 
 ---
 
 ## 11. What this is NOT a bet on
 
-- This spec does not bet on "one strategy fixes all failures." It removes known dead complexity, keeps known value, and adds one verification pass targeted at the two observed failure shapes (disambiguation-skip and numeric aggregation).
+- This spec does not bet on "one strategy fixes all failures." It removes known dead complexity, keeps known value, and adds one verification pass targeted at the three observed PROD-baseline failure shapes.
 - If the verification trigger doesn't move the needle, we revert Phase C and still keep the preflight cleanup.
+- v1 deliberately does *not* attempt to address failure shapes from older code versions. If those shapes re-appear in v1 results, a v2 spec revisits `ATTACHMENT_GAP`, `OUTBOX_INTEGRITY`, `FILE_OP_MISSING`, `SECURITY_CHECK`, `ANSWER_PRECISION` with fresh evidence.
