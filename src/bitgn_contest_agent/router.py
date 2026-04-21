@@ -242,11 +242,14 @@ def _classifier_system_prompt(skill_meta: list[tuple[str, str]]) -> str:
         '  {"category": "<one of above>", "confidence": <0.0-1.0>, '
         '"extracted": {"query": "<short canonical identifier from the task>"}}\n'
         "\n"
-        'The "query" field should be a short string with the most specific '
-        "identifier the task hinges on — a vendor name, item description, "
-        'person reference, project hint, or destination system. Omit "query" '
-        "only if the task has no such identifier (e.g. inbox tasks like "
-        '"take the next inbox item").\n'
+        'The "query" field should be the most specific identifier the task '
+        "hinges on — a vendor name, item description, person reference, "
+        "project hint, or destination system. When the task uses an indirect "
+        "descriptor (e.g. 'the founder I talk product with', 'the client at "
+        "the tax firm'), preserve the FULL descriptor phrase as the query — "
+        "do NOT abbreviate or paraphrase it. "
+        'Omit "query" only if the task has no such identifier (e.g. inbox '
+        'tasks like "take the next inbox item").\n'
         "\n"
         "No prose. No markdown fences."
     )

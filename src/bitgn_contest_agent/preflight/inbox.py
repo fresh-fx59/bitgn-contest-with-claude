@@ -34,7 +34,7 @@ def _parse_aliases_list(raw: str) -> List[str]:
 
 
 def _load_entities(entities_dir: Path) -> list[dict[str, Any]]:
-    """Return a list of {file, canonical, aliases, frontmatter} records."""
+    """Return a list of {file, canonical, aliases, frontmatter, body} records."""
     entities = []
     if not entities_dir.exists():
         return entities
@@ -46,11 +46,15 @@ def _load_entities(entities_dir: Path) -> list[dict[str, Any]]:
         fm = _parse_frontmatter(text)
         aliases = _parse_aliases_list(fm.get("aliases", ""))
         canonical = f.stem.replace("_", " ").title()
+        # Extract description body (text after structured metadata lines).
+        from bitgn_contest_agent.preflight.entity import _extract_body
+        body = _extract_body(text)
         entities.append({
             "file": str(f),
             "canonical": canonical,
             "aliases": [canonical] + aliases,
             "frontmatter": fm,
+            "body": body,
         })
     return entities
 
@@ -65,7 +69,62 @@ def _match_entity(text: str, entities: list[dict[str, Any]]) -> dict[str, Any] |
                 # Prefer longer alias matches (more specific).
                 if best is None or len(a_norm) > len(normalize_name(best["matched_alias"])):
                     best = {**e, "matched_alias": alias}
-    return best
+    if best:
+        return best
+    # Alias substring matching failed — try LLM disambiguation.
+    # PROD tasks use indirect descriptors ("the client at the tax firm",
+    # "the founder I talk product with") that don't contain entity names.
+    return _match_entity_via_llm(text, entities)
+
+
+def _match_entity_via_llm(
+    text: str, entities: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """LLM fallback when no entity alias appears in the text."""
+    import logging
+    _log = logging.getLogger(__name__)
+    if not entities:
+        return None
+    from bitgn_contest_agent.preflight.entity import _extract_body
+    lines = []
+    for i, e in enumerate(entities):
+        fm = e.get("frontmatter", {})
+        parts = [f"{i+1}. {e['canonical']}"]
+        rel = fm.get("relationship", "")
+        if rel:
+            parts.append(f"relationship={rel}")
+        email = fm.get("primary_contact_email", "")
+        if email:
+            parts.append(f"email={email}")
+        body = e.get("body", "")
+        if body:
+            short = body.strip().split(".")[0].strip()
+            if short:
+                parts.append(f'desc="{short}"')
+        lines.append("  " + ", ".join(parts))
+    entity_block = "\n".join(lines)
+    system = (
+        "You identify which entity is referenced in the text below. "
+        "Return ONLY a JSON object:\n"
+        '  {"match": "<exact name from the list>", "confidence": <0.0-1.0>}\n'
+        "If none match, return {\"match\": null, \"confidence\": 0.0}.\n"
+        "No prose. No markdown fences."
+    )
+    user = f"Text:\n{text}\n\nEntities:\n{entity_block}"
+    try:
+        from bitgn_contest_agent import classifier
+        raw = classifier.classify(system=system, user=user)
+        if not isinstance(raw, dict):
+            return None
+        match_name = raw.get("match")
+        conf = float(raw.get("confidence", 0))
+        if match_name and conf >= 0.5:
+            for e in entities:
+                if e["canonical"] == match_name:
+                    return {**e, "matched_alias": e["canonical"]}
+    except Exception:
+        _log.debug("LLM entity match failed for inbox text", exc_info=True)
+    return None
 
 
 def _bills_for_entity(entity: dict[str, Any], finance_dirs: list[Path]) -> list[str]:
@@ -158,11 +217,13 @@ def run_preflight_inbox(client: Any, req: Req_PreflightInbox) -> ToolResult:
             fm = _parse_frontmatter(rr.content)
             aliases = _parse_aliases_list(fm.get("aliases", ""))
             canonical = Path(e.name).stem.replace("_", " ").title()
+            from bitgn_contest_agent.preflight.entity import _extract_body
             entities.append({
                 "file": rp,
                 "canonical": canonical,
                 "aliases": [canonical] + aliases,
                 "frontmatter": fm,
+                "body": _extract_body(rr.content),
             })
 
         # Enumerate inbox

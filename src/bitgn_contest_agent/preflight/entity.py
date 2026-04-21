@@ -36,8 +36,9 @@ def _extract_body(content: str) -> str:
             in_metadata = True
             body_start = i + 1
             continue
-        if in_metadata and stripped.startswith("-") and ":" not in stripped:
-            # continuation bullet under important_dates etc
+        if in_metadata and stripped.startswith("-"):
+            # continuation bullet under important_dates etc —
+            # includes sub-bullets with colons (e.g. `- birthday: 1990-03-29`)
             body_start = i + 1
             continue
         if in_metadata:
@@ -49,13 +50,16 @@ def _extract_body(content: str) -> str:
 # ── matching phases ───────────────────────────────────────────────
 
 def _match_result(e: dict[str, Any], source: str) -> dict[str, Any]:
-    return {
+    result = {
         "canonical": e["canonical"],
         "aliases": e["aliases"],
         "file": e["file"],
         "frontmatter": e["frontmatter"],
         "match_source": source,
     }
+    if "body" in e:
+        result["body"] = e["body"]
+    return result
 
 
 def _phase_alias(query_norm: str, entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -107,7 +111,14 @@ def _phase_compound(query_norm: str, entities: list[dict[str, Any]]) -> list[dic
     rank by whether the qualifier word appears in the entity description
     or frontmatter values.
     """
-    words = query_norm.split()
+    # Filter stopwords and very short tokens — they produce noise
+    # when substring-matched against relationship names.
+    _STOP = {"the", "a", "an", "i", "my", "at", "to", "in", "on", "of", "is",
+             "it", "me", "we", "he", "do", "if", "or", "so", "no", "up",
+             "by", "as", "be", "am", "with", "for", "and", "but", "not",
+             "this", "that", "from", "was", "are", "has", "had", "who",
+             "how", "what", "when", "where", "which", "talk", "find"}
+    words = [w for w in query_norm.split() if len(w) >= 3 and w not in _STOP]
     if len(words) < 2:
         return []
     # try each word as a potential relationship type
@@ -120,8 +131,11 @@ def _phase_compound(query_norm: str, entities: list[dict[str, Any]]) -> list[dic
             if not rel:
                 continue
             rel_norm = normalize_name(rel.replace("_", " "))
-            if rel_word in rel_norm:
-                rel_matches.append(e)
+            # Require whole-word match in the relationship name.
+            rel_words = rel_norm.split()
+            if rel_word not in rel_words:
+                continue
+            rel_matches.append(e)
         if not rel_matches:
             continue
         # score each match by qualifier presence in description/frontmatter
@@ -140,8 +154,10 @@ def _phase_compound(query_norm: str, entities: list[dict[str, Any]]) -> list[dic
             # return only entities that matched a qualifier
             best = [_match_result(e, "compound") for s, e in scored if s > 0]
         elif not best:
-            # all scored 0, keep all as candidates
-            best = [_match_result(e, "compound") for _, e in scored]
+            # All scored 0 — relationship word matched but no qualifier
+            # confirmed. These are weak matches; pass them to later phases
+            # (LLM) rather than returning them as definitive.
+            pass
     return best
 
 
@@ -162,22 +178,91 @@ def _phase_description(query_norm: str, entities: list[dict[str, Any]]) -> list[
     return matches
 
 
+# Stopwords for keyword scoring — same set as compound phase.
+_SCORE_STOP = {"the", "a", "an", "i", "my", "at", "to", "in", "on", "of",
+               "is", "it", "me", "we", "he", "do", "if", "or", "so", "no",
+               "up", "by", "as", "be", "am", "with", "for", "and", "but",
+               "not", "this", "that", "from", "was", "are", "has", "had",
+               "who", "how", "what", "when", "where", "which"}
+
+
+def _phase_keyword_score(
+    query_norm: str, entities: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Phase 3b: flexible keyword scoring across all entity fields.
+
+    Scores each entity by how many content words from the query appear
+    in its relationship, description, or email domain. Returns only the
+    top scorer(s) if they have a clear lead over the runner-up.
+    """
+    content_words = [w for w in query_norm.split()
+                     if len(w) >= 3 and w not in _SCORE_STOP]
+    if not content_words:
+        return []
+
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for e in entities:
+        fm = e.get("frontmatter", {})
+        haystack_parts = []
+        rel = fm.get("relationship", "")
+        if rel:
+            haystack_parts.append(normalize_name(rel.replace("_", " ")))
+        body = e.get("body", "")
+        if body:
+            haystack_parts.append(normalize_name(body))
+        email = fm.get("primary_contact_email", "")
+        if email:
+            haystack_parts.append(normalize_name(email.replace(".", " ").replace("@", " ")))
+        haystack = " ".join(haystack_parts)
+        score = sum(1 for w in content_words if w in haystack)
+        if score > 0:
+            scored.append((score, e))
+
+    if not scored:
+        return []
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top_score = scored[0][0]
+    # Require the top scorer to beat the runner-up by at least 1 point,
+    # or be the only scorer, to avoid ambiguity.
+    if len(scored) == 1 or top_score > scored[1][0]:
+        return [_match_result(scored[0][1], "keyword_score")]
+    # Tie — return all tied entities for LLM disambiguation.
+    return [_match_result(e, "keyword_score") for s, e in scored if s == top_score]
+
+
 def _disambiguate_via_llm(
     query: str, candidates: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Ask classifier LLM to pick the best entity match from candidates."""
     if not candidates:
         return []
-    numbered = "\n".join(
-        f"  {i+1}. {c['canonical']} — "
-        f"alias={c['frontmatter'].get('alias', '?')}, "
-        f"kind={c['frontmatter'].get('kind', '?')}, "
-        f"relationship={c['frontmatter'].get('relationship', '?')}"
-        for i, c in enumerate(candidates)
-    )
+    def _entity_line(i: int, c: dict[str, Any]) -> str:
+        fm = c["frontmatter"]
+        parts = [
+            f"  {i+1}. {c['canonical']}",
+            f"alias={fm.get('alias', '?')}",
+            f"kind={fm.get('kind', '?')}",
+            f"relationship={fm.get('relationship', '?')}",
+        ]
+        email = fm.get("primary_contact_email", "")
+        if email:
+            parts.append(f"email={email}")
+        desc = c.get("body", "").strip()
+        if desc:
+            # First sentence of description — keeps prompt concise.
+            short = desc.split(".")[0].strip()
+            if short:
+                parts.append(f'desc="{short}"')
+        return " — ".join(parts[:2]) + ", " + ", ".join(parts[2:])
+
+    numbered = "\n".join(_entity_line(i, c) for i, c in enumerate(candidates))
     system = (
         "You match an informal entity reference to one of the entities "
-        "listed below. Return ONLY a JSON object:\n"
+        "listed below. The query is from the perspective of the workspace "
+        "owner (Miles). Match the ENTIRE descriptor, not just the role "
+        "word — e.g. 'the founder I talk product with' requires BOTH a "
+        "founder-like role AND product-related interaction in the "
+        "description. Return ONLY a JSON object:\n"
         '  {"match": "<exact canonical name from the list>", '
         '"confidence": <0.0-1.0>}\n'
         "If none of the entities is a plausible match, return "
@@ -234,6 +319,14 @@ def _find_matches(query: str, entities: list[dict[str, Any]]) -> list[dict[str, 
         desc_hits = _phase_description(q_norm, entities)
         if desc_hits:
             hits = desc_hits
+
+    # Phase 3b — keyword scoring across all fields
+    if not hits:
+        kw_hits = _phase_keyword_score(q_norm, entities)
+        if kw_hits:
+            if len(kw_hits) == 1:
+                return kw_hits
+            hits = kw_hits
 
     # Phase 4 — LLM disambiguation for ambiguous or zero matches
     if len(hits) > 1:
