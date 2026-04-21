@@ -59,10 +59,61 @@ def _load_entities(entities_dir: Path) -> list[dict[str, Any]]:
     return entities
 
 
-def _match_entity(text: str, entities: list[dict[str, Any]]) -> dict[str, Any] | None:
+def _match_sender(
+    frontmatter: dict[str, str], entities: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Resolve sender entity from `from:` email field.
+
+    Matches against `primary_contact_email`. Handles bracketed lists and
+    comma/whitespace-separated addresses; takes the first address.
+    """
+    raw = (frontmatter.get("from") or "").strip()
+    if not raw:
+        return None
+    if raw.startswith("[") and raw.endswith("]"):
+        raw = raw[1:-1]
+    first = raw.split(",")[0].strip().strip('"\'').strip("<>").lower()
+    if not first:
+        return None
+    for e in entities:
+        ent_email = (e["frontmatter"].get("primary_contact_email") or "").strip().lower()
+        if ent_email and ent_email == first:
+            return e
+    return None
+
+
+def _match_entity(
+    text: str,
+    entities: list[dict[str, Any]],
+    frontmatter: dict[str, str] | None = None,
+) -> dict[str, Any] | None:
+    """Resolve the entity referenced by an inbox item's body.
+
+    When `frontmatter` is provided and the `from:` address resolves to a
+    sender entity, subject matching excludes the sender. The sender
+    appears in the signature ("Thanks, Miles") but is rarely the subject
+    of the request ("my design partner"); excluding them prevents
+    alias-substring matches on the signature from stealing the slot.
+
+    Resolution order when a sender is identified:
+      1. Alias substring on non-sender candidates (same as legacy).
+      2. `_find_matches` from preflight_entity on non-sender candidates —
+         covers relationship descriptors ("my design partner" →
+         startup_partner) and LLM disambiguation.
+      3. Sender fallback — no other entity referenced; the request is
+         about the sender themselves.
+
+    When `frontmatter` is None (non-inbox callers, e.g. finance.py),
+    behavior is unchanged: alias substring then LLM fallback over all
+    entities.
+    """
+    sender = _match_sender(frontmatter, entities) if frontmatter else None
+    sender_file = sender["file"] if sender else None
+    candidates = [e for e in entities if e["file"] != sender_file]
+
     text_norm = normalize_name(text)
     best = None
-    for e in entities:
+    for e in candidates:
         for alias in e["aliases"]:
             a_norm = normalize_name(alias)
             if a_norm and a_norm in text_norm:
@@ -71,9 +122,33 @@ def _match_entity(text: str, entities: list[dict[str, Any]]) -> dict[str, Any] |
                     best = {**e, "matched_alias": alias}
     if best:
         return best
-    # Alias substring matching failed — try LLM disambiguation.
-    # PROD tasks use indirect descriptors ("the client at the tax firm",
-    # "the founder I talk product with") that don't contain entity names.
+
+    if sender is not None:
+        # Phase 2: relationship-descriptor match on body against
+        # non-sender candidates. Deliberately narrow — we do NOT use the
+        # full `_find_matches` because its keyword-score phase scores on
+        # incidental name mentions in entity descriptions (e.g. Nina's
+        # body "Pushes Miles..." lights up for any body containing
+        # "Miles", including Miles' own signature).
+        from bitgn_contest_agent.preflight.entity import (
+            _disambiguate_via_llm,
+            _phase_relationship,
+        )
+        rel_hits = _phase_relationship(text_norm, candidates)
+        if len(rel_hits) == 1:
+            m = rel_hits[0]
+            return {**m, "matched_alias": m["canonical"]}
+        if len(rel_hits) > 1:
+            narrowed = _disambiguate_via_llm(text, rel_hits)
+            if len(narrowed) == 1:
+                m = narrowed[0]
+                return {**m, "matched_alias": m["canonical"]}
+        # No subject resolvable — the request is about the sender
+        # themselves. Fall back to the sender so related_finance_files
+        # still surfaces the sender's graph (better than None).
+        return {**sender, "matched_alias": sender["canonical"]}
+
+    # No sender resolvable — legacy LLM fallback over all entities.
     return _match_entity_via_llm(text, entities)
 
 
@@ -177,7 +252,7 @@ def enumerate_inbox_from_fs(
             continue
         fm = _parse_frontmatter(text)
         body = text.split("---", 2)[-1] if text.count("---") >= 2 else text
-        match = _match_entity(body, entities)
+        match = _match_entity(body, entities, fm)
         item = {
             "path": str(f),
             "task_type": fm.get("inbox_type") or fm.get("inbox_kind") or "",
@@ -235,7 +310,7 @@ def run_preflight_inbox(client: Any, req: Req_PreflightInbox) -> ToolResult:
             ir = client.read(pcm_pb2.ReadRequest(path=ip))
             fm = _parse_frontmatter(ir.content)
             body = ir.content.split("---", 2)[-1] if ir.content.count("---") >= 2 else ir.content
-            match = _match_entity(body, entities)
+            match = _match_entity(body, entities, fm)
             related: list[str] = []
             if match:
                 alias_norms = [normalize_name(a) for a in match["aliases"] if a]
