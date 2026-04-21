@@ -1999,29 +1999,38 @@ git push origin feat/preflight-trim-verify
 
 ### Task D1: PROD smoke (5 tasks)
 
-- [ ] **Step 1: Source env and run a 5-task smoke**
+- [ ] **Step 1: Source env and run a PROD smoke (first 5 leaderboard trials)**
 
-The exact CLI comes from the project's CLI-syntax memory. Default invocation (verify in `.worktrees/plan-b/.env` or substitute the env used on `main`):
+Canonical launch per `AGENTS.md` lines 75-94 and `reference_cli_syntax.md`. Note: the PROD bench randomizes task content per run and does NOT accept a comma-separated `--tasks` list — use `--max-trials 5` to run the first 5 leaderboard trials.
 
 ```bash
-source .worktrees/plan-b/.env
-./bin/run-benchmark --provider prod --suite smoke-verify --tasks t026,t030,t055,t072,t051 --runs 1 --max-inflight-llm 24 --parallelism 3
+set -a && source .worktrees/plan-b/.env && set +a
+.venv/bin/python -m bitgn_contest_agent.cli run-benchmark \
+  --benchmark bitgn/pac1-prod \
+  --max-trials 5 \
+  --max-parallel 3 --max-inflight-llm 6 \
+  --runs 1 \
+  --output artifacts/bench/<commit>_verify_smoke_p3i6_prod_runs1.json \
+  --log-dir logs/smoke_verify
 ```
 
-If `--suite smoke-verify` is not a defined alias, replace `--suite` with the harness's task-list arg (check `--help` or recent bench commands in `~/.claude` notes).
+Substitute `<commit>` with the short SHA of the tip of `feat/preflight-trim-verify`.
 
-Expected artefact: `artifacts/bench/<sha>_verify_smoke_p3i6_prod_runs1.json` and `.run_metrics.json`.
+Expected artefact: `artifacts/bench/<commit>_verify_smoke_p3i6_prod_runs1.json` and `.run_metrics.json`.
 
 - [ ] **Step 2: Read the smoke scores**
 
 ```bash
-python scripts/intent_report.py artifacts/bench/<sha>_verify_smoke_p3i6_prod_runs1.json
+.venv/bin/python scripts/intent_report.py artifacts/bench/<commit>_verify_smoke_p3i6_prod_runs1.json
 ```
 
-Acceptance for this smoke:
-- `t051` (baseline pass) still passes.
-- At least 2 of {t026, t030, t055, t072} pass.
-- No task takes more than `max_steps` (30) — verify adds at most 1 LLM call, which counts as 1 step against the budget.
+Acceptance for this smoke (note — PROD task IDs are positional, not intent-stable; match tasks by `intent_head` per memory `feedback_task_compare_by_intent`):
+- All 5 smoked tasks complete within `max_steps` (30) — verify adds at most 1 LLM call, which counts as 1 step against the budget.
+- At least 2 tasks show a successful `verify` trace event (`kind=verify`, `changed=true` or `changed=false` with the right reason code fired). Intent targets from spec §5:
+  - MISSING_REF — cited path not in read_cache (t026-shape)
+  - NUMERIC_MULTIREF — scalar answer with ≥2 candidate reads (t030/t055-shape)
+  - INBOX_GIVEUP — inbox skill + NONE_CLARIFICATION + no outbox write (t072-shape)
+- No new failures on intents that the baseline already passed.
 
 If fewer than 2 recoveries, investigate before running the full bench:
 - Read `artifacts/ws_snapshots/<task>/trace.jsonl` for `verify` events and check `reasons` + `changed`.
@@ -2033,11 +2042,16 @@ If fewer than 2 recoveries, investigate before running the full bench:
 This is a large resource spend. Require explicit user confirmation before starting — per project memory `feedback_no_high_parallelism_without_confirm`. **Ask the user first; do not launch unilaterally.**
 
 ```bash
-source .worktrees/plan-b/.env
-./bin/run-benchmark --provider prod --tasks all --runs 1 --max-inflight-llm 24 --parallelism 3
+set -a && source .worktrees/plan-b/.env && set +a
+.venv/bin/python -m bitgn_contest_agent.cli run-benchmark \
+  --benchmark bitgn/pac1-prod \
+  --max-parallel 3 --max-inflight-llm 6 \
+  --runs 1 \
+  --output artifacts/bench/<commit>_verify_full_p3i6_prod_runs1.json \
+  --log-dir logs/<commit>_prod
 ```
 
-Expected artefact: `artifacts/bench/<sha>_verify_full_p3i6_prod_runs1.json`.
+Expected artefact: `artifacts/bench/<commit>_verify_full_p3i6_prod_runs1.json`.
 
 Acceptance criteria (spec §10):
 - `server_score_total` ≥ **100** (baseline).
