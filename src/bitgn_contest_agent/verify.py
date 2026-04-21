@@ -91,7 +91,7 @@ def _is_workspace_path(p: str) -> bool:
     and category name, e.g. '40_projects/...', '50_finance/...'.
     We only flag these; plain filenames like 'AGENTS.md' are NOT flagged.
     """
-    return bool(_PATH_RE.fullmatch(p.strip()) or _PATH_RE.search(p))
+    return bool(_PATH_RE.search(p.strip()))
 
 
 def _paths_cited_in_answer(ns: NextStep) -> list[str]:

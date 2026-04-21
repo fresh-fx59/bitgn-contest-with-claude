@@ -36,7 +36,7 @@ def test_message_has_missing_ref_section_with_gap_list():
     )
     assert "MISSING_REF" in msg
     assert "40_projects/hearthline/README.md" in msg
-    assert "Before submitting" in msg or "Before the answer is accepted" in msg
+    assert "Before the answer is accepted" in msg
 
 
 def test_message_has_numeric_multiref_section_with_candidate_paths():
