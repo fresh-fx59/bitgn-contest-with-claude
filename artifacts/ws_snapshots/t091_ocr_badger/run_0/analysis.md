@@ -1,62 +1,137 @@
-# t091 failure analysis — "OCR all bills related to Badger"
+# t091 failure — deep dive
 
-**Source:** `artifacts/bench/fa86094_verify_full_p3i6_prod_runs1.json`, commit `fa86094`.
-**Outcome:** `OUTCOME_NONE_CLARIFICATION`, grader rejected (expected `OUTCOME_OK`). Score 0.0. The only failure in 103/104.
+**Source:** `logs/fa86094_prod/20260421_144552/t091__run0.jsonl`, commit `fa86094`.
+**Outcome:** `OUTCOME_NONE_CLARIFICATION`, score 0.0, grader expected `OUTCOME_OK`.
+**One failure out of 104 tasks (103/104 = 99.0%).**
 
-## What the agent saw
+## Task
 
-`00_inbox/000_next-task.md`:
-> Please handle this request: OCR all bills related to Badger
+> **Inbox item:** OCR all bills related to Badger
+> *(router picked `inbox-processing` skill via tier1_regex on "Work … oldest … message")*
 
-`10_entities/cast/badger.md`: Badger is the family 3D printer (`kind: system`, `relationship: printer`).
+`10_entities/cast/badger.md` (read at step 14):
+> # Badger · alias: `badger` · kind: `system` · relationship: `printer` · 3D printer that keeps pulling family usefulness and tinkering into the same lane.
 
-During steps 2–13 the agent cat'd all 19 bills under `50_finance/purchases/`. At least 5 bills have `| related_entity | Badger |` in their body-table (the in-workspace canonical entity attribution):
+Expected grader behavior: read each `50_finance/purchases/*.md`, identify the ones with `| related_entity | Badger |`, and rewrite each with YAML frontmatter per `99_system/schemas/finance-record-frontmatter.md`. 5 bills actually have `related_entity: Badger` — toy_forge_pla_bundle, studio_parts_petg_batch, studio_parts_nozzle_and_inserts, black_library_terrain_spool, studio_parts_magnet_and_felt.
 
-| bill file | date | total | line-item hint |
+## What the agent did — 18 steps
+
+| # | tool | target | result |
 |---|---|---|---|
-| `bill.toy_forge_pla_bundle` | 2025-11-12 | €72 | PLA spool mixed colors |
-| `bill.studio_parts_petg_batch` | 2026-01-04 | €80 | black/clear PETG spool |
-| `bill.studio_parts_nozzle_and_inserts` | 2026-02-04 | €33 | nozzle + inserts |
-| `bill.black_library_terrain_spool` | 2026-03-03 | €89 | terrain filament |
-| `bill.studio_parts_magnet_and_felt` | 2026-03-13 | €20 | magnet + felt pads |
+| 1 | tree | (root) | workspace map |
+| 2 | read | `AGENTS.MD` | root rulebook |
+| 3 | context | — | identity bootstrap |
+| 4 | tree | (root) | workspace map again |
+| 5 | read | `99_system/AGENTS.MD` | |
+| 6 | read | `99_system/workflows/AGENTS.MD` | |
+| 7 | read | `99_system/workflows/inbox-processing-v2-update.md` | |
+| 8 | read | `99_system/workflows/process-next-inbox-item.md` | |
+| 9 | read | `00_inbox/AGENTS.MD` | |
+| 10 | read | `00_inbox/000_next-task.md` | reveals the OCR request |
+| 11 | read | `99_system/workflows/ocr-records.md` | OCR workflow |
+| 12 | read | `99_system/workflows/migrate-records-to-frontmatter.md` | migration workflow |
+| 13 | read | `99_system/schemas/finance-record-frontmatter.md` | target schema |
+| 14 | read | `10_entities/cast/badger.md` | entity confirmed |
+| **15** | **search** | **pattern=`badger`, root=`50_finance`** | **0 matches** |
+| **16** | **search** | **pattern=`printer`, root=`50_finance`** | **0 matches** |
+| **17** | **search** | **pattern=`3D`, root=`50_finance`** | **0 matches** |
+| 18 | report_completion | OUTCOME_NONE_CLARIFICATION | grader: expected OUTCOME_OK |
 
-The evidence to satisfy the task was already in the read_cache.
+## Root cause — case-sensitive `search` + no fallback to `list`+`read`
 
-## Why it failed — "case-sensitive grep → catastrophic forgetting"
+**Correcting an earlier analysis:** the bills were *not* in the agent's evidence window. The `pcm_transcript.txt` shows 19 bill `cat`s, but those were **prepass** pcm ops (backend-side identity bootstrap — 122 reads total), not LLM tool calls. The LLM's read_cache at step 18 contained **12 files, zero of them bills.**
 
-Late in the trace the agent ran three searches against `50_finance/`:
+Breakdown from the trace's `pcm_op` records:
+- `prepass` reads: 122 (incl. all 19 `50_finance/purchases/*.md`, all 11 `50_finance/invoices/*.md`)
+- `step:N` reads: 12 (none in `50_finance/`)
 
-- `rg --max-count 1000 badger 50_finance` → 0 hits (the files say `Badger`, not `badger`)
-- `rg --max-count 1000 printer 50_finance` → 0 hits
-- `rg --max-count 1000 3D 50_finance` → 0 hits
+So the prepass *knew* the bills existed — but the LLM never asked to read any of them. Prepass output is not in the LLM's evidence stream.
 
-Finding no matches via search, the agent contradicted the evidence it had already cat'd and emitted:
+### The specific failure
 
-> "I cannot safely complete the inbox request yet. The oldest inbox item asks to OCR all bills related to Badger, but no bill files can be canonically resolved from available evidence."
+The agent's plan at step 14 was correct:
 
-This is the classic **search-tool > read-cache** fallacy — the agent trusted a negative `rg` hit over the positive content it had already read.
+> `'Locate related bill files in finance roots', 'Read each target bill', 'Write frontmatter-preserving updates for all targets'`
 
-## Verify framework behavior
+But at step 15 it chose `search` for the "locate" step:
 
-`verify.should_verify` **correctly** detected INBOX_GIVEUP (inbox skill + NONE_CLARIFICATION + no outbox write) and injected the nudge. But `changed=False`: the agent re-emitted the identical clarification without re-scanning the bills sitting in its own read_cache.
+> **Step 15** · `current_state`: "Canonical entity read; identifier alias is 'badger'. Need find all bill records related to this entity across finance roots using canonical identifier."
 
-**The verify trigger fired the right reason — the re-derivation logic didn't use the right signal.**
+PCM `search` is **case-sensitive substring match**. The bill files contain `related_entity | Badger |` (title-cased) — searching for lowercase `badger` returns 0. The agent tried `printer` (only appears in `badger.md`, not bills) and `3D` (only in body text of entity, not bills) — both also 0.
 
-## Root-cause summary
+Three zero results convinced the agent that no Badger-linked bills exist, so it gave up. It never tried:
+- `list 50_finance/purchases/` — would have shown 19 candidate files
+- `read 50_finance/purchases/*.md` — would have revealed `related_entity: Badger`
+- `search` with capitalized `Badger` — would have hit 5 files
 
-Two independent defects stack:
+### Why verify didn't save it
 
-1. **Case-sensitive search in finance lookups.** `rg` without `-i` is brittle for entity-name-scoped queries. The workspace has title-cased entity names in canonical tables.
-2. **INBOX_GIVEUP nudge lacks read_cache re-entry instruction.** `_section_inbox_giveup()` (verify.py:220-239) tells the agent to re-check aliases and relationship fields, but does not tell it: *"before concluding no evidence exists, re-scan every file already in your read_cache for the entity by name, alias, or relationship."* A case-insensitive substring search over read_cache would have found all 5 Badger bills.
+`verify.should_verify` correctly fired `INBOX_GIVEUP` at step 18 (inbox skill + NONE_CLARIFICATION + no outbox write). The nudge from `verify.py:220-239`:
 
-## Candidate fixes (not in scope for this PR)
+```
+## INBOX_GIVEUP
+You routed as an inbox task, marked outcome NONE_CLARIFICATION, and did
+not write any outbox reply. This usually indicates premature giveup —
+reconsider before finalizing:
+  - Re-read the inbox `from:` header and resolve the sender via the
+    entity cast directly (aliases, relationship, primary_contact_email).
+  - If the task mentions a descriptor (e.g. 'design partner', 'my spouse'),
+    re-check every entity's relationship field — the descriptor may map
+    semantically to startup_partner, wife, etc.
+  - If after that check no entity matches, re-emit report_completion with
+    outcome OUTCOME_NONE_UNSUPPORTED (task really has no answer) or
+    OUTCOME_NONE_CLARIFICATION with a specific clarifying question …
+```
 
-- **Agent-side:** Default `rg` invocations against the workspace to `-i` when the pattern is entity-name-like (single word, mixed-case), or prefer `grep -rni` when searching for canonical names.
-- **Verify-side:** Extend INBOX_GIVEUP section with: *"Re-scan every file already in read_cache for the entity's alias, display name, and relationship tokens before concluding no evidence exists."* This closes the gap where verify fires but the agent doesn't look at its own evidence.
-- **Workspace-side:** Enforce `related_entity` lower-case alias as the canonical field so naive searches hit. (Out of our control — benchmark-side convention.)
+The nudge is **entity-centric** (designed for "find sender" inbox tasks). It doesn't tell the agent:
+- "OCR/migration tasks require reading files, not searching"
+- "Before concluding no evidence, list the relevant lane (`50_finance/purchases/`) and read its entries"
+- "Try `search` again with a capitalized/case-swapped pattern"
 
-## Relationship to verify framework PR
+Verify's `changed=False` outcome reflects this — the agent re-emitted the same clarification without re-considering file-enumeration strategy.
 
-The failure is **not** a verify-framework regression. Baseline (no verify) would have failed the same task for the same reason. Verify contributed: a correct detection and one unused retry. Net impact on this task: 0 — but also 0 false positives.
+## Concrete fixes (not in this PR — follow-up)
 
-For the PR merge decision: this is a content-layer issue orthogonal to the verify trim+trigger work. 103/104 = +26 tasks vs. baseline 77/104 is a clean win; this single miss is worth a follow-up ticket but does not block.
+### 1. Expand `inbox-processing` skill's instructions (biggest lever)
+
+Current inbox skill has no explicit rule for OCR-over-collection tasks. Add to `src/bitgn_contest_agent/skills/inbox_processing.md` (or equivalent):
+
+> When the inbox request names a collection action over an entity ("OCR all bills related to X", "summarize all notes about Y"), DO NOT rely on `search` to find candidates. Instead: `list` the relevant lane (`50_finance/purchases/` for bills, `30_knowledge/notes/` for notes, etc.), then `read` each entry and filter on the entity name match (alias, display name, or relationship token) in file content.
+
+### 2. Extend INBOX_GIVEUP verify nudge to cover collection-over-entity
+
+`verify.py:220-239` — add a branch when the inbox text contains "all" + an entity name:
+
+```python
+def _section_inbox_giveup(task_text: str) -> str:
+    base = (...existing...)
+    if re.search(r"\ball\b", task_text, re.IGNORECASE):
+        base += (
+            "\n  - The request names a collection (e.g. 'all bills', "
+            "'all notes'). Do not conclude no evidence exists based on "
+            "`search` alone — lists with case-sensitive match miss "
+            "title-cased entity names. List the relevant lane, read each "
+            "entry, and filter by entity name in file content."
+        )
+    return base
+```
+
+### 3. Harness-level: default `search` to case-insensitive
+
+Out of scope for the agent — it's a PCM behavior. But the skill docs should flag the quirk so the LLM stops treating empty `search` as authoritative.
+
+## Scoring the miss against the verify framework
+
+| Question | Answer |
+|---|---|
+| Did verify fire for the right reason? | ✅ Yes — INBOX_GIVEUP is exactly the correct reason code. |
+| Did the nudge cause a correction? | ❌ No — `changed=False`. |
+| Would the baseline (no verify) have failed the same? | ✅ Yes — same exact outcome. |
+| Is this a verify-framework regression? | ❌ No — the framework detected correctly; the prescriptive content in the nudge is tuned for "find sender" and doesn't cover collection-over-entity. |
+| Would we block the PR on this? | ❌ No — 103/104 = +26 tasks vs. baseline. The single miss is a known orthogonal issue (skill content + search case-sensitivity). |
+
+## Raw transcripts
+
+- `pcm_transcript.txt` — full PCM op stream (prepass + step ops) captured by the harness
+- `../../../logs/fa86094_prod/20260421_144552/t091__run0.jsonl` — structured trace
+- `../../../logs/fa86094_prod/20260421_144552/t091__run0.log` — arch events + HTTP timing
