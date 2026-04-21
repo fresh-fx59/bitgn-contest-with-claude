@@ -92,7 +92,54 @@ Full suite: **508/508 PASS**.
    `Req_Search` (agent-facing BaseModel) works — `type(req)()` fails on
    pydantic models with required fields.
 
-## Next step
+## PROD full bench (p3i6, SHA 3770ad1, 2026-04-21 22:58 → 01:21 CEST)
 
-Run full PROD bench (p3i6, 104 tasks) to confirm t091 passes and to
-measure aggregate impact.
+Artifact: `artifacts/bench/3770ad1_t091_fix_p3i6_prod_runs1.json`
+Log dir: `logs/20260421_215807/`
+
+### Target task (Badger OCR)
+
+PROD reshuffles task IDs per run — the "OCR all bills related to
+Badger" task landed at slot **t066** in this run. Trace evidence:
+
+- `pcm_op search(root=50_finance, pattern=badger)` → 0 bytes (no matches).
+- **Fix A retry fired**: a second `pcm_op search` at the same
+  `origin=step:14` returned 557 bytes.
+- Agent observation at step 15: *"Search in 50_finance for 'badger'
+  returned exactly 4 matches, all in 50_finance/purchases with
+  related_entity Badger."*
+- `[ARCH:TERMINAL_R4] result=CONSISTENT confidence=0.92` →
+  `[ARCH:TERMINAL] result=ACCEPT outcome=OUTCOME_OK`.
+
+**Verdict: FIX A WORKED AS DESIGNED on the real PROD failure path.**
+
+### Aggregate outcome
+
+ARCH:TERMINAL ACCEPT count: **101/104**. Three non-accepts:
+
+| Task | Failure | Related to fixes? |
+|------|---------|-------------------|
+| t043 | R4 MISMATCH — agent's 4 claimed writes didn't match actual mutation filenames (2 invoices + 2 bills) | No — mutation-integrity issue, not search/INBOX_GIVEUP |
+| t052 | R4 REJECT — `grounding_ref '60_outbox/channels/work_calendar.md' never successfully read` | No — outbox grounding, unrelated |
+| t061 | R4 REJECT — 3 grounding_refs never successfully read | No — general grounding issue |
+
+Recent baseline 104-task ACCEPT history (from `logs/*/` scan):
+101–103. This run's 101 sits at the low end of that noise band with
+n=1 — not a statistically meaningful regression.
+
+### Bench JSON caveat
+
+`artifacts/bench/3770ad1_*.json` contains only 63 task entries (all
+100% pass). This is normal — the bench aggregator includes only tasks
+for which server-score fetch succeeded (`run_metrics.rate_limit_errors
+= 7`). The full 104-task outcome was reconstructed from ARCH:TERMINAL
+log lines.
+
+## Conclusion
+
+- Fix A (search case-fold retry) fires correctly on PROD. The Badger
+  task flipped from FAIL → PASS.
+- Fix B (INBOX_GIVEUP collection nudge) did not fire in this run —
+  the agent with Fix A already succeeded before reaching
+  OUTCOME_NONE_CLARIFICATION. Latent.
+- No regression attributable to either fix.
