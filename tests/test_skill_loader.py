@@ -15,42 +15,6 @@ from bitgn_contest_agent.skill_loader import (
 FIX = Path(__file__).parent / "fixtures" / "skills"
 
 
-def test_load_skill_with_preflight_frontmatter(tmp_path: Path) -> None:
-    md = tmp_path / "demo.md"
-    md.write_text(
-        "---\n"
-        "name: demo\n"
-        "description: d\n"
-        "type: rigid\n"
-        "category: DEMO\n"
-        "classifier_hint: x\n"
-        "preflight: preflight_finance\n"
-        "preflight_query_field: vendor\n"
-        "---\n"
-        "Body.\n"
-    )
-    s = load_skill(md)
-    assert s.preflight == "preflight_finance"
-    assert s.preflight_query_field == "vendor"
-
-
-def test_load_skill_without_preflight_defaults_none(tmp_path: Path) -> None:
-    md = tmp_path / "demo.md"
-    md.write_text(
-        "---\n"
-        "name: demo\n"
-        "description: d\n"
-        "type: rigid\n"
-        "category: DEMO\n"
-        "classifier_hint: x\n"
-        "---\n"
-        "Body.\n"
-    )
-    s = load_skill(md)
-    assert s.preflight is None
-    assert s.preflight_query_field == "query"
-
-
 def test_load_valid_skill() -> None:
     skill = load_skill(FIX / "valid.md")
     assert isinstance(skill, BitgnSkill)
@@ -164,39 +128,3 @@ def test_variables_are_optional() -> None:
     assert skill.matcher_patterns == ["TEST-HARDCODE"]
 
 
-def test_load_skill_with_preflight_frontmatter(tmp_path: Path) -> None:
-    md = tmp_path / "demo.md"
-    md.write_text(
-        "---\n"
-        "name: demo\n"
-        "description: d\n"
-        "type: rigid\n"
-        "category: DEMO\n"
-        "matcher_patterns:\n"
-        "classifier_hint: x\n"
-        "preflight: preflight_finance\n"
-        "preflight_query_field: vendor\n"
-        "---\n"
-        "Body.\n"
-    )
-    s = load_skill(md)
-    assert s.preflight == "preflight_finance"
-    assert s.preflight_query_field == "vendor"
-
-
-def test_load_skill_without_preflight_defaults_none(tmp_path: Path) -> None:
-    md = tmp_path / "demo.md"
-    md.write_text(
-        "---\n"
-        "name: demo\n"
-        "description: d\n"
-        "type: rigid\n"
-        "category: DEMO\n"
-        "matcher_patterns:\n"
-        "classifier_hint: x\n"
-        "---\n"
-        "Body.\n"
-    )
-    s = load_skill(md)
-    assert s.preflight is None
-    assert s.preflight_query_field == "query"

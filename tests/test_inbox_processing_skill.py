@@ -15,12 +15,6 @@ class TestInboxProcessingRouting:
         assert body is not None
         assert "completeness" in body.lower() or "ALL" in body
 
-    def test_skill_has_preflight_inbox_binding(self) -> None:
-        router = load_router(skills_dir=SKILLS_DIR)
-        skill = router.skills_by_name().get("inbox-processing")
-        assert skill is not None
-        assert skill.preflight == "preflight_inbox"
-
     def test_routes_work_oldest_inbox(self) -> None:
         router = load_router(skills_dir=SKILLS_DIR)
         decision = router.route("Work the oldest inbox message.")

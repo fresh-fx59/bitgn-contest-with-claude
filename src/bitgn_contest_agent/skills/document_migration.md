@@ -5,8 +5,6 @@ type: rigid
 category: document_migration
 matcher_patterns:
 classifier_hint: "Tasks asking to queue, migrate, or prepare documents for transfer to another system"
-preflight: preflight_doc_migration
-preflight_query_field: query
 ---
 
 ## Step 0: Pre-fetched context

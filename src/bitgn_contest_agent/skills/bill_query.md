@@ -10,8 +10,6 @@ matcher_patterns:
   - '(?i)price\s+of\s+.+\s+(on|in|from)\s+(the|my|a)\s+bill'
   - '(?i)bill\s+from\s+.+\s+(how many|number of|lines|quantity|price|date)'
 classifier_hint: "Tasks asking about specific fields on a bill: line count, purchased date, quantity, or price of items"
-preflight: preflight_finance
-preflight_query_field: query
 ---
 
 # Bill Query Strategy
