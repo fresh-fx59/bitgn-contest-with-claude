@@ -42,6 +42,14 @@ class ModelProfile:
     # HTTP timeout kills the call — at which point LM Studio keeps generating
     # anyway. The server-side cap is the real stop; this is our signal.
     max_completion_tokens: int = 4096
+    # Host:port of the LM Studio instance serving this model, or ``None``
+    # for non-LM-Studio backends (e.g. qwen3.6 via neuraldeep gateway).
+    # When set, the openai_toolcalling backend wraps each completion call
+    # with ``lmstudio_watchdog.guard(...)`` — on wallclock overrun, the
+    # watchdog calls the lmstudio-python SDK's ``llm.unload()`` to force
+    # LM Studio to stop generating. The OpenAI HTTP timeout alone does
+    # not stop server-side generation; this is the backstop.
+    lmstudio_host: str | None = None
 
 
 class ModelAdapter:

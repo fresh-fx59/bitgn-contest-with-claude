@@ -37,6 +37,7 @@ class GlmFlashAdapter(ModelAdapter):
                 max_parallel_tasks=1,
                 max_inflight_llm=1,
                 reasoning_effort="medium",
+                lmstudio_host="localhost:1236",
             ),
         )
 

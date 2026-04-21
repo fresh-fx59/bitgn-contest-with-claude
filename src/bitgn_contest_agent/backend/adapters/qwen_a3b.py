@@ -67,6 +67,7 @@ class QwenA3bAdapter(ModelAdapter):
                 # the operator setting the LM Studio context cap to 101720,
                 # this bounds worst-case generation on the wire.
                 max_completion_tokens=100_000,
+                lmstudio_host="localhost:1236",
             ),
         )
 

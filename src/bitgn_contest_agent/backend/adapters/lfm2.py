@@ -28,6 +28,7 @@ class Lfm2Adapter(ModelAdapter):
                 max_parallel_tasks=2,
                 max_inflight_llm=2,
                 reasoning_effort="medium",
+                lmstudio_host="localhost:1236",
             ),
         )
 

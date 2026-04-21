@@ -22,7 +22,9 @@ from __future__ import annotations
 import json as _json
 import logging
 import re as _re
-from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeVar
+import uuid as _uuid
+from contextlib import nullcontext
+from typing import Any, ContextManager, Dict, List, Optional, Sequence, Tuple, TypeVar
 
 import httpx
 import openai
@@ -39,11 +41,36 @@ from bitgn_contest_agent.backend.base import (
     NextStepResult,
     TransientBackendError,
 )
+from bitgn_contest_agent.backend import lmstudio_watchdog
 from bitgn_contest_agent.schemas import (
     NextStep,
     REQ_MODELS,
     ReportTaskCompletion,
 )
+
+
+# Grace period added to ``llm_http_timeout_sec`` before the watchdog
+# fires unload(). The HTTP client raises first; the watchdog waits a
+# short grace in case the exception alone freed the slot, then unloads.
+_WATCHDOG_GRACE_SEC: float = 10.0
+
+
+def _watchdog_guard(adapter: Any, model: str) -> ContextManager[None]:
+    """Return a watchdog guard CM when ``adapter`` targets LM Studio.
+
+    For non-LM-Studio backends (remote qwen3.6 gateway), returns a
+    no-op ``nullcontext`` so the call site can unconditionally ``with``.
+    """
+    host = getattr(adapter.profile, "lmstudio_host", None)
+    if host is None:
+        return nullcontext()
+    deadline = adapter.profile.llm_http_timeout_sec + _WATCHDOG_GRACE_SEC
+    return lmstudio_watchdog.guard(
+        request_id=_uuid.uuid4().hex[:8],
+        model=model,
+        host=host,
+        deadline_sec=deadline,
+    )
 
 
 _TRANSIENT_EXCEPTIONS: tuple[type[Exception], ...] = (
@@ -714,7 +741,8 @@ class OpenAIToolCallingBackend(Backend):
         # passthrough so other adapters stay byte-identical.
         request_kwargs = self._adapter.shape_request(request_kwargs)
         try:
-            completion = self._client.chat.completions.create(**request_kwargs)
+            with _watchdog_guard(self._adapter, self._model):
+                completion = self._client.chat.completions.create(**request_kwargs)
         except _TRANSIENT_EXCEPTIONS as exc:
             raise TransientBackendError(str(exc)) from exc
         except openai.BadRequestError as exc:
@@ -944,14 +972,15 @@ class OpenAIToolCallingBackend(Backend):
         """
         payload = [{"role": "user", "content": prompt}]
         try:
-            completion = self._client.beta.chat.completions.parse(
-                model=self._model,
-                messages=payload,
-                response_format=response_schema,
-                timeout=timeout_sec,
-                max_tokens=self._adapter.profile.max_completion_tokens,
-                extra_body={"reasoning": {"effort": self._reasoning_effort}},
-            )
+            with _watchdog_guard(self._adapter, self._model):
+                completion = self._client.beta.chat.completions.parse(
+                    model=self._model,
+                    messages=payload,
+                    response_format=response_schema,
+                    timeout=timeout_sec,
+                    max_tokens=self._adapter.profile.max_completion_tokens,
+                    extra_body={"reasoning": {"effort": self._reasoning_effort}},
+                )
             parsed = completion.choices[0].message.parsed
             if parsed is not None:
                 return parsed

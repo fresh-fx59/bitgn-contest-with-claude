@@ -26,6 +26,7 @@ class GptOssAdapter(ModelAdapter):
                 max_parallel_tasks=4,
                 max_inflight_llm=4,
                 reasoning_effort="high",
+                lmstudio_host="localhost:1236",
             ),
         )
 
