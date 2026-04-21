@@ -158,28 +158,11 @@ class _LocalPreflightAdapter:
         self._client = client
 
     def dispatch(self, req: Any) -> Any:
-        """Route a preflight request to the appropriate handler."""
-        from bitgn_contest_agent.schemas import (
-            Req_PreflightFinance,
-            Req_PreflightEntity,
-            Req_PreflightProject,
-            Req_PreflightInbox,
+        """Routed preflight dispatch — removed 2026-04-21 (match_found=True was 0/104 on PROD)."""
+        raise NotImplementedError(
+            "Routed preflight matcher modules were deleted on 2026-04-21. "
+            "dispatch() is no longer supported. Use preflight_schema directly."
         )
-
-        if isinstance(req, Req_PreflightProject):
-            from bitgn_contest_agent.preflight.project import run_preflight_project
-            return run_preflight_project(self._client, req)
-        elif isinstance(req, Req_PreflightFinance):
-            from bitgn_contest_agent.preflight.finance import run_preflight_finance
-            return run_preflight_finance(self._client, req)
-        elif isinstance(req, Req_PreflightEntity):
-            from bitgn_contest_agent.preflight.entity import run_preflight_entity
-            return run_preflight_entity(self._client, req)
-        elif isinstance(req, Req_PreflightInbox):
-            from bitgn_contest_agent.preflight.inbox import run_preflight_inbox
-            return run_preflight_inbox(self._client, req)
-        else:
-            raise ValueError(f"Unknown preflight request type: {type(req)}")
 
 
 def _verify_against_expected(
