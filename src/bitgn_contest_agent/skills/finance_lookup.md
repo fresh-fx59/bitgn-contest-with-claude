@@ -12,8 +12,6 @@ matcher_patterns:
   - '(?i)how much.*(money|did we|have we).*(make|earn|made|earned).*(service\s+line|service\s+project)'
   - '(?i)(service\s+line|service\s+project).*(since|from|beginning)'
 classifier_hint: "Tasks asking about financial totals, service line revenue, how much money earned from a service, or any query about past charges, invoices, receipts, or bills"
-preflight: preflight_finance
-preflight_query_field: query
 ---
 
 # Finance Lookup Strategy

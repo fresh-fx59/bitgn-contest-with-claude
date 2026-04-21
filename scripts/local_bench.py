@@ -58,11 +58,6 @@ from bitgn_contest_agent.schemas import (
     Req_List,
     Req_MkDir,
     Req_Move,
-    Req_PreflightDocMigration,
-    Req_PreflightEntity,
-    Req_PreflightFinance,
-    Req_PreflightInbox,
-    Req_PreflightProject,
     Req_PreflightSchema,
     Req_Read,
     Req_Search,
@@ -177,36 +172,6 @@ class LocalPcmAdapter:
                     "data": schema.as_data(),
                 }
                 return self._finish(start, json.dumps(payload), refs=())
-
-            if isinstance(req, Req_PreflightFinance):
-                from bitgn_contest_agent.preflight.finance import (
-                    run_preflight_finance,
-                )
-                return run_preflight_finance(self._client, req)
-
-            if isinstance(req, Req_PreflightEntity):
-                from bitgn_contest_agent.preflight.entity import (
-                    run_preflight_entity,
-                )
-                return run_preflight_entity(self._client, req)
-
-            if isinstance(req, Req_PreflightProject):
-                from bitgn_contest_agent.preflight.project import (
-                    run_preflight_project,
-                )
-                return run_preflight_project(self._client, req)
-
-            if isinstance(req, Req_PreflightInbox):
-                from bitgn_contest_agent.preflight.inbox import (
-                    run_preflight_inbox,
-                )
-                return run_preflight_inbox(self._client, req)
-
-            if isinstance(req, Req_PreflightDocMigration):
-                from bitgn_contest_agent.preflight.doc_migration import (
-                    run_preflight_doc_migration,
-                )
-                return run_preflight_doc_migration(self._client, req)
 
             raise TypeError(f"unsupported request type: {type(req).__name__}")
 

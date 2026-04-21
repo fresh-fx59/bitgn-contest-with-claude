@@ -5,8 +5,6 @@ type: rigid
 category: entity_message_lookup
 matcher_patterns:
 classifier_hint: "Tasks asking to quote or find the last recorded message or communication from a person or entity"
-preflight: preflight_entity
-preflight_query_field: query
 ---
 
 ## Step 0: Pre-fetched context

@@ -8,8 +8,6 @@ matcher_patterns:
   - '(?i)\b(oldest|next|first)\b.*\b(inbox|message)\b'
   - '(?i)\binbox\b.*\b(item|message|task)\b'
 classifier_hint: "Tasks asking to process, work, or handle inbox items — including OCR, forwarding, filing, or any multi-step inbox workflow"
-preflight: preflight_inbox
-preflight_query_field: query
 ---
 
 # Inbox Processing Strategy

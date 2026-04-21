@@ -25,9 +25,10 @@ from bitgn.vm import pcm_pb2
 
 
 # Phase attribution for pcm_op records. The agent loop sets this around
-# each logical phase (prepass, routed_preflight, step:N) so every op the
-# underlying PcmRuntimeClientSync sees inherits the label — including
-# ops made by preflight_* tools that call the runtime directly.
+# each logical phase (prepass, step:N) so every op the underlying
+# PcmRuntimeClientSync sees inherits the label — including ops made by
+# preflight_* tools that call the runtime directly. "routed_preflight"
+# is a historical label present in older log files but no longer emitted.
 _pcm_op_origin: ContextVar[Optional[str]] = ContextVar(
     "pcm_op_origin", default=None,
 )

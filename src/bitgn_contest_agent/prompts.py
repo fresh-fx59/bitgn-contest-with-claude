@@ -200,10 +200,14 @@ Outbox writing discipline:
     (`YYYY_MM_DD_...`) and sort descending.
 
 Entity resolution:
-  - Use the `preflight_entity` tool to resolve any person, device,
-    or system reference — it searches names, aliases, relationship
-    fields, and descriptions with automatic disambiguation. Trust
-    its result; do not manually re-search cast files.
+  - For any person, device, or system reference, use `tree` +
+    `read` on the entities root (its path is in the WORKSPACE
+    SCHEMA message at the top of the conversation). Names,
+    aliases, relationships, and descriptions all live in the
+    entity records' frontmatter and body — scan the record
+    itself; do not guess from the display name alone. If two
+    candidates look plausible (e.g. synonyms like "partner" vs
+    "startup partner"), read both records before deciding.
   - Entity-graph traversal for finance lookups: when a task asks
     about a person's bill, invoice, receipt, or financial record,
     do NOT search finance directories using the person's display
@@ -250,50 +254,6 @@ Pre-submit verification (MANDATORY before every report_completion):
 
 Never dump raw file contents back into your reasoning. Summarize.
 """
-
-PREFLIGHT_PROTOCOL = """
-## Preflight Shortcuts
-
-When you need to explore the working tree for a specific task shape,
-there are precomputed shortcuts that beat manual tree+search+read:
-
-USE WHEN you need to...                               → call
-──────────────────────────────────────────────────── ─────────────────
-discover where records of each kind live             preflight_schema
-(inbox, entities, finance, projects, outbox roots)
-
-find bills/invoices by vendor or line-item,          preflight_finance
-especially with spelling / spacing variants          (finance_roots,
-                                                      entities_root, query)
-
-resolve a person from an informal reference          preflight_entity
-(nickname, role like "infra counterpart",            (entities_root, query)
- relationship like "mother-in-law")
-
-list projects involving a specific person            preflight_project
-                                                     (projects_root,
-                                                      entities_root, query)
-
-process the next inbox item (usually touches         preflight_inbox
-finance + entity graphs)                             (inbox_root,
-                                                      entities_root,
-                                                      finance_roots)
-
-move documents and need the target system's          preflight_doc_migration
-destination + metadata conventions                   (source_paths,
-                                                      entities_root, query)
-
-Each tool returns a `summary` (treat as ground truth) and structured
-`data`. Preflight is a shortcut, not a gate — use it when the task
-shape matches a row above; skip it when it doesn't. Re-invoke later
-in the task if a search dead-ends.
-
-The `preflight_schema` result is already in your conversation (look
-for the WORKSPACE SCHEMA message) — you don't need to call it again
-unless you're re-grounding.
-"""
-
-_STATIC_SYSTEM_PROMPT = _STATIC_SYSTEM_PROMPT + PREFLIGHT_PROTOCOL
 
 
 def system_prompt() -> str:

@@ -1,0 +1,146 @@
+{
+  "schema_version": "1.2.0",
+  "overall": {
+    "total_runs": 2,
+    "total_passes": 2,
+    "pass_rate": 1.0,
+    "runs_per_task": 1,
+    "pass_rate_median": 1.0,
+    "pass_rate_min": 1.0,
+    "pass_rate_ci_lower": 1.0,
+    "pass_rate_ci_upper": 1.0,
+    "total_input_tokens": 341397,
+    "total_output_tokens": 7533,
+    "total_reasoning_tokens": 1875,
+    "trace_dir": "/home/claude-developer/bitgn-contest-with-claude/logs/smoke_verify/20260421_143737",
+    "divergence_count": 16,
+    "total_pcm_ops": 359,
+    "total_pcm_wall_ms": 37573
+  },
+  "tasks": {
+    "t002": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 20,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 179314,
+      "output_tokens": 3802,
+      "reasoning_tokens": 979,
+      "harness_url": "https://vm-03oqfhmfld22y9f342.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        3,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "step_texts": [
+        "Must perform identity bootstrap per rules before task work: tree / then read AGENTS.md then context.",
+        "Tree bootstrap completed. Next required bootstrap step is reading root rulebook file.",
+        "Loaded root AGENTS.MD. Bootstrap still requires context call. After that, obey root rule: inspect 99_system with tree before task work, then find relevant workflow docs if any.",
+        "Identity bootstrap complete (tree/read/context done), but root rulebook additionally requires inspecting 99_system before task work.",
+        "Inspected 99_system tree as required. Need nested AGENTS in entered folder before proceeding.",
+        "System policy read. Now task-specific lookup requires entity resolution, so enter entities lane and read nested rulebooks first.",
+        "Entered entities lane; must read nested cast rulebook before using entity files.",
+        "Need canonical entity data and aliases for Vesela Jana before scanning messages.",
+        "Resolved target entity as Jana Vesela with alias jana; need channel transcript rules and then exhaustive channel reads.",
+        "Need nested channels rulebook before reading channel files.",
+        "Ready for exhaustive transcript review across all channel logs.",
+        "First channel read; no Jana-authored message there despite participant list includes entity.jana. Must continue exhaustive reads.",
+        "No Jana in grimdark. Continue exhaustive channel reads.",
+        "Still no Jana-authored messages. Continue channel-by-channel.",
+        "No Jana here either. Continue exhaustive reading.",
+        "Household calendar has none. Need remaining channels.",
+        "No Jana in household_signal. Must finish exhaustive scan of remaining channel files before deciding.",
+        "Still none. Continue remaining channels.",
+        "Only one channel left; after reading it do exhaustive verification likely none found. Then maybe targeted search to confirm alias forms.",
+        "Pre-submit verification: Task asks for last recorded message from Vesela Jana. I resolved canonical entity via 10_entities/cast/jana.md (Jana Vesela, alias jana) and read every channel transcript file under 60_outbox/channels as instructed. None contain a message authored by Jana/Vesela/entity.jana; several channels have no messages at all. Since absence of recorded message means data missing, correct outcome is OUTCOME_NONE_CLARIFICATION (not OUTCOME_OK)."
+      ],
+      "last_outcome": "OUTCOME_NONE_CLARIFICATION",
+      "last_latency_ms": 111527,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 180,
+      "pcm_wall_ms": 18915,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 137,
+        "context": 2,
+        "list": 36,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "step": 20
+      }
+    },
+    "t003": {
+      "runs": 1,
+      "passes": 1,
+      "median_steps": 19,
+      "passes_per_run": [
+        1
+      ],
+      "input_tokens": 162083,
+      "output_tokens": 3731,
+      "reasoning_tokens": 896,
+      "harness_url": "https://vm-03oqfhmfo5698ndpyg.eu.bitgn.com",
+      "divergence_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        12
+      ],
+      "step_texts": [
+        "Must follow mandatory identity bootstrap before task work: tree('/'), read('AGENTS.md'), context(). Starting with tree.",
+        "Completed tree bootstrap step. Next required bootstrap step is reading AGENTS.md at workspace root; actual filename appears as AGENTS.MD from tree output.",
+        "Read root AGENTS.MD; must still call context to complete mandatory identity bootstrap. After that, need inspect 99_system per AGENTS before task work.",
+        "Identity bootstrap complete (tree/read/context). Per AGENTS.MD, must inspect 99_system with tree before task work.",
+        "Inspected 99_system tree as required. Need read 99_system/AGENTS.MD for local rules before task work in other folders.",
+        "System policy read. Next entering entities lane, so must read nested AGENTS files there before lookup.",
+        "Need cast-specific rules before reading entity files.",
+        "Entity lane rules loaded. Now resolve 'lab server' to canonical entity record and alias before project search.",
+        "No direct 'lab server' text in cast. Need broader entity resolution via likely descriptors.",
+        "Found two potential system entities via relationship markers: foundry (lab_server) and juniper (home_server). Need read both to disambiguate 'lab server'.",
+        "Foundry explicitly has relationship lab_server with alias foundry. Still must read juniper too because it was plausible candidate per rule.",
+        "Disambiguation complete: lab server maps to Foundry alias foundry (juniper is home_server). Before searching projects, read 40_projects/AGENTS.MD per nested rule.",
+        "Ready for entity->projects lookup using canonical alias foundry. Need exhaustive structured search in projects.",
+        "Found 5 project README matches for entity.foundry; must read every matching README to extract exact project names for output.",
+        "Extracted project name Hearthline from first matched README. Continue reading all remaining matched READMEs.",
+        "Got House Mesh. Need remaining 3 matched projects.",
+        "Got Northstar Ledger. Need last two read files before final response.",
+        "Need last matched README (black_library_evenings) then can report alphabetized project names only.",
+        "Pre-submit check: task asks which projects lab server is involved in, return exact project names sorted alphabetically, one per line. Resolved lab server to entity.foundry via 10_entities/cast/foundry.md (relationship lab_server) and disambiguated against juniper (home_server). Exhaustive structured search used pattern entity.foundry in 40_projects and returned 5 matches; read all 5 canonical project READMEs and extracted titles. Sorted alphabetically: Black Library Evenings, Hearthline, Helios Workflow Sprint, House Mesh, Northstar Ledger."
+      ],
+      "last_outcome": "OUTCOME_OK",
+      "last_latency_ms": 104467,
+      "timed_out": false,
+      "category": "other",
+      "arch_present": true,
+      "pcm_ops": 179,
+      "pcm_wall_ms": 18658,
+      "pcm_ops_by_op": {
+        "tree": 4,
+        "read": 133,
+        "context": 2,
+        "list": 36,
+        "search": 3,
+        "answer": 1
+      },
+      "pcm_ops_by_origin": {
+        "prepass": 160,
+        "step": 19
+      }
+    }
+  }
+}

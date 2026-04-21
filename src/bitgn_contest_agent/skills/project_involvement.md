@@ -7,8 +7,6 @@ matcher_patterns:
   - '(?i)start\s+date\b.*\b(project|for\s+(?:the\s+)?(?:project\s+)?\w)'
   - '(?i)\bproject\b.*\bstart\s+date\b'
 classifier_hint: "Tasks asking about project attributes (start date, members, status), which projects a person is involved in, or any project-related queries — even if the project name sounds financial or like another domain"
-preflight: preflight_entity
-preflight_query_field: query
 ---
 
 ## Step 0: Classify the query

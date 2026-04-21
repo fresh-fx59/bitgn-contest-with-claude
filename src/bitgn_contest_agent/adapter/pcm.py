@@ -30,11 +30,6 @@ from bitgn_contest_agent.schemas import (
     Req_Tree,
     Req_Write,
     Req_PreflightSchema,
-    Req_PreflightInbox,
-    Req_PreflightFinance,
-    Req_PreflightEntity,
-    Req_PreflightProject,
-    Req_PreflightDocMigration,
 )
 
 from bitgn_contest_agent.arch_constants import ArchCategory
@@ -217,21 +212,6 @@ class PcmAdapter:
             if isinstance(req, Req_PreflightSchema):
                 from bitgn_contest_agent.preflight.schema import run_preflight_schema
                 return run_preflight_schema(self._runtime, None)
-            if isinstance(req, Req_PreflightInbox):
-                from bitgn_contest_agent.preflight.inbox import run_preflight_inbox
-                return run_preflight_inbox(self._runtime, req)
-            if isinstance(req, Req_PreflightFinance):
-                from bitgn_contest_agent.preflight.finance import run_preflight_finance
-                return run_preflight_finance(self._runtime, req)
-            if isinstance(req, Req_PreflightEntity):
-                from bitgn_contest_agent.preflight.entity import run_preflight_entity
-                return run_preflight_entity(self._runtime, req)
-            if isinstance(req, Req_PreflightProject):
-                from bitgn_contest_agent.preflight.project import run_preflight_project
-                return run_preflight_project(self._runtime, req)
-            if isinstance(req, Req_PreflightDocMigration):
-                from bitgn_contest_agent.preflight.doc_migration import run_preflight_doc_migration
-                return run_preflight_doc_migration(self._runtime, req)
             raise TypeError(f"unsupported request type: {type(req).__name__}")
         except Exception as exc:
             wall_ms = int((time.monotonic() - start) * 1000)

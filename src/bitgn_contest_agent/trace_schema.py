@@ -157,6 +157,14 @@ class TraceEvent(_BaseRecord):
     repeated_tuple: Optional[List[str]] = None
 
 
+class TraceVerify(_BaseRecord):
+    """A pre-completion verification round fired by verify.should_verify."""
+    kind: Literal["verify"] = "verify"
+    at_step: int
+    reasons: list[str]
+    changed: bool   # True if the post-verify completion differed
+
+
 class TracePcmOp(_BaseRecord):
     """One raw PCM runtime call — logged by the tracing wrapper around
     PcmRuntimeClientSync. Captures the same ops the BitGN dashboard
@@ -179,10 +187,10 @@ class TracePcmOp(_BaseRecord):
     error_code: Optional[str] = None
     # Attribution — which phase of the task emitted this op. Filled by
     # a ContextVar set by the agent loop: "prepass" (identity bootstrap
-    # + preflight_schema internals), "routed_preflight" (router-picked
-    # preflight before the main loop), or "step:N" (inside LLM step N,
-    # including the terminal answer). Absent on traces written before
-    # attribution landed.
+    # + preflight_schema internals), or "step:N" (inside LLM step N,
+    # including the terminal answer). "routed_preflight" is a historical
+    # label that appears in older log files but is no longer emitted.
+    # Absent on traces written before attribution landed.
     origin: Optional[str] = None
 
 

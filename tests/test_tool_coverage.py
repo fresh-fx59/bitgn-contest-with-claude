@@ -63,11 +63,6 @@ def _req_model_rpc_names() -> set[str]:
         "Req_Context": "ContextRequest",
         # Client-side preflight tools — no PCM proto backing.
         "Req_PreflightSchema": "PREFLIGHT_SchemaRequest",
-        "Req_PreflightInbox": "PREFLIGHT_InboxRequest",
-        "Req_PreflightFinance": "PREFLIGHT_FinanceRequest",
-        "Req_PreflightEntity": "PREFLIGHT_EntityRequest",
-        "Req_PreflightProject": "PREFLIGHT_ProjectRequest",
-        "Req_PreflightDocMigration": "PREFLIGHT_DocMigrationRequest",
     }
     names: set[str] = set()
     for model in REQ_MODELS:
@@ -84,11 +79,6 @@ def _req_model_rpc_names() -> set[str]:
 _CLIENT_SIDE_ONLY: frozenset[str] = frozenset(
     {
         "PREFLIGHT_SchemaRequest",
-        "PREFLIGHT_InboxRequest",
-        "PREFLIGHT_FinanceRequest",
-        "PREFLIGHT_EntityRequest",
-        "PREFLIGHT_ProjectRequest",
-        "PREFLIGHT_DocMigrationRequest",
     }
 )
 
