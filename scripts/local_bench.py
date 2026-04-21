@@ -392,6 +392,67 @@ def check_answer(actual: str, expected: str) -> tuple[bool, str]:
     return False, f"missing: {missing}"
 
 
+def check_outbox_refs(
+    client: LocalPcmClient,
+    answer: str,
+    grounding_refs: list[str],
+) -> tuple[bool, str]:
+    """Check that outbox attachment paths appear in the answer or grounding_refs.
+
+    Mimics BitGN server scoring: if the agent wrote outbox files with
+    attachments, the answer message must reference each attached path.
+    Returns (pass, detail). If no outbox writes, returns (True, "").
+    """
+    import re
+
+    # Find outbox files the agent wrote
+    outbox_writes = {
+        p: content for p, content in client.writes.items()
+        if "outbox/" in p and p.endswith(".md")
+    }
+    if not outbox_writes:
+        return True, ""
+
+    # Extract attachment paths from outbox YAML frontmatter
+    required_refs: set[str] = set()
+    for path, content in outbox_writes.items():
+        # Parse YAML frontmatter between --- delimiters
+        m = re.match(r"^---\n(.*?)\n---", content, re.DOTALL)
+        if not m:
+            continue
+        frontmatter = m.group(1)
+        in_attachments = False
+        for line in frontmatter.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("attachments:"):
+                in_attachments = True
+                continue
+            if in_attachments:
+                if stripped.startswith("- "):
+                    ref = stripped[2:].strip().strip('"').strip("'")
+                    if ref:
+                        required_refs.add(ref)
+                elif stripped and not stripped.startswith("#"):
+                    in_attachments = False
+
+    if not required_refs:
+        return True, ""
+
+    # Check: each required ref must appear in answer text or grounding_refs
+    answer_lower = answer.lower()
+    refs_text = " ".join(grounding_refs).lower()
+    combined = answer_lower + " " + refs_text
+
+    missing = set()
+    for ref in required_refs:
+        if ref.lower() not in combined:
+            missing.add(ref)
+
+    if missing:
+        return False, f"answer missing required reference(s): {missing}"
+    return True, ""
+
+
 # ── Run a single task ────────────────────────────────────────────────
 
 @dataclass
@@ -422,6 +483,9 @@ def run_local_task(
     reactive_router: Any = None,
 ) -> LocalTaskResult:
     """Run one task against a local workspace snapshot."""
+    import shutil
+    import tempfile
+
     workspace = Path(workspace)
     if not workspace.exists():
         return LocalTaskResult(
@@ -429,6 +493,12 @@ def run_local_task(
             outcome="error", answer="", expected=expected_answer,
             steps=0, llm_calls=0, wall_sec=0,
         )
+
+    # Copy workspace to a temp dir so source snapshot stays clean
+    tmp_dir = tempfile.mkdtemp(prefix=f"localbench_{task_id}_")
+    tmp_workspace = Path(tmp_dir) / "workspace"
+    shutil.copytree(workspace, tmp_workspace)
+    workspace = tmp_workspace
 
     t0 = time.monotonic()
     client = LocalPcmClient(str(workspace), context_date=context_date)
@@ -501,6 +571,17 @@ def run_local_task(
             passed, detail = False, f"expected outcome {expected_outcome}, got {outcome}"
     else:
         passed, detail = check_answer(answer, expected_answer)
+
+    # Additional check: outbox attachment references in answer (mimics server)
+    if passed:
+        grounding = adapter.last_answer.get("grounding_refs", []) if adapter.last_answer else []
+        ref_ok, ref_detail = check_outbox_refs(client, answer, grounding)
+        if not ref_ok:
+            passed = False
+            detail = ref_detail
+
+    # Clean up temp workspace
+    shutil.rmtree(tmp_dir, ignore_errors=True)
 
     return LocalTaskResult(
         task_id=task_id,
