@@ -67,6 +67,7 @@ Suggested template:
   - For project development and benchmark hardening, prioritize better instructions/prompts/skills/tool orchestration over adding task-specific implementation methods; treat code-level expansion as a fallback, not a default.
   - Treat `https://github.com/bitgn/sample-agents/tree/main/pac1-py` and `https://github.com/bitgn/sample-agents/tree/main/proto/bitgn` as the primary public references for current PAC1-DEV tool usage and API shape.
   - Commit every completed repository change before starting the next step, and use the Lore commit protocol for each such commit. Never revert uncommitted work — commit first, then revert in a separate commit. This preserves history so any change can be inspected or cherry-picked later.
+  - Push every commit to the remote immediately after committing. Each change must be independently rollback-able and validatable by commit SHA; local-only commits defeat that.
   - Bump the repository version on every completed change before committing it.
   - For code changes, run a BitGN PAC1 regression validation before moving to the next step; documentation-only or guidance-only changes may skip the benchmark run when no runtime behavior changed.
   - Unless the user explicitly overrides it, use `gpt-5.3-codex` with medium reasoning for BitGN regression validation runs.
