@@ -100,24 +100,36 @@ def _phase_relationship(query_norm: str, entities: list[dict[str, Any]]) -> list
     The relationship value uses underscores (home_server) while the
     query uses spaces (home server). We normalize both.
 
-    Matches at three strength tiers (strongest wins):
+    Match tiers (stronger tiers preempt weaker ones):
       1. Direct substring on full query ↔ relationship.
-      2. Word-level overlap with the query words.
-      3. Word-level overlap with synonym-expanded query words (e.g.
-         "partner" also matches wife/husband/spouse).
+      2. Full-word match — query words cover ALL relationship words
+         (e.g. query "startup partner" ↔ rel "startup_partner").
+      3. Synonym-class match — query word maps to a sibling relationship
+         via _RELATIONSHIP_SYNONYMS (e.g. query "partner" → rel "wife").
+      4. Partial-word match — query shares SOME but not all words with
+         a compound relationship (e.g. query "design partner" shares
+         only "partner" with "startup_partner").
 
-    If any tier-1 match exists, return only those; otherwise return
-    the tier-2/3 candidates so the caller's LLM step can disambiguate.
-    This keeps unambiguous queries like "home server" single-match while
-    opening ambiguous queries like "my partner" to disambiguation.
+    Return rules:
+      - Any tier-1 hit → return only those.
+      - Else any tier-2 hit → return only those (deterministic exact).
+      - Else if query is BARE (exactly one ≥3-char word and it is a
+        synonym key like "partner") and synonym hits exist → return
+        only synonym hits. This resolves "my partner" → wife without
+        surfacing compound relationships like "startup_partner".
+      - Else → return tier-3 + tier-4 (ambiguous, LLM disambiguates).
     """
     q_words = {w for w in query_norm.split() if len(w) >= 3}
     match_targets = set(q_words)
     for w in q_words:
         match_targets.update(_RELATIONSHIP_SYNONYMS.get(w, ()))
+    bare_query = (len(q_words) == 1
+                  and next(iter(q_words), None) in _RELATIONSHIP_SYNONYMS)
 
     direct: list[dict[str, Any]] = []
-    fuzzy: list[dict[str, Any]] = []
+    word_full: list[dict[str, Any]] = []
+    word_partial: list[dict[str, Any]] = []
+    synonym: list[dict[str, Any]] = []
     for e in entities:
         rel = e["frontmatter"].get("relationship", "")
         if not rel:
@@ -131,12 +143,24 @@ def _phase_relationship(query_norm: str, entities: list[dict[str, Any]]) -> list
             direct.append(_match_result(e, "relationship"))
             continue
         rel_words = set(rel_norm.split())
-        if match_targets and match_targets & rel_words:
-            source = ("relationship_word"
-                      if q_words & rel_words
-                      else "relationship_synonym")
-            fuzzy.append(_match_result(e, source))
-    return direct if direct else fuzzy
+        if not (match_targets & rel_words):
+            continue
+        if q_words & rel_words:
+            if rel_words <= q_words:
+                word_full.append(_match_result(e, "relationship_word"))
+            else:
+                word_partial.append(
+                    _match_result(e, "relationship_word_partial"))
+        else:
+            synonym.append(_match_result(e, "relationship_synonym"))
+
+    if direct:
+        return direct
+    if word_full:
+        return word_full
+    if bare_query and synonym:
+        return synonym
+    return word_partial + synonym
 
 
 def _phase_compound(query_norm: str, entities: list[dict[str, Any]]) -> list[dict[str, Any]]:

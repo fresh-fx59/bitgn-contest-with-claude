@@ -68,16 +68,46 @@ _BIX_MD = (
 )
 
 
-def test_partner_query_returns_both_candidates_for_llm(tmp_path):
-    """'my partner' should surface the wife AND the startup_partner so
-    the LLM disambiguation step can pick the right one by context."""
+def test_bare_partner_query_resolves_to_life_partner(tmp_path):
+    """A bare 'my partner' query (no qualifier) should deterministically
+    resolve to the life-partner relationship (wife) and NOT surface the
+    compound 'startup_partner'. This prevents the LLM disambiguation
+    from flipping to the business partner by accident."""
     cast = _load_cast(tmp_path, {
         "petra.md": _PETRA_MD,
         "nina.md": _NINA_MD,
     })
     hits = _phase_relationship(normalize_name("my partner"), cast)
+    names = [h["canonical"] for h in hits]
+    assert names == ["Petra"], hits
+
+
+def test_qualified_partner_query_surfaces_both_for_llm(tmp_path):
+    """A qualified query like 'my design partner' should surface BOTH
+    the startup_partner (partial compound match) AND the wife (synonym),
+    so LLM disambiguation can pick based on context. The LLM should
+    pick Nina here; the point of the assertion is that both candidates
+    reach the LLM rather than being preempted."""
+    cast = _load_cast(tmp_path, {
+        "petra.md": _PETRA_MD,
+        "nina.md": _NINA_MD,
+    })
+    hits = _phase_relationship(normalize_name("my design partner"), cast)
     names = {h["canonical"] for h in hits}
     assert names == {"Petra", "Nina"}, hits
+
+
+def test_startup_partner_query_resolves_to_nina(tmp_path):
+    """'my startup partner' covers both words of startup_partner, so
+    tier-2 full-word match resolves deterministically to Nina and
+    suppresses the synonym-class match to Petra."""
+    cast = _load_cast(tmp_path, {
+        "petra.md": _PETRA_MD,
+        "nina.md": _NINA_MD,
+    })
+    hits = _phase_relationship(normalize_name("my startup partner"), cast)
+    names = [h["canonical"] for h in hits]
+    assert names == ["Nina"], hits
 
 
 def test_wife_query_is_unambiguous(tmp_path):
