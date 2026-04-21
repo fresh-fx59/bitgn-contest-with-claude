@@ -129,8 +129,11 @@ class LocalPcmClient:
 
         matches: list[SearchMatch] = []
         total = 0
+        # PROD PCM search is case-sensitive. Default local matches PROD;
+        # set PCM_LOCAL_CASE_INSENSITIVE=1 to override for lenient replay.
+        flags = re.IGNORECASE if os.environ.get("PCM_LOCAL_CASE_INSENSITIVE") else 0
         try:
-            regex = re.compile(pattern, re.IGNORECASE)
+            regex = re.compile(pattern, flags)
         except re.error:
             self.ops_log.append({"op": "search", "root": root, "pattern": pattern, "matches": 0})
             return _SearchResponse(matches=[], total_matches=0)

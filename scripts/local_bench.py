@@ -467,13 +467,19 @@ def run_local_task(
 
     t0 = time.monotonic()
     client = LocalPcmClient(str(workspace), context_date=context_date)
-    adapter = LocalPcmAdapter(
-        client=client, max_tool_result_bytes=cfg.max_tool_result_bytes,
-    )
 
     trace_path = log_dir / f"{task_id}.jsonl"
     trace_path.parent.mkdir(parents=True, exist_ok=True)
     writer = TraceWriter(path=trace_path)
+    # Wrap in TracingPcmClient so production adapters (search retry
+    # wrapper, pcm_op tracing) are exercised against the local snapshot.
+    # Without this, LocalPcmAdapter calls LocalPcmClient directly and
+    # bypasses the prod code path.
+    from bitgn_contest_agent.adapter.pcm_tracing import TracingPcmClient
+    traced_client = TracingPcmClient(client, writer=writer)
+    adapter = LocalPcmAdapter(
+        client=traced_client, max_tool_result_bytes=cfg.max_tool_result_bytes,
+    )
     writer.write_meta(TraceMeta(
         agent_version="local-bench",
         agent_commit="local",

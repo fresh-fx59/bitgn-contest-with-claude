@@ -217,8 +217,13 @@ def _section_numeric_multiref(
     )
 
 
+_COLLECTION_QUANTIFIER_RE = re.compile(
+    r"\b(all|every|each)\b", re.IGNORECASE,
+)
+
+
 def _section_inbox_giveup(task_text: str) -> str:
-    return (
+    base = (
         "## INBOX_GIVEUP\n"
         "You routed as an inbox task, marked outcome "
         "NONE_CLARIFICATION, and did not write any outbox reply. This "
@@ -237,6 +242,19 @@ def _section_inbox_giveup(task_text: str) -> str:
         "with a specific clarifying question you couldn't answer from "
         "the workspace."
     )
+    if _COLLECTION_QUANTIFIER_RE.search(task_text):
+        base += (
+            "\n  - This inbox item names a collection (`all` / `every` "
+            "/ `each`). Do not conclude no evidence exists from `search` "
+            "alone: PCM search is case-sensitive, so lowercase patterns "
+            "miss Title-cased entity names, and descriptor-based "
+            "references are invisible to substring match. Instead "
+            "`list` the lane most likely to hold these records (e.g. "
+            "`50_finance/purchases/` for bills, `30_knowledge/notes/` "
+            "for notes), then `read` each candidate and filter by "
+            "entity name in file content."
+        )
+    return base
 
 
 def build_verification_message(

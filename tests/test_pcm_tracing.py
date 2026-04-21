@@ -206,3 +206,108 @@ def test_move_records_compose_from_and_to_as_path(tmp_path):
     assert len(records) == 1
     assert records[0].op == "move"
     assert records[0].path == "a.md → b.md"
+
+
+def _search_resp(patterns: list[str]) -> pcm_pb2.SearchResponse:
+    resp = pcm_pb2.SearchResponse()
+    for p in patterns:
+        m = resp.matches.add()
+        m.path = p
+        m.line = 1
+        m.line_text = "| related_entity | Badger |"
+    return resp
+
+
+def test_search_empty_lowercase_token_retries_titlecase(tmp_path):
+    """First pass returns empty → retry with Title case. When the retry
+    returns hits, the wrapper returns the retry response, unblocking
+    agents that searched for `badger` while the workspace stores
+    `Badger` (PROD PCM is case-sensitive)."""
+    empty = pcm_pb2.SearchResponse()
+    hit = _search_resp(["/50_finance/purchases/x.md"])
+    runtime = MagicMock()
+    runtime.search.side_effect = [empty, hit]
+
+    client = TracingPcmClient(runtime, writer=_mk_writer(tmp_path))
+    resp = client.search(pcm_pb2.SearchRequest(root="50_finance", pattern="badger"))
+
+    assert len(resp.matches) == 1
+    assert runtime.search.call_count == 2
+    first_call, second_call = runtime.search.call_args_list
+    assert first_call.args[0].pattern == "badger"
+    assert second_call.args[0].pattern == "Badger"
+    assert second_call.args[0].root == "50_finance"
+
+
+def test_search_hit_on_first_pass_does_not_retry(tmp_path):
+    runtime = MagicMock()
+    runtime.search.return_value = _search_resp(["/x.md"])
+
+    client = TracingPcmClient(runtime, writer=_mk_writer(tmp_path))
+    client.search(pcm_pb2.SearchRequest(root="/", pattern="badger"))
+
+    assert runtime.search.call_count == 1
+
+
+def test_search_regex_pattern_skips_retry(tmp_path):
+    runtime = MagicMock()
+    runtime.search.return_value = pcm_pb2.SearchResponse()
+
+    client = TracingPcmClient(runtime, writer=_mk_writer(tmp_path))
+    client.search(pcm_pb2.SearchRequest(root="/", pattern="bad.*"))
+
+    assert runtime.search.call_count == 1
+
+
+def test_search_multi_word_pattern_skips_retry(tmp_path):
+    runtime = MagicMock()
+    runtime.search.return_value = pcm_pb2.SearchResponse()
+
+    client = TracingPcmClient(runtime, writer=_mk_writer(tmp_path))
+    client.search(pcm_pb2.SearchRequest(root="/", pattern="project badger"))
+
+    assert runtime.search.call_count == 1
+
+
+def test_search_mixed_case_pattern_skips_retry(tmp_path):
+    runtime = MagicMock()
+    runtime.search.return_value = pcm_pb2.SearchResponse()
+
+    client = TracingPcmClient(runtime, writer=_mk_writer(tmp_path))
+    client.search(pcm_pb2.SearchRequest(root="/", pattern="Badger"))
+    client.search(pcm_pb2.SearchRequest(root="/", pattern="BADGER"))
+
+    assert runtime.search.call_count == 2  # no retries despite empty
+
+
+def test_search_retry_emits_second_pcm_op_record(tmp_path):
+    """Retries must be observable in the trace — both probes appear
+    as separate pcm_op records so the dashboard step count matches
+    what the wrapper actually did."""
+    runtime = MagicMock()
+    runtime.search.side_effect = [
+        pcm_pb2.SearchResponse(),
+        _search_resp(["/a.md"]),
+    ]
+
+    writer = _mk_writer(tmp_path)
+    client = TracingPcmClient(runtime, writer=writer)
+    client.search(pcm_pb2.SearchRequest(root="/", pattern="badger"))
+    writer.close()
+
+    records = [r for r in load_jsonl(writer.path) if isinstance(r, TracePcmOp)]
+    assert [r.op for r in records] == ["search", "search"]
+
+
+def test_search_retry_empty_falls_back_to_first_response(tmp_path):
+    """If retry is also empty, return the original response — do not
+    drop the caller on the floor with something different-shaped."""
+    first_resp = pcm_pb2.SearchResponse()
+    runtime = MagicMock()
+    runtime.search.side_effect = [first_resp, pcm_pb2.SearchResponse()]
+
+    client = TracingPcmClient(runtime, writer=_mk_writer(tmp_path))
+    resp = client.search(pcm_pb2.SearchRequest(root="/", pattern="nothingness"))
+
+    assert len(resp.matches) == 0
+    assert runtime.search.call_count == 2
