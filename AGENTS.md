@@ -70,10 +70,11 @@ Suggested template:
   - Bump the repository version on every completed change before committing it.
   - For code changes, run a BitGN PAC1 regression validation before moving to the next step; documentation-only or guidance-only changes may skip the benchmark run when no runtime behavior changed.
   - Unless the user explicitly overrides it, use `gpt-5.3-codex` with medium reasoning for BitGN regression validation runs.
+  - **Default benchmark is DEV, not PROD.** `run-benchmark` without `--benchmark` uses `bitgn/pac1-dev` (43 tasks, `BITGN_BENCHMARK` env default in `config.py`). PROD requires `--benchmark bitgn/pac1-prod` (104 tasks) explicitly. Always confirm which benchmark a run targets before reporting results as PROD.
   - Standard benchmark launch line (PROD, full 104 tasks):
     ```
-    source .worktrees/plan-b/.env && export BITGN_API_KEY CLIPROXY_BASE_URL CLIPROXY_API_KEY
-    uv run python -m bitgn_contest_agent.cli run-benchmark \
+    set -a && source .worktrees/plan-b/.env && set +a
+    .venv/bin/python -m bitgn_contest_agent.cli run-benchmark \
       --benchmark bitgn/pac1-prod \
       --max-parallel 16 --max-inflight-llm 24 \
       --runs 1 \
@@ -81,6 +82,16 @@ Suggested template:
       --log-dir logs
     ```
     `p16i24` in the filename encodes `--max-parallel 16 --max-inflight-llm 24`. Omitting `--max-inflight-llm` defaults to 6 which starves 16 parallel tasks and causes mass timeouts.
+  - PROD smoke test (first 5 trials from PROD leaderboard, cheap validation):
+    ```
+    set -a && source .worktrees/plan-b/.env && set +a
+    .venv/bin/python -m bitgn_contest_agent.cli run-benchmark \
+      --benchmark bitgn/pac1-prod \
+      --max-trials 5 \
+      --max-parallel 3 --max-inflight-llm 6 \
+      --log-dir logs/smoke_<label>
+    ```
+    `--max-trials N` caps the leaderboard run to first N trials (rest left unstarted, no VM cost). Use this — NOT `--smoke`, whose hardcoded task IDs (t02/t15/t41/t42/t43) are stale and no longer in PROD.
   - Do not advance to the next implementation step until the active regression or validation target is confirmed fixed by the required verification for that step.
 
 <lore_commit_protocol>
