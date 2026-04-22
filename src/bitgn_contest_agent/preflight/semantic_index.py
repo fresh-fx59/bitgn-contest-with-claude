@@ -153,3 +153,64 @@ def extract_project_entries(projects_dir: Path) -> List[ProjectEntry]:
             goal=goal,
         ))
     return entries
+
+
+_HEADER = (
+    "WORKSPACE SEMANTIC INDEX (cast + projects digest, use to map "
+    "informal descriptors like \"the founder I talk product with\" or "
+    "\"the do-not-degrade lane\" to canonical ids before running any "
+    "lookup):"
+)
+
+
+def _fmt_kv(key: str, value: str) -> str:
+    """Render `key=value` only when value is non-empty."""
+    return f"{key}={value}" if value else ""
+
+
+def _fmt_cast_line(e: CastEntry) -> str:
+    parts = [f"- {e.id}", _fmt_kv("alias", e.alias), _fmt_kv("relationship", e.relationship)]
+    if e.kind:
+        parts.append(_fmt_kv("kind", e.kind))
+    head = "  ".join(p for p in parts if p)
+    summary = f'  "{e.summary}"' if e.summary else ""
+    return head + summary
+
+
+def _fmt_project_line(e: ProjectEntry) -> str:
+    parts = [
+        f"- {e.id}",
+        _fmt_kv("alias", e.alias),
+        _fmt_kv("lane", e.lane),
+        _fmt_kv("status", e.status),
+    ]
+    head = "  ".join(p for p in parts if p)
+    goal = f'  "{e.goal}"' if e.goal else ""
+    return head + goal
+
+
+def format_digest(
+    *,
+    cast: List[CastEntry],
+    projects: List[ProjectEntry],
+    cast_cap: int = 100,
+    project_cap: int = 100,
+) -> str:
+    """Return the bootstrap string the adapter appends to prepass output.
+    Empty inputs (both blocks empty) → empty string so the caller can
+    suppress the message entirely.
+    """
+    if not cast and not projects:
+        return ""
+    blocks: list[str] = [_HEADER]
+    if cast:
+        lines = [_fmt_cast_line(e) for e in cast[:cast_cap]]
+        if len(cast) > cast_cap:
+            lines.append(f"  …(+{len(cast) - cast_cap} more)")
+        blocks.append("CAST:\n" + "\n".join(lines))
+    if projects:
+        lines = [_fmt_project_line(e) for e in projects[:project_cap]]
+        if len(projects) > project_cap:
+            lines.append(f"  …(+{len(projects) - project_cap} more)")
+        blocks.append("PROJECTS:\n" + "\n".join(lines))
+    return "\n\n".join(blocks)

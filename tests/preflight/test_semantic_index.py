@@ -2,6 +2,7 @@ from pathlib import Path
 
 from bitgn_contest_agent.preflight.semantic_index import extract_cast_entries
 from bitgn_contest_agent.preflight.semantic_index import extract_project_entries
+from bitgn_contest_agent.preflight.semantic_index import format_digest
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "semantic_index_ws"
@@ -40,3 +41,40 @@ def test_extract_project_entries_prefers_goal_field_falls_back_to_prose():
     assert library.lane == "family"
     # No `goal:` field → first prose line.
     assert library.goal.startswith("Preserve a protected evening lane")
+
+
+def test_format_digest_includes_both_blocks_and_semantic_contrast():
+    from bitgn_contest_agent.preflight.semantic_index import (
+        extract_cast_entries, extract_project_entries,
+    )
+    cast = extract_cast_entries(FIXTURE / "10_entities" / "cast")
+    projects = extract_project_entries(FIXTURE / "40_projects")
+    digest = format_digest(cast=cast, projects=projects)
+
+    assert "WORKSPACE SEMANTIC INDEX" in digest
+    assert "CAST:" in digest
+    assert "PROJECTS:" in digest
+    # Semantic contrast visible on one line each:
+    assert "entity.nina" in digest
+    assert "startup_partner" in digest
+    assert "narrow the product" in digest
+    assert "entity.elena" in digest
+    assert "day_job_ceo" in digest
+    assert "project.harbor_body" in digest
+    assert "lane=health" in digest
+    assert "project.black_library_evenings" in digest
+    assert "lane=family" in digest
+
+
+def test_format_digest_omits_empty_blocks():
+    digest = format_digest(cast=[], projects=[])
+    # Nothing to index → empty string (caller suppresses).
+    assert digest == ""
+
+
+def test_format_digest_cast_only_when_no_projects():
+    from bitgn_contest_agent.preflight.semantic_index import extract_cast_entries
+    cast = extract_cast_entries(FIXTURE / "10_entities" / "cast")
+    digest = format_digest(cast=cast, projects=[])
+    assert "CAST:" in digest
+    assert "PROJECTS:" not in digest
