@@ -217,8 +217,12 @@ def test_backend_arms_guard_for_lmstudio_adapter(fake_lms) -> None:
     kwargs = spy.call_args.kwargs
     assert kwargs["model"] == "openai/gpt-oss-20b"
     assert kwargs["host"] == "localhost:1236"
-    # llm_http_timeout_sec=600 on GptOssAdapter + 10s grace
-    assert kwargs["deadline_sec"] == adapter.profile.llm_http_timeout_sec + 10.0
+    # Deadline is llm_http_timeout_sec MINUS 10s: watchdog must fire before
+    # the HTTP client raises, otherwise the context-manager finally cancels
+    # the Timer before unload can run. Observed 2026-04-22 on first PROD
+    # launch with the +10s variant — 4 consecutive tasks wedged, zero
+    # WATCHDOG FIRED log lines.
+    assert kwargs["deadline_sec"] == adapter.profile.llm_http_timeout_sec - 10.0
     # request_id is a short hex id, non-empty.
     assert isinstance(kwargs["request_id"], str) and len(kwargs["request_id"]) >= 6
 

@@ -29,7 +29,12 @@ GPU slot is freed for the existing retry wrapper.
   `glm-4.7-flash-mlx`, `liquid/lfm2-24b-a2b`, `qwen3.5-35b-a3b`.
 - Both call sites: `next_step` (`chat.completions.create`) and
   `call_structured` (`beta.chat.completions.parse`).
-- Trigger: per-call wallclock > `llm_http_timeout_sec + 10s`.
+- Trigger: per-call wallclock > `llm_http_timeout_sec - 10s`. The grace
+  is **subtracted**, not added: the watchdog must fire inside the
+  `with`-block window, before the HTTP client raises. If the deadline
+  sits past the HTTP timeout, httpx's timeout exception exits the
+  context manager — which cancels the Timer — before the unload thread
+  can run. Learned the hard way on the 2026-04-22 first PROD launch.
 - Remediation: `lms.Client(host).llm.unload(model)` via lmstudio-python.
 - Standalone operator CLI: `scripts/lmstudio_unload.py <host> <model>`.
 
@@ -86,11 +91,12 @@ field is set. Remote path is untouched.
 ```python
 host = self._adapter.profile.lmstudio_host
 if host is not None:
+    deadline = max(self._adapter.profile.llm_http_timeout_sec - 10.0, 5.0)
     with lmstudio_watchdog.guard(
         request_id=uuid.uuid4().hex[:8],
         model=self._model,
         host=host,
-        deadline_sec=self._adapter.profile.llm_http_timeout_sec + 10.0,
+        deadline_sec=deadline,
     ):
         completion = self._client.chat.completions.create(**request_kwargs)
 else:
@@ -102,14 +108,18 @@ else:
 `_call_backend_with_retry` (`agent.py:898`) is untouched. On watchdog
 fire:
 
-1. HTTP client has already raised timeout (watchdog waited 10s past that).
-2. The retry wrapper sees the exception and backs off.
-3. LM Studio processes the unload (~instant), cold-reloads the model on
-   the retried call (~9s for qwen3.5).
-4. No partial response is recovered. If the input itself is what caused
+1. Watchdog Timer runs at `llm_http_timeout_sec - 10s` while the HTTP
+   call is still in flight. Unload drops the LM Studio slot.
+2. The HTTP client sees the connection drop (or its own timeout fires
+   ~10s later). The `with`-block exits via exception; Timer.cancel()
+   on an already-fired timer is a no-op.
+3. The retry wrapper sees the exception and backs off.
+4. LM Studio cold-reloads the model on the retried call (~9s for
+   qwen3.5). The slot is cleanly free.
+5. No partial response is recovered. If the input itself is what caused
    the runaway (reasoning storm on an UNKNOWN-category task), the retry
-   may reproduce the timeout — but now the server slot is cleanly freed
-   each time, so the cohort is not wedged.
+   may reproduce the timeout — but the slot is freed each time, so the
+   cohort is not wedged.
 
 ## Observability
 

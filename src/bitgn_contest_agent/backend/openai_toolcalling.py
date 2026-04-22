@@ -49,9 +49,14 @@ from bitgn_contest_agent.schemas import (
 )
 
 
-# Grace period added to ``llm_http_timeout_sec`` before the watchdog
-# fires unload(). The HTTP client raises first; the watchdog waits a
-# short grace in case the exception alone freed the slot, then unloads.
+# Grace period subtracted from ``llm_http_timeout_sec``. The watchdog
+# must fire BEFORE the HTTP client raises, otherwise the ``with`` block
+# exits (via httpx's timeout exception), which cancels the Timer before
+# its callback can run — unload never fires. Firing 10s early lets the
+# unload run while the HTTP call is still in flight; the client's
+# timeout then surfaces (or the unload itself drops the connection
+# earlier), the retry wrapper sees the exception, and the next call
+# hits a cleanly freed slot.
 _WATCHDOG_GRACE_SEC: float = 10.0
 
 
@@ -64,7 +69,10 @@ def _watchdog_guard(adapter: Any, model: str) -> ContextManager[None]:
     host = getattr(adapter.profile, "lmstudio_host", None)
     if host is None:
         return nullcontext()
-    deadline = adapter.profile.llm_http_timeout_sec + _WATCHDOG_GRACE_SEC
+    deadline = max(
+        adapter.profile.llm_http_timeout_sec - _WATCHDOG_GRACE_SEC,
+        5.0,
+    )
     return lmstudio_watchdog.guard(
         request_id=_uuid.uuid4().hex[:8],
         model=model,
