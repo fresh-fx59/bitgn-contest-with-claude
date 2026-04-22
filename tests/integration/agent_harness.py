@@ -73,7 +73,7 @@ class _Validator:
     def check_step(self, step_obj, session, step_idx, max_steps, **kw):
         return None  # no correction
 
-    def check_terminal(self, session, step_obj):
+    def check_terminal(self, session, step_obj, step_idx=99):
         return Verdict(ok=True, reasons=[])
 
 
