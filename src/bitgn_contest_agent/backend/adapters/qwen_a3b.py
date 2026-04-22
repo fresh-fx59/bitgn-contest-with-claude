@@ -28,8 +28,12 @@ the 2026-04-19 run. The pre-adapter default was ``medium`` but
 was never measured; aligning so the default IS the tested config
 (reproducibility over speculation).
 
-Concurrency stays at 2 — no LM Studio slot crashes observed at
-that level; 0 task_timeouts in the 104-task run.
+Concurrency pinned at 1. The 2026-04-19 p2i2 run finished without
+slot crashes, but later PROD runs at p2i2 exhibited LM Studio memory
+pressure symptoms (watchdog fires, unloaded-model 400s) concentrated
+on overlapping-slot windows. AGENTS.md makes p1i1 mandatory for local
+LM Studio qwen3.5; the adapter default now matches so a run without
+CLI overrides is also safe.
 """
 from __future__ import annotations
 
@@ -58,8 +62,8 @@ class QwenA3bAdapter(ModelAdapter):
                 task_timeout_sec=1800,
                 llm_http_timeout_sec=600,
                 classifier_timeout_sec=300,
-                max_parallel_tasks=2,
-                max_inflight_llm=2,
+                max_parallel_tasks=1,
+                max_inflight_llm=1,
                 reasoning_effort="high",
                 # 100k token cap: the 2026-04-20 PROD run saw t012 runaway
                 # reasoning past 120k tokens while our 600s HTTP client had

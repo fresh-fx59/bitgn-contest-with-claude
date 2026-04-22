@@ -114,6 +114,7 @@ Suggested template:
       --log-dir logs
     ```
     `p1i1` encodes `--max-parallel 1 --max-inflight-llm 1`; raising either is the qwen adapter's documented crash trigger on LM Studio.
+  - **Local qwen3.5 on LM Studio is mandatorily single-slot: `--max-parallel 1 --max-inflight-llm 1` on every launch.** Do not rely on the `QwenA3bAdapter` profile defaults (which historically read `max_parallel_tasks=2` / `max_inflight_llm=2` from PROD tuning that predates LM Studio crash evidence). Always pass both `--max-parallel 1` and `--max-inflight-llm 1` on the CLI — env-var / CLI overrides win over adapter profile in the precedence resolver, so this is the only safe way to guarantee single-slot behavior regardless of future adapter drift.
   - Do not advance to the next implementation step until the active regression or validation target is confirmed fixed by the required verification for that step.
 
 <lore_commit_protocol>
