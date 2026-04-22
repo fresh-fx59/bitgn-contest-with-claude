@@ -75,6 +75,15 @@ class Req_PreflightSchema(BaseModel):
     tool: Literal["preflight_schema"]
 
 
+class Req_PreflightSemanticIndex(BaseModel):
+    """Emit a compact per-record digest of cast and projects so the agent
+    can match informal descriptors (role phrases, lane labels) against
+    canonical IDs. Runs once per task in the prepass, after schema
+    discovery. Always safe to call.
+    """
+    tool: Literal["preflight_semantic_index"]
+
+
 class ReportTaskCompletion(BaseModel):
     tool: Literal["report_completion"]
     message: NonEmptyStr
@@ -104,6 +113,7 @@ FunctionUnion = Annotated[
         Req_Search,
         Req_Context,
         Req_PreflightSchema,
+        Req_PreflightSemanticIndex,
         ReportTaskCompletion,
     ],
     Field(discriminator="tool"),
@@ -138,6 +148,7 @@ REQ_MODELS: tuple[type[BaseModel], ...] = (
     Req_Search,
     Req_Context,
     Req_PreflightSchema,
+    Req_PreflightSemanticIndex,
 )
 
 
