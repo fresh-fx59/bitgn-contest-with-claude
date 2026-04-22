@@ -12,17 +12,33 @@ classifier_hint: "Tasks asking to process, work, or handle inbox items — inclu
 
 # Inbox Processing Strategy
 
-## Step 0: Pre-fetched context
+## Step 0: Resolve the complete target set
 
-A `PREFLIGHT` user message above contains the entity-to-bills graph for
-all open inbox items. It lists **every** finance file related to each
-referenced entity. Treat this as the complete inventory of files you
-must process.
+The inbox task almost always points to a set of files (an entity's
+bills, a project's records, etc.). You MUST find ALL of them before
+processing. Missing one file = failure.
 
-**CRITICAL — completeness rule:** If the preflight lists N related
-finance files for an entity, you must process ALL N files. Do not stop
-after the first match. Each listed file is a separate bill that needs
-attention.
+**Search rules — case-insensitive, multi-field:**
+
+When an inbox item references an entity by name (e.g. "all bills
+related to Juniper"), the entity may appear in records under varied
+casing. A bare lowercase `rg <name>` will miss capitalized hits in
+structured fields like `related_entity | Juniper`.
+
+Required search recipe for entity→files resolution:
+
+1. Read `10_entities/cast/<entity>.md` first to learn aliases and
+   canonical name casing.
+2. Run case-insensitive search against the candidate folder, e.g.
+   `rg -i <entity> 50_finance` — NOT `rg <entity> 50_finance`.
+3. Also search the structured field directly:
+   `rg -i "related_entity.*<entity>" 50_finance`.
+4. Union the results. If step 2 found N files and step 3 found M
+   files, your target set is the deduplicated union.
+
+**Completeness rule:** If the search returns N related files, process
+ALL N. Do not stop after the first match. Each match is a separate
+record that needs attention.
 
 ## Step 1: Read the inbox item — LITERAL SOURCE OF TRUTH
 
@@ -48,12 +64,12 @@ Common inbox actions include:
 
 **If the inbox item lists explicit file paths:** your task list IS
 that file list. Read each file path exactly as given. Do NOT search
-for alternatives or use preflight to narrow/widen the scope.
+for alternatives or widen the scope.
 
 **If the inbox item references entities instead of files** (e.g.
-"process all bills for Hearthline"): use the preflight data to
-resolve entity names to file paths. Cross-reference with the
-preflight's entity-to-bills graph.
+"process all bills for Hearthline"): apply the Step 0 search recipe
+(case-insensitive `rg -i` across filename AND structured fields
+like `related_entity`) to build the complete file list.
 
 ## Step 3: Process ALL items
 

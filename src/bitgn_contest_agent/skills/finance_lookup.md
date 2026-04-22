@@ -88,6 +88,8 @@ items, NOT project names.
 
 Calculate the reference date from the task's time expression (e.g., "51 days ago") using the current date from context. This is your approximate target — the actual filing date of records may differ significantly.
 
+**CRITICAL — sandbox clock may be stale:** The sandbox `date -u` (or context_date) can lag the grader's reference date by weeks. If your computed target date falls *before* the earliest matching record, or if every matching record is *after* the computed target, the sandbox clock is stale. Trust the workspace: use the most recent matching record's date as a sanity check, and do not reject records simply because they are newer than your computed target.
+
 ## Step 2: Progressive Search
 
 Start with the most specific artifact mentioned in the task and progressively broaden:
@@ -108,7 +110,9 @@ When you find candidate files through any search path:
 - **Vendor mismatch is disqualifying.** If none of the candidate records' vendor fields match the vendor named in the task, do NOT answer with a number from any of them. Widen the search (Step 2.2 partial match, Step 2.3 different artifact, Step 2.4 broader listing) before falling back to `OUTCOME_NONE_CLARIFICATION`. A numeric answer pulled from a different vendor's invoice is worse than asking for clarification.
 - **Date is contextual, NOT a strict filter.** The "N days ago" in the task is an approximate hint. The actual record's filing date or transaction date may differ significantly from the computed anchor date. Do NOT reject a record just because the date doesn't align — if vendor and item match, it IS the right record.
 - **"Since" queries have NO upper bound.** When the task says "since January 2026" or "from date X", include ALL matching records from that date onward — even records dated after the context date. The workspace contains the full historical record; do NOT use today's date as an end filter. Read and sum ALL search results that match the query.
-- **Multiple matches for the same vendor + item — use date as tiebreaker:** When two or more records match on vendor and item description, compute the target date (today minus N days) and select the record whose date is **closest** to that target. The "N days ago" phrasing points to a specific transaction in time; when all other fields match, temporal proximity is the tiebreaker.
+- **Multiple matches for the same vendor + item — ALWAYS prefer the MOST RECENT:** When the task uses relative-date phrasing ("N days ago", "last month", "a while back") and two or more records match on vendor + item description, select the record with the latest `purchased_on` (or equivalent date field). Do **NOT** use closest-date-to-target; the sandbox clock can be stale by weeks, which makes target-distance a brittle heuristic. The phrase "N days ago" does **not** by itself qualify as a disambiguator — treat it as shorthand for "recent", and answer from the latest matching record.
+  - The only exception: the task contains a concrete disambiguator beyond the relative-date phrase (an explicit year like "in December 2025", an explicit amount like "the one for 32 eur", or a unique line-item quantity). Absent such a disambiguator, most-recent wins.
+  - **Never sum multiple candidates** when the task asks for a single-record quantity ("how much did X charge me for line Y"). Pick one, don't add.
 - **Single match:** Accept it regardless of date distance — the vendor + item match is sufficient.
 
 ## Step 4: Extract and Answer
