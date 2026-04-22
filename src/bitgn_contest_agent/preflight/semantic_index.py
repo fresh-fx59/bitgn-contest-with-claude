@@ -244,3 +244,128 @@ def build_digest_from_fs(
         proj_path = root / projects_root
         project_entries = extract_project_entries(proj_path)
     return format_digest(cast=cast_entries, projects=project_entries)
+
+
+from bitgn_contest_agent.adapter.pcm import ToolResult
+from bitgn_contest_agent.preflight.schema import WorkspaceSchema
+
+
+def _list_md_names_via_pcm(client, dir_path: str) -> list[str]:
+    """Return the .md/.MD filenames in `dir_path` via the PCM list RPC."""
+    from bitgn.vm import pcm_pb2
+    try:
+        resp = client.list(pcm_pb2.ListRequest(name=dir_path))
+    except Exception:
+        return []
+    return [
+        e.name for e in resp.entries
+        if not e.is_dir and e.name.lower().endswith(".md")
+    ]
+
+
+def _list_subdirs_via_pcm(client, dir_path: str) -> list[str]:
+    from bitgn.vm import pcm_pb2
+    try:
+        resp = client.list(pcm_pb2.ListRequest(name=dir_path))
+    except Exception:
+        return []
+    return [e.name for e in resp.entries if e.is_dir]
+
+
+def _read_text_via_pcm(client, path: str) -> str:
+    from bitgn.vm import pcm_pb2
+    try:
+        resp = client.read(pcm_pb2.ReadRequest(path=path))
+    except Exception:
+        return ""
+    return resp.content or ""
+
+
+def _extract_cast_via_pcm(client, cast_dir: str) -> list[CastEntry]:
+    entries: list[CastEntry] = []
+    md_names = _list_md_names_via_pcm(client, cast_dir)
+    for name in sorted(md_names):
+        full = f"{cast_dir}/{name}"
+        text = _read_text_via_pcm(client, full)
+        if not text:
+            continue
+        md = parse_record_metadata(text)
+        if not md:
+            continue
+        stem = name.rsplit(".", 1)[0].lower()
+        alias = md.get("alias") or stem
+        entries.append(CastEntry(
+            id=f"entity.{stem}",
+            alias=alias,
+            relationship=md.get("relationship", ""),
+            kind=md.get("kind", ""),
+            summary=_first_prose_line(text),
+        ))
+    return entries
+
+
+def _strip_date_prefix(name: str) -> str:
+    parts = name.split("_", 3)
+    if len(parts) == 4 and all(p.isdigit() for p in parts[:3]):
+        return parts[3]
+    return name
+
+
+def _extract_projects_via_pcm(client, projects_dir: str) -> list[ProjectEntry]:
+    entries: list[ProjectEntry] = []
+    subdirs = _list_subdirs_via_pcm(client, projects_dir)
+    for sub in sorted(subdirs):
+        sub_path = f"{projects_dir}/{sub}"
+        md_names = _list_md_names_via_pcm(client, sub_path)
+        readme_name = None
+        for candidate in ("README.md", "README.MD", "readme.md"):
+            if candidate in md_names:
+                readme_name = candidate
+                break
+        if readme_name is None:
+            continue
+        text = _read_text_via_pcm(client, f"{sub_path}/{readme_name}")
+        if not text:
+            continue
+        md = parse_record_metadata(text)
+        if not md:
+            continue
+        goal_field = md.get("goal", "").strip()
+        goal = goal_field[:_SUMMARY_MAX] if goal_field else _first_prose_line(text)
+        alias = md.get("alias") or sub
+        entries.append(ProjectEntry(
+            id=f"project.{_strip_date_prefix(sub)}",
+            alias=alias,
+            lane=md.get("lane", ""),
+            status=md.get("status", ""),
+            goal=goal,
+        ))
+    return entries
+
+
+def run_preflight_semantic_index(client, schema: WorkspaceSchema) -> ToolResult:
+    """PCM-backed entry point. Consumes a schema produced by
+    `run_preflight_schema` and returns a ToolResult whose `content` is
+    the bootstrap digest (or empty string when no roots are available).
+    """
+    cast: list[CastEntry] = []
+    projects: list[ProjectEntry] = []
+    try:
+        if schema.entities_root:
+            cast_dir = f"{schema.entities_root}/cast"
+            cast = _extract_cast_via_pcm(client, cast_dir)
+            if not cast:
+                # Fallback: walk entities_root directly (non-PROD shape).
+                cast = _extract_cast_via_pcm(client, schema.entities_root)
+        if schema.projects_root:
+            projects = _extract_projects_via_pcm(client, schema.projects_root)
+    except Exception as exc:
+        return ToolResult(
+            ok=False, content="", refs=tuple(), error=str(exc),
+            error_code="INTERNAL", wall_ms=0,
+        )
+    digest = format_digest(cast=cast, projects=projects)
+    return ToolResult(
+        ok=True, content=digest, refs=tuple(),
+        error=None, error_code=None, wall_ms=0,
+    )

@@ -1,9 +1,12 @@
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from bitgn_contest_agent.preflight.semantic_index import extract_cast_entries
 from bitgn_contest_agent.preflight.semantic_index import extract_project_entries
 from bitgn_contest_agent.preflight.semantic_index import format_digest
 from bitgn_contest_agent.preflight.semantic_index import build_digest_from_fs
+from bitgn_contest_agent.preflight.semantic_index import run_preflight_semantic_index
+from bitgn_contest_agent.preflight.schema import WorkspaceSchema
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "semantic_index_ws"
@@ -98,3 +101,53 @@ def test_build_digest_from_fs_no_roots_returns_empty_string():
         root=FIXTURE, entities_root=None, projects_root=None,
     )
     assert digest == ""
+
+
+def _mk_pcm_stub_for_fixture():
+    """Stub a PcmRuntime that walks the on-disk fixture. Uses list/read
+    RPCs exactly as run_preflight_semantic_index does."""
+    runtime = MagicMock()
+
+    def _list(req):
+        entries = []
+        p = FIXTURE / req.name
+        if p.is_dir():
+            for child in sorted(p.iterdir()):
+                e = MagicMock()
+                e.name = child.name
+                e.is_dir = child.is_dir()
+                entries.append(e)
+        resp = MagicMock()
+        resp.entries = entries
+        return resp
+
+    def _read(req):
+        p = FIXTURE / req.path
+        resp = MagicMock()
+        resp.content = p.read_text(encoding="utf-8") if p.is_file() else ""
+        return resp
+
+    runtime.list.side_effect = _list
+    runtime.read.side_effect = _read
+    return runtime
+
+
+def test_run_preflight_semantic_index_returns_bootstrap_via_pcm():
+    runtime = _mk_pcm_stub_for_fixture()
+    schema = WorkspaceSchema(
+        entities_root="10_entities",
+        projects_root="40_projects",
+    )
+    result = run_preflight_semantic_index(runtime, schema)
+    assert result.ok is True
+    assert "WORKSPACE SEMANTIC INDEX" in (result.content or "")
+    assert "entity.nina" in result.content
+    assert "project.harbor_body" in result.content
+
+
+def test_run_preflight_semantic_index_empty_schema_is_ok_empty_content():
+    runtime = MagicMock()
+    schema = WorkspaceSchema()
+    result = run_preflight_semantic_index(runtime, schema)
+    assert result.ok is True
+    assert result.content == ""
