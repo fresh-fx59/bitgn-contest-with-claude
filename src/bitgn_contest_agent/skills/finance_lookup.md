@@ -11,6 +11,8 @@ matcher_patterns:
   - '(?i)(what was the total|total from).*\d+\s*days?\s*ago'
   - '(?i)how much.*(money|did we|have we).*(make|earn|made|earned).*(service\s+line|service\s+project)'
   - '(?i)(service\s+line|service\s+project).*(since|from|beginning)'
+  - '(?i)\.md.*(these guys|them|this vendor|that company|the same folks)'
+  - '(?i)how much.*(pay|paid|spend|spent).*(these guys|them|this vendor|that company)'
 classifier_hint: "Tasks asking about financial totals, service line revenue, how much money earned from a service, or any query about past charges, invoices, receipts, or bills"
 ---
 
@@ -23,6 +25,39 @@ You are answering a question about a past financial transaction — a charge, in
 A `PREFLIGHT` user message above (auto-dispatched by the router for this task shape) contains the canonical narrowing — the matching record(s), entity canonicalization, or destination resolution. Treat it as ground truth and start from those references. Fall through to the strategy below only if preflight returned nothing usable or the question needs more than what was pre-fetched.
 
 **CRITICAL grounding rule:** You MUST `read` every file you reference in your answer or use for calculation. Preflight helps you *find* files faster, but the grader requires each referenced file to appear in your tool-call history. Never answer based solely on preflight summaries without reading the actual files.
+
+## Step 0.4: Cited file + pronoun ("these guys", "them", "this vendor")
+
+When the task cites a specific bill/invoice/receipt filename AND refers
+to its source with a pronoun ("these guys", "them", "this vendor",
+"that company", "the same folks"), the pronoun resolves to **that
+file's `counterparty` field value** — not to filename tokens or the
+bill alias.
+
+**Why this matters:** Filename tokens like `studio_parts_*`,
+`house_mesh_*`, `hearthline_*` are *product-line* / *project*
+categories. A single product line often has bills from several
+different vendors (counterparties). Summing by filename token
+conflates vendors and returns a wrong answer.
+
+**Procedure:**
+1. Read the cited file first.
+2. Extract its `counterparty` field value (that string is the
+   vendor — e.g. a vendor name like `Filamenthütte Wien`).
+3. Use that string — not the filename — as your search anchor:
+   `search` (or `rg`) by the counterparty value across the finance
+   records.
+4. Read each match, confirm the `counterparty` field matches
+   exactly, then sum `total_eur` across only those.
+
+**Anti-pattern (do NOT do):** Task cites a bill file whose name
+starts with `studio_parts_...` (or any other product-line tag) and
+asks "how much to these guys?". Searching by the filename token
+`studio_parts` can return bills with three different counterparties
+(different vendors that all sold studio-parts category items).
+Summing them gives a wrong total. The correct scope is a search by
+the cited file's `counterparty` value, which pulls every bill from
+that vendor regardless of product line.
 
 ## Step 0.5: Service Line vs Project Name
 
