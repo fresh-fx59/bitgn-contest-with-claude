@@ -291,6 +291,67 @@ def test_agent_loop_retries_on_transient_backend_error(tmp_path: Path, monkeypat
     writer.close()
 
 
+def test_agent_loop_sleeps_for_reload_after_model_unloaded(tmp_path: Path, monkeypatch) -> None:
+    """After the watchdog force-unloads LM Studio, the reloaded slot needs
+    ~9-12s before a new request can land. The generic backoff schedule
+    ((500, 1500, 4000, 10000) ms) would otherwise spend its first three
+    retries inside that reload window. On a 'Model unloaded.' transient,
+    the agent loop must add a ~12s reload wait on top of the normal
+    backoff so the retry hits a ready slot."""
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(
+        "bitgn_contest_agent.agent.time.sleep",
+        lambda s: sleep_calls.append(s),
+    )
+    backend = _FlakyBackend(
+        _mk_step(
+            {
+                "tool": "report_completion",
+                "message": "denied",
+                "grounding_refs": [],
+                "rulebook_notes": "n",
+                "outcome_justification": "security",
+                "completed_steps_laconic": ["checked"],
+                "outcome": "OUTCOME_DENIED_SECURITY",
+            },
+            observation="security concern",
+            outcome_leaning="OUTCOME_DENIED_SECURITY",
+        ),
+        raise_times=1,
+    )
+    # Monkey-patch the next_step to raise a Model-unloaded-flavored error.
+    original_next = backend.next_step
+    def _raising_next_step(messages, response_schema, timeout_sec):  # type: ignore[override]
+        if backend._remaining_raises > 0:
+            backend.calls += 1
+            backend._remaining_raises -= 1
+            raise TransientBackendError(
+                "Error code: 400 - {'error': 'Model unloaded.'}"
+            )
+        return original_next(messages, response_schema, timeout_sec)
+    backend.next_step = _raising_next_step  # type: ignore[assignment]
+
+    adapter = _mk_adapter_mock()
+    adapter.run_prepass.side_effect = lambda *, session, trace_writer: _fake_prepass(session)
+    writer = _mk_writer(tmp_path)
+
+    loop = AgentLoop(
+        backend=backend,
+        adapter=adapter,
+        writer=writer,
+        max_steps=5,
+        llm_http_timeout_sec=30.0,
+        backend_backoff_ms=(1, 1, 1, 1),
+    )
+    result = loop.run(task_id="t1", task_text="do it")
+    assert result.terminated_by == "report_completion"
+    # The 12.0s post-unload reload wait must have been issued exactly once.
+    assert 12.0 in sleep_calls, (
+        f"expected a 12.0s reload sleep after Model unloaded; got {sleep_calls!r}"
+    )
+    writer.close()
+
+
 def test_agent_loop_fails_task_after_backend_exhaustion(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("bitgn_contest_agent.agent.time.sleep", lambda s: None)
 

@@ -58,6 +58,14 @@ _LOG = logging.getLogger(__name__)
 _MAX_NUDGES = 2
 _DEFAULT_BACKOFF_MS: tuple[int, ...] = (500, 1500, 4000, 10000)
 
+# After the watchdog force-unloads a model, LM Studio needs to cold-reload
+# the weights before the retried request can succeed. Observed ~9s for
+# qwen3.5-35b-a3b on the 2026-04-22 PROD run; the generic backoff schedule
+# above lands the first three retries inside the reload window. Wait this
+# long *in addition* to the normal backoff when the last transient was a
+# "Model unloaded." 400 from the watchdog path.
+_POST_UNLOAD_RELOAD_SEC: float = 12.0
+
 _ROUTER_SOURCE_MAP = {
     "regex": RouterSource.TIER1_REGEX,
     "classifier": RouterSource.TIER2_LLM,
@@ -852,6 +860,12 @@ class AgentLoop:
                     )
                     if self._metrics is not None:
                         self._metrics.on_rate_limit_error()
+                    if "model unloaded" in str(exc).lower():
+                        _LOG.info(
+                            "post-watchdog-unload reload wait %.1fs at step %d",
+                            _POST_UNLOAD_RELOAD_SEC, at_step,
+                        )
+                        time.sleep(_POST_UNLOAD_RELOAD_SEC)
                     continue
             if last_exc is not None:
                 self._last_backend_error = str(last_exc)
