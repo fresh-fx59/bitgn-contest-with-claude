@@ -48,6 +48,7 @@ from bitgn_contest_agent.preflight.schema import (
     discover_schema_from_fs,
     parse_schema_content,
 )
+from bitgn_contest_agent.preflight.semantic_index import build_digest_from_fs
 from bitgn_contest_agent.reactive_router import load_reactive_router
 from bitgn_contest_agent.router import load_router
 from bitgn_contest_agent.schemas import (
@@ -246,9 +247,36 @@ class LocalPcmAdapter:
                 error_code=result.error_code,
                 schema_roots=schema_roots,
             )
+
+        # Phase 2: semantic index — mirrors PcmAdapter.run_prepass.
+        parsed_schema = parse_schema_content(schema_content)
+        if parsed_schema.entities_root or parsed_schema.projects_root:
+            t0 = time.monotonic()
+            try:
+                digest = build_digest_from_fs(
+                    root=self._client._root,
+                    entities_root=parsed_schema.entities_root,
+                    projects_root=parsed_schema.projects_root,
+                )
+                si_ok, si_err = True, None
+            except Exception as exc:
+                digest, si_ok, si_err = "", False, str(exc)
+            wall_ms = int((time.monotonic() - t0) * 1000)
+            if si_ok and digest:
+                bootstrap_content.append(digest)
+            trace_writer.append_prepass(
+                cmd="preflight_semantic_index",
+                ok=si_ok,
+                bytes=len(digest or ""),
+                wall_ms=wall_ms,
+                error=si_err,
+                error_code=None if si_ok else "INTERNAL",
+                schema_roots=None,
+            )
+
         return PrepassResult(
             bootstrap_content=bootstrap_content,
-            schema=parse_schema_content(schema_content),
+            schema=parsed_schema,
         )
 
     # ── helpers ──────────────────────────────────────────────────────

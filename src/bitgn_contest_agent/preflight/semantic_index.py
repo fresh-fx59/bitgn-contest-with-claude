@@ -159,7 +159,21 @@ _HEADER = (
     "WORKSPACE SEMANTIC INDEX (cast + projects digest, use to map "
     "informal descriptors like \"the founder I talk product with\" or "
     "\"the do-not-degrade lane\" to canonical ids before running any "
-    "lookup):"
+    "lookup).\n\n"
+    "RULES for resolving a descriptor:\n"
+    "  1. The `relationship:` field on a cast record and the `lane:` "
+    "field on a project record are CANONICAL role assignments. Match "
+    "descriptors against these fields first.\n"
+    "  2. Body prose (the quoted line after each entry) is informal "
+    "description, NOT a canonical role. Do NOT pick a record just "
+    "because its body contains a noun from the descriptor "
+    "(e.g. the word \"Founder\" appearing in a body does NOT make "
+    "that record the founder — that's the relationship field's job).\n"
+    "  3. When multiple records plausibly fit, prefer the one whose "
+    "`relationship:` / `lane:` is specifically aligned with the "
+    "descriptor's qualifier — e.g. for \"founder I talk product with\", "
+    "`startup_partner` + body that mentions product work beats "
+    "`day_job_ceo` whose body happens to contain \"Founder\"."
 )
 
 
