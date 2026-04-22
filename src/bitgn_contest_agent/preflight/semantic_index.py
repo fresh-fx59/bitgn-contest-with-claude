@@ -103,3 +103,53 @@ def extract_cast_entries(cast_dir: Path) -> List[CastEntry]:
             summary=_first_prose_line(text),
         ))
     return entries
+
+
+@dataclass(frozen=True)
+class ProjectEntry:
+    id: str
+    alias: str
+    lane: str
+    status: str
+    goal: str
+
+
+def extract_project_entries(projects_dir: Path) -> List[ProjectEntry]:
+    """Walk `projects_dir` for subdirectories containing a README.md or
+    README.MD; return one ProjectEntry per parseable record.
+
+    `goal` prefers the `goal:` metadata field; falls back to the first
+    prose line after the bullet block.
+    """
+    entries: list[ProjectEntry] = []
+    if not projects_dir.exists() or not projects_dir.is_dir():
+        return entries
+    for sub in sorted(projects_dir.iterdir()):
+        if not sub.is_dir():
+            continue
+        readme: Optional[Path] = None
+        for name in ("README.md", "README.MD", "readme.md"):
+            candidate = sub / name
+            if candidate.is_file():
+                readme = candidate
+                break
+        if readme is None:
+            continue
+        try:
+            text = readme.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        md = parse_record_metadata(text)
+        if not md:
+            continue
+        goal_field = md.get("goal", "").strip()
+        goal = goal_field[:_SUMMARY_MAX] if goal_field else _first_prose_line(text)
+        alias = md.get("alias") or sub.name
+        entries.append(ProjectEntry(
+            id=_file_id_from_path(readme, kind="project"),
+            alias=alias,
+            lane=md.get("lane", ""),
+            status=md.get("status", ""),
+            goal=goal,
+        ))
+    return entries
