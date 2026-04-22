@@ -16,12 +16,20 @@ adapter would miss those.
 """
 from __future__ import annotations
 
+import re
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Iterator, Optional
 
 from bitgn.vm import pcm_pb2
+
+# Gate for search() case-fold retry: a single lowercase alphanumeric
+# token (letters, digits, `_`, `-`). Patterns with regex metacharacters,
+# whitespace, or mixed case are left alone — we only retry proper-noun-
+# shaped LLM queries fed in lowercase against title-cased workspace
+# content (e.g. "badger" vs "Badger").
+_LOWER_TOKEN_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 
 
 # Phase attribution for pcm_op records. The agent loop sets this around
@@ -171,9 +179,57 @@ class TracingPcmClient:
         return self._traced(req, self._runtime.find)
 
     def search(self, req: "pcm_pb2.SearchRequest") -> Any:
-        return self._traced(req, self._runtime.search)
+        resp = self._traced(req, self._runtime.search)
+        # PROD PCM search is case-sensitive substring match. Agents often
+        # feed entity aliases in lowercase ("badger") while workspace
+        # content is title-cased ("Badger"), producing zero-hit false
+        # negatives that read as "no evidence exists". If the first pass
+        # returned nothing and the pattern is a single lowercase proper-
+        # noun-shaped token, retry once with Title case. Both probes
+        # appear in the trace, so observability is preserved.
+        pattern = getattr(req, "pattern", "") or ""
+        if list(getattr(resp, "matches", []) or []):
+            return resp
+        if not _LOWER_TOKEN_RE.match(pattern):
+            return resp
+        titled = pattern[:1].upper() + pattern[1:]
+        if hasattr(req, "model_copy"):
+            # pydantic BaseModel (agent-facing Req_Search)
+            retry_req = req.model_copy(update={"pattern": titled})
+        elif hasattr(req, "CopyFrom"):
+            # protobuf SearchRequest — PROD runtime path
+            retry_req = type(req)()
+            retry_req.CopyFrom(req)
+            retry_req.pattern = titled
+        else:
+            retry_req = type(req)()
+            for attr in ("root", "pattern", "limit"):
+                if hasattr(req, attr):
+                    setattr(retry_req, attr, getattr(req, attr))
+            retry_req.pattern = titled
+        retry_resp = self._traced(retry_req, self._runtime.search)
+        return retry_resp if list(getattr(retry_resp, "matches", []) or []) else resp
 
-    def context(self, req: "pcm_pb2.ContextRequest") -> Any:
+    def context(self, req: "pcm_pb2.ContextRequest | None" = None) -> Any:
+        # LocalPcmAdapter calls client.context() with no args (LocalPcmClient
+        # tolerates req=None). Prod adapter passes pcm_pb2.ContextRequest().
+        # Pass req as-is when set, otherwise invoke the no-arg form so both
+        # backends work.
+        if req is None:
+            start = time.monotonic()
+            try:
+                resp = self._runtime.context()
+            except BaseException as exc:
+                wall_ms = int((time.monotonic() - start) * 1000)
+                self._emit(op="context", path=None, bytes_=0,
+                           wall_ms=wall_ms, ok=False,
+                           error_code=_classify_exception(exc))
+                raise
+            wall_ms = int((time.monotonic() - start) * 1000)
+            self._emit(op="context", path=None,
+                       bytes_=_response_bytes(resp), wall_ms=wall_ms,
+                       ok=True, error_code=None)
+            return resp
         return self._traced(req, self._runtime.context)
 
     def answer(self, req: "pcm_pb2.AnswerRequest") -> Any:

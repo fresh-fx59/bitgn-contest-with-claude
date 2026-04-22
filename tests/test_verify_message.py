@@ -100,3 +100,49 @@ def test_message_has_inbox_giveup_section():
     )
     assert "INBOX_GIVEUP" in msg
     assert "sender" in msg.lower() or "alias" in msg.lower()
+
+
+def _inbox_giveup_for(task_text: str) -> str:
+    ns = NextStep(
+        current_state="stuck",
+        plan_remaining_steps_brief=["submit"],
+        identity_verified=True,
+        observation="stuck",
+        outcome_leaning="OUTCOME_NONE_CLARIFICATION",
+        function=ReportTaskCompletion(
+            tool="report_completion",
+            message="need more info",
+            grounding_refs=[],
+            rulebook_notes="n/a",
+            outcome_justification="n/a",
+            completed_steps_laconic=["done"],
+            outcome="OUTCOME_NONE_CLARIFICATION",
+        ),
+    )
+    return build_verification_message(
+        reasons=[VerifyReason.INBOX_GIVEUP],
+        next_step=ns,
+        read_cache={},
+        write_history=[],
+        task_text=task_text,
+    )
+
+
+def test_inbox_giveup_adds_collection_hint_on_all_every_each():
+    for quantifier in ("all", "every", "each"):
+        msg = _inbox_giveup_for(f"OCR {quantifier} bills related to Badger")
+        assert "collection" in msg.lower(), f"missing for {quantifier!r}"
+        assert "list" in msg.lower() and "read" in msg.lower(), (
+            f"missing list+read guidance for {quantifier!r}"
+        )
+
+
+def test_inbox_giveup_skips_collection_hint_without_quantifier():
+    msg = _inbox_giveup_for("Summarize the latest bill from the printer vendor")
+    assert "INBOX_GIVEUP" in msg
+    assert "collection" not in msg.lower()
+
+
+def test_inbox_giveup_collection_hint_matches_case_insensitively():
+    msg = _inbox_giveup_for("OCR ALL bills related to Badger")
+    assert "collection" in msg.lower()
