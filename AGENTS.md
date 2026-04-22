@@ -12,6 +12,7 @@ This AGENTS.md is the top-level operating contract for the workspace.
 - Run lint, typecheck, tests, and static analysis after changes.
 - Final reports must include changed files, simplifications made, and remaining risks.
 - Default plan execution mode is **subagent-driven** (one subagent per task with review between tasks). Do not ask the user which execution mode to use — proceed with subagents unless the user explicitly overrides.
+- **Give honest answers. Do not soften results, hide uncertainty, or dress up weak evidence.** A hard truth (e.g. "this metric does not prove the fix works", "I cannot reproduce the bug", "the rollback failed") is always preferred over a reassuring but misleading answer. When a user's question exposes a gap in the evidence, acknowledge the gap directly and say what would actually resolve it. Better to upset the user with reality than comfort them with a lie.
 
 ## Project constraints
 Use this section for stable, repo-wide constraints the agent must follow by default.
