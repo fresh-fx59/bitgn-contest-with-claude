@@ -30,6 +30,7 @@ from bitgn_contest_agent.schemas import (
     Req_Tree,
     Req_Write,
     Req_PreflightSchema,
+    Req_PreflightSemanticIndex,
 )
 
 from bitgn_contest_agent.arch_constants import ArchCategory
@@ -212,6 +213,19 @@ class PcmAdapter:
             if isinstance(req, Req_PreflightSchema):
                 from bitgn_contest_agent.preflight.schema import run_preflight_schema
                 return run_preflight_schema(self._runtime, None)
+            if isinstance(req, Req_PreflightSemanticIndex):
+                from bitgn_contest_agent.preflight.schema import (
+                    parse_schema_content, run_preflight_schema,
+                )
+                from bitgn_contest_agent.preflight.semantic_index import (
+                    run_preflight_semantic_index,
+                )
+                # The adapter's `dispatch` is stateless — it may be called
+                # with no prior schema in hand (e.g. from a unit test). In
+                # that case, run schema first so we have the roots.
+                schema_result = run_preflight_schema(self._runtime, None)
+                schema = parse_schema_content(schema_result.content)
+                return run_preflight_semantic_index(self._runtime, schema)
             raise TypeError(f"unsupported request type: {type(req).__name__}")
         except Exception as exc:
             wall_ms = int((time.monotonic() - start) * 1000)
