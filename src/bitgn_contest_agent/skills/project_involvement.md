@@ -38,12 +38,39 @@ The subject of "which projects is X involved in" is ALWAYS an entity
 entity match, use it. Otherwise resolve manually:
 
 1. Search cast files by name, alias, and relationship field.
-2. **Compound descriptors** (e.g. "design partner"): split into
-   qualifier ("design") + relationship type ("partner"). Find all
-   entities whose relationship contains the type. If multiple match,
-   search invoice/project filenames for the qualifier — e.g.
-   `*_design_partner_*` in finance records disambiguates which entity
-   is the "design" partner.
+2. **Colloquial household/personal descriptors** — when the task uses
+   a bare, possessive English descriptor with NO qualifier word in
+   front of it ("my partner", "my spouse", "my kid", "my mom"),
+   resolve it as the colloquial-English *role*, not as a substring
+   search on the `relationship` field. In the cast, the matching
+   canonical relationships are:
+   - `my partner` / `my spouse` / `my significant other` / `my other half`
+     → `wife` **or** `husband` (the spouse). Do **NOT** match
+     `startup_partner`, `business_partner`, `design_partner`,
+     `cofounder`, or any `*_partner` compound — those describe
+     business roles, not a romantic partner.
+   - `my kid` / `my child` → `daughter` **or** `son` (disambiguate by
+     context if both exist; otherwise sum both).
+   - `my mom` / `my mother` → `mother`; `my dad` / `my father` → `father`;
+     `my wife` → `wife`; `my husband` → `husband`.
+   - `my boss` / `my CEO` → `day_job_ceo` or equivalent employment role.
+   - `my client` → `consulting_client` or equivalent.
+   - `my advisor` → `startup_advisor` or equivalent.
+
+   Rule of thumb: if the descriptor is bare ("my partner") the user
+   means the intuitive personal-life referent (spouse). If the
+   descriptor is qualified ("my **startup** partner", "my **business**
+   partner", "my **design** partner"), THEN follow the compound rule
+   in step 3 below.
+
+3. **Qualified compound descriptors** (e.g. "startup partner", "design
+   partner", "business partner"): the qualifier tells you which
+   `*_partner` compound relationship to match. Split into qualifier
+   (e.g. "startup") + relationship type ("partner"). Find entities
+   whose relationship is exactly `<qualifier>_<type>` (e.g.
+   `startup_partner`). If multiple match, use invoice/project
+   filenames for the qualifier — e.g. `*_design_partner_*` in finance
+   records disambiguates which entity is the "design" partner.
 
 From the resolved entity, extract the `alias` field — this is the
 canonical identifier you will search projects with.
