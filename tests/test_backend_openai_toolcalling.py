@@ -229,6 +229,63 @@ def test_next_step_model_crashed_400_is_transient() -> None:
         )
 
 
+def test_next_step_model_unloaded_400_is_transient() -> None:
+    """The watchdog (lmstudio_watchdog) force-unloads the model on a
+    wall-clock overrun. The in-flight HTTP call then returns 400
+    'Model unloaded.' instead of a connection drop — without retry
+    classification, the tasks whose runaway the watchdog just freed the
+    slot for crash with 'unhandled crash: Error code: 400'. Observed
+    2026-04-22 PROD run at v0.1.18: 6/6 watchdog fires → 6 hard task
+    losses. Fix is symmetric with the 'Model reloaded.' / 'crashed'
+    paths above."""
+    import openai as _openai
+    fake_client = MagicMock()
+    fake_response = MagicMock(status_code=400)
+    fake_response.json = MagicMock(return_value={"error": "Model unloaded."})
+    fake_response.text = '{"error": "Model unloaded."}'
+    err = _openai.BadRequestError(
+        message="Error code: 400 - {'error': 'Model unloaded.'}",
+        response=fake_response,
+        body={"error": "Model unloaded."},
+    )
+    fake_client.chat.completions.create.side_effect = err
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+    with pytest.raises(TransientBackendError):
+        backend.next_step(
+            [Message(role="user", content="t")], NextStep, 30.0,
+        )
+
+
+def test_call_structured_model_unloaded_400_is_transient() -> None:
+    """Same fix at the call_structured (beta.parse) call site — the
+    classifier probe is the most frequent watchdog target and must not
+    hard-crash the task on an unload."""
+    import openai as _openai
+    fake_client = MagicMock()
+    fake_response = MagicMock(status_code=400)
+    fake_response.json = MagicMock(return_value={"error": "Model unloaded."})
+    fake_response.text = '{"error": "Model unloaded."}'
+    err = _openai.BadRequestError(
+        message="Error code: 400 - {'error': 'Model unloaded.'}",
+        response=fake_response,
+        body={"error": "Model unloaded."},
+    )
+    fake_client.beta.chat.completions.parse.side_effect = err
+    backend = OpenAIToolCallingBackend(
+        client=fake_client, model="local-model", reasoning_effort="medium",
+    )
+
+    class _Schema:
+        @classmethod
+        def model_validate_json(cls, raw: str):
+            raise AssertionError("should not be reached")
+
+    with pytest.raises(TransientBackendError):
+        backend.call_structured("prompt", _Schema, timeout_sec=30.0)
+
+
 def test_next_step_other_400_still_raises_bad_request() -> None:
     """Other 400s (genuine bad payloads) must surface as BadRequestError,
     not be silently retried."""

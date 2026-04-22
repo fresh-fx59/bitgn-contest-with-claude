@@ -760,11 +760,15 @@ class OpenAIToolCallingBackend(Backend):
             #   - "The model has crashed without additional information."
             #     (OOM or server-side segfault; LM Studio restarts the
             #     slot on the next request, same recovery window)
-            # Both are transient for the parallel cohort — reclassify so
-            # the caller's retry loop waits out the recovery instead of
+            #   - "Model unloaded."  (watchdog force-unload on wall-clock
+            #     overrun; the same HTTP call whose deadline the watchdog
+            #     fired on receives this 400 instead of a connection drop)
+            # All three are transient for the parallel cohort — reclassify
+            # so the caller's retry loop waits out the recovery instead of
             # killing every in-flight task permanently.
             msg = str(exc).lower()
-            if "model reloaded" in msg or "model has crashed" in msg:
+            if ("model reloaded" in msg or "model has crashed" in msg
+                    or "model unloaded" in msg):
                 raise TransientBackendError(str(exc)) from exc
             raise
 
@@ -1000,6 +1004,7 @@ class OpenAIToolCallingBackend(Backend):
             raise TransientBackendError(str(exc)) from exc
         except openai.BadRequestError as exc:
             msg = str(exc).lower()
-            if "model reloaded" in msg or "model has crashed" in msg:
+            if ("model reloaded" in msg or "model has crashed" in msg
+                    or "model unloaded" in msg):
                 raise TransientBackendError(str(exc)) from exc
             raise
