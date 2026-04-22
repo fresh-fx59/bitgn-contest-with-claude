@@ -214,3 +214,33 @@ def format_digest(
             lines.append(f"  …(+{len(projects) - project_cap} more)")
         blocks.append("PROJECTS:\n" + "\n".join(lines))
     return "\n\n".join(blocks)
+
+
+def build_digest_from_fs(
+    *,
+    root: Path,
+    entities_root: Optional[str],
+    projects_root: Optional[str],
+) -> str:
+    """Filesystem-backed composer — used by tests and by the PCM
+    wrapper's fs fallback. Returns an empty string when neither root
+    is present so the adapter can suppress the bootstrap message.
+
+    `entities_root` is the top-level 10_entities path; this function
+    looks for a `cast/` subdirectory inside it (PROD convention). If no
+    `cast/` subdir exists, it falls back to the entities root itself.
+    """
+    root = Path(root)
+    cast_entries: list[CastEntry] = []
+    project_entries: list[ProjectEntry] = []
+    if entities_root:
+        ent_path = root / entities_root
+        cast_dir = ent_path / "cast"
+        if cast_dir.is_dir():
+            cast_entries = extract_cast_entries(cast_dir)
+        else:
+            cast_entries = extract_cast_entries(ent_path)
+    if projects_root:
+        proj_path = root / projects_root
+        project_entries = extract_project_entries(proj_path)
+    return format_digest(cast=cast_entries, projects=project_entries)

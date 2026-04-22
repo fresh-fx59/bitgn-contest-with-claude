@@ -3,6 +3,7 @@ from pathlib import Path
 from bitgn_contest_agent.preflight.semantic_index import extract_cast_entries
 from bitgn_contest_agent.preflight.semantic_index import extract_project_entries
 from bitgn_contest_agent.preflight.semantic_index import format_digest
+from bitgn_contest_agent.preflight.semantic_index import build_digest_from_fs
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "semantic_index_ws"
@@ -78,3 +79,22 @@ def test_format_digest_cast_only_when_no_projects():
     digest = format_digest(cast=cast, projects=[])
     assert "CAST:" in digest
     assert "PROJECTS:" not in digest
+
+
+def test_build_digest_from_fs_composes_both_blocks():
+    digest = build_digest_from_fs(
+        root=FIXTURE,
+        entities_root="10_entities",
+        projects_root="40_projects",
+    )
+    assert "CAST:" in digest
+    assert "PROJECTS:" in digest
+    assert "entity.nina" in digest
+    assert "project.harbor_body" in digest
+
+
+def test_build_digest_from_fs_no_roots_returns_empty_string():
+    digest = build_digest_from_fs(
+        root=FIXTURE, entities_root=None, projects_root=None,
+    )
+    assert digest == ""
