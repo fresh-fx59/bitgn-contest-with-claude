@@ -30,6 +30,7 @@ from bitgn_contest_agent.schemas import (
     Req_Tree,
     Req_Write,
     Req_PreflightSchema,
+    Req_PreflightSemanticIndex,
 )
 
 from bitgn_contest_agent.arch_constants import ArchCategory
@@ -212,6 +213,19 @@ class PcmAdapter:
             if isinstance(req, Req_PreflightSchema):
                 from bitgn_contest_agent.preflight.schema import run_preflight_schema
                 return run_preflight_schema(self._runtime, None)
+            if isinstance(req, Req_PreflightSemanticIndex):
+                from bitgn_contest_agent.preflight.schema import (
+                    parse_schema_content, run_preflight_schema,
+                )
+                from bitgn_contest_agent.preflight.semantic_index import (
+                    run_preflight_semantic_index,
+                )
+                # The adapter's `dispatch` is stateless — it may be called
+                # with no prior schema in hand (e.g. from a unit test). In
+                # that case, run schema first so we have the roots.
+                schema_result = run_preflight_schema(self._runtime, None)
+                schema = parse_schema_content(schema_result.content)
+                return run_preflight_semantic_index(self._runtime, schema)
             raise TypeError(f"unsupported request type: {type(req).__name__}")
         except Exception as exc:
             wall_ms = int((time.monotonic() - start) * 1000)
@@ -316,6 +330,35 @@ class PcmAdapter:
                     error=result.error,
                     error_code=result.error_code,
                     schema_roots=schema_roots,
+                )
+        # Phase 2: semantic index — depends on schema roots discovered above.
+        parsed_schema = parse_schema_content(schema_content)
+        if parsed_schema.entities_root or parsed_schema.projects_root:
+            with pcm_origin("prepass"):
+                from bitgn_contest_agent.preflight.semantic_index import (
+                    run_preflight_semantic_index,
+                )
+                t0 = time.perf_counter()
+                try:
+                    si_result = run_preflight_semantic_index(
+                        self._runtime, parsed_schema,
+                    )
+                except Exception as exc:
+                    si_result = ToolResult(
+                        ok=False, content="", refs=tuple(), error=str(exc),
+                        error_code="INTERNAL", wall_ms=0,
+                    )
+                wall_ms = int((time.perf_counter() - t0) * 1000)
+                if si_result.ok and si_result.content:
+                    bootstrap_content.append(si_result.content)
+                trace_writer.append_prepass(
+                    cmd="preflight_semantic_index",
+                    ok=si_result.ok,
+                    bytes=len(si_result.content or ""),
+                    wall_ms=wall_ms,
+                    error=si_result.error,
+                    error_code=si_result.error_code,
+                    schema_roots=None,
                 )
         return PrepassResult(
             bootstrap_content=bootstrap_content,

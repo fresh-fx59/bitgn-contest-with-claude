@@ -30,7 +30,7 @@ class AgentConfig:
 
     # Timeouts / steps (§4.1 calibrated defaults)
     max_steps: int = 40
-    task_timeout_sec: int = 600
+    task_timeout_sec: int = 900
     task_timeout_grace_sec: int = 20
     llm_http_timeout_sec: int = 30
     max_tool_result_bytes: int = 16384
@@ -79,7 +79,7 @@ def load_from_env() -> AgentConfig:
         model=os.environ.get("AGENT_MODEL", "gpt-5.3-codex"),
         reasoning_effort=os.environ.get("AGENT_REASONING_EFFORT", "medium"),
         max_steps=_int_env("MAX_STEPS", 40),
-        task_timeout_sec=_int_env("TASK_TIMEOUT_SEC", 600),
+        task_timeout_sec=_int_env("TASK_TIMEOUT_SEC", 900),
         task_timeout_grace_sec=_int_env("TASK_TIMEOUT_GRACE_SEC", 20),
         llm_http_timeout_sec=_int_env("LLM_HTTP_TIMEOUT_SEC", 30),
         max_tool_result_bytes=_int_env("MAX_TOOL_RESULT_BYTES", 16384),

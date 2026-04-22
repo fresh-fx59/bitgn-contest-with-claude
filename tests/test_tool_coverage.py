@@ -63,6 +63,7 @@ def _req_model_rpc_names() -> set[str]:
         "Req_Context": "ContextRequest",
         # Client-side preflight tools — no PCM proto backing.
         "Req_PreflightSchema": "PREFLIGHT_SchemaRequest",
+        "Req_PreflightSemanticIndex": "PREFLIGHT_SemanticIndexRequest",
     }
     names: set[str] = set()
     for model in REQ_MODELS:
@@ -79,6 +80,7 @@ def _req_model_rpc_names() -> set[str]:
 _CLIENT_SIDE_ONLY: frozenset[str] = frozenset(
     {
         "PREFLIGHT_SchemaRequest",
+        "PREFLIGHT_SemanticIndexRequest",
     }
 )
 

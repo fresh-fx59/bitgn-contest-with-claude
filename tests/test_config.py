@@ -21,7 +21,7 @@ def test_load_from_env_reads_all_required_values(monkeypatch: pytest.MonkeyPatch
     assert cfg.model == "gpt-5.3-codex"
     assert cfg.reasoning_effort == "medium"
     assert cfg.max_steps == 40
-    assert cfg.task_timeout_sec == 600
+    assert cfg.task_timeout_sec == 900
     assert cfg.task_timeout_grace_sec == 20
     assert cfg.llm_http_timeout_sec == 30
     assert cfg.max_tool_result_bytes == 16384
