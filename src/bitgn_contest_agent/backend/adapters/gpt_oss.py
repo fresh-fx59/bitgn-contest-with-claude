@@ -44,7 +44,14 @@ class GptOssAdapter(ModelAdapter):
                 task_timeout_sec=2400,
                 llm_http_timeout_sec=600,
                 classifier_timeout_sec=300,
-                max_parallel_tasks=4,
+                # p2i4: LM Studio MLX on a single local host cannot sustain
+                # 4 parallel tasks × multi-step tool loops without KV-cache
+                # pressure stalls. Two parallel tasks × up to 4 in-flight
+                # LLM calls (prepass + classifier probes can overlap agent
+                # step calls) is the user-validated conservative shape.
+                # CLI flags still override; change defaults if a future
+                # bench shows headroom.
+                max_parallel_tasks=2,
                 max_inflight_llm=4,
                 reasoning_effort="high",
                 lmstudio_host="localhost:1236",
