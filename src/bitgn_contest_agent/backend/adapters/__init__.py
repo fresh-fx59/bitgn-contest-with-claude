@@ -15,6 +15,7 @@ from bitgn_contest_agent.config import ConfigError
 from .base import ModelAdapter, ModelProfile
 from .glm_flash import GlmFlashAdapter
 from .gpt_oss import GptOssAdapter
+from .gpt_oss_remote import GptOssRemoteAdapter
 from .lfm2 import Lfm2Adapter
 from .qwen_a3b import QwenA3bAdapter
 from .qwen_a3b_remote import QwenA3bRemoteAdapter
@@ -22,7 +23,11 @@ from .qwen_a3b_remote import QwenA3bRemoteAdapter
 
 ADAPTERS: Dict[str, Type[ModelAdapter]] = {
     "openai/gpt-oss-20b": GptOssAdapter,
-    "gpt-oss-120b": GptOssAdapter,
+    # gpt-oss-120b is only served via the neuraldeep gateway today;
+    # the remote adapter drops lmstudio_host (no local watchdog) and
+    # caps llm_http_timeout at 65s to match the gateway's 60s cap.
+    # A local 120b deployment would register a second entry.
+    "gpt-oss-120b": GptOssRemoteAdapter,
     "glm-4.7-flash-mlx": GlmFlashAdapter,
     "liquid/lfm2-24b-a2b": Lfm2Adapter,
     "qwen3.5-35b-a3b": QwenA3bAdapter,
