@@ -5,6 +5,7 @@ This AGENTS.md is the top-level operating contract for the workspace.
 - Prefer deletion over addition.
 - Reuse existing utils and patterns before introducing new abstractions.
 - Prefer architectural, generalizable capability improvements over task-specific or error-specific hardcoded fixes; improve the agent’s decision process instead of teaching it one benchmark answer at a time.
+- When editing skills, prompts, or router rules in response to a failing task, do NOT hardcode concrete directory names, file names, or phrases copied verbatim from that task. PROD workspaces are randomized: lane names, entity names, and wording shift between runs, so naming specific directories (e.g. a particular numbered lane) or quoting specific task wording makes the fix brittle. Express the principle abstractly ("do not bulk-read lanes unrelated to the explicit file list", "past-tense relative date phrasing"), so the guidance generalizes across workspace variants and wording reshuffles.
 - Default to orchestration-first development: prefer improving tool usage, skills, prompts, and instruction flow before adding new methods/functions in source code.
 - Add or modify methods/functions only when orchestration-first approaches cannot reliably satisfy the requirement; if code changes are required, keep them generalizable and non-task-specific.
 - No new dependencies without explicit request.

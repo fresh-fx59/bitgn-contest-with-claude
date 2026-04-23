@@ -7,7 +7,7 @@ matcher_patterns:
   - '(?i)\b(work|process|handle)\b.*\b(oldest|next|first|latest|newest)\b.*\b(inbox|message|item)\b'
   - '(?i)\b(oldest|next|first)\b.*\b(inbox|message)\b'
   - '(?i)\binbox\b.*\b(item|message|task)\b'
-classifier_hint: "Tasks asking to process, work, or handle inbox items — including OCR, forwarding, filing, or any multi-step inbox workflow"
+classifier_hint: "Tasks asking the agent to process, work on, handle, review, or act on a pending item arriving in the inbox lane — including OCR, forwarding, filing, adding frontmatter, or any multi-step intake workflow. Applies whenever the task points at the inbox lane or the next pending item there, regardless of the specific vocabulary the task uses."
 ---
 
 # Inbox Processing Strategy
@@ -65,6 +65,31 @@ Common inbox actions include:
 **If the inbox item lists explicit file paths:** your task list IS
 that file list. Read each file path exactly as given. Do NOT search
 for alternatives or widen the scope.
+
+**Explicit file list → budget discipline. Do NOT bulk-explore the
+workspace.** The inbox item plus the listed files carry enough
+information to act. Broad sibling-lane reading burns the step
+budget and causes "no answer provided" timeouts.
+
+- Do NOT bulk-read directories unrelated to the listed files to
+  "gather context". Entity records, knowledge captures, project
+  READMEs, and general notes are not needed to act on a specific
+  listed artifact. The listed file's own structured fields
+  (`counterparty`, `related_entity`, `project`, etc.) are
+  sufficient — if a pointer is missing, the action itself does
+  not require it.
+- Do NOT open nested `AGENTS.md` files in lanes you are not
+  writing to. The top-level `AGENTS.md`, the inbox lane's own
+  `AGENTS.md`, and the one workflow doc matching the requested
+  action are enough policy. Other lanes' `AGENTS.md` are noise.
+- Permitted reads for an explicit-file-list inbox task:
+  (a) the inbox item itself,
+  (b) every file in the listed task set,
+  (c) the single workflow doc matching the requested action
+      (OCR, forward, file, etc.),
+  (d) the single schema doc for the structured fields the action
+      writes, if the action writes structured fields.
+  Going beyond this set is a budget violation.
 
 **If the inbox item references entities instead of files** (e.g.
 "process all bills for Hearthline"): apply the Step 0 search recipe
