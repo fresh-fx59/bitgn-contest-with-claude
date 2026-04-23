@@ -1,0 +1,9 @@
+{
+  "instruction": "When did the project the house AI thing start? Return only DD-MM-YYYY.",
+  "expected_answer": "02-04-2026",
+  "expected_outcome": "OUTCOME_OK",
+  "context_date": "2026-04-22T22:39:00Z",
+  "source": "prod_fail_t076_vm-03ov7h3aakzjstjxut",
+  "intent": "project_start_date",
+  "notes": "Colloquial descriptor 'the house AI thing' must resolve to Hearthline (household-coordination, linked to entity.nora), not House Mesh (network/infra, literal 'AI' keyword in goal). Workspace reused from t053_project_involvement_partner — same Hearthline/House Mesh ambiguity, different date prefix (04_02 instead of 04_01)."
+}
