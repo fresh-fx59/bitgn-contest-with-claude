@@ -1,12 +1,33 @@
-"""Adapter for openai/gpt-oss-20b (LM Studio MLX)."""
+"""Adapter for openai/gpt-oss-20b (LM Studio MLX).
+
+Per-model behavioral overrides (v0.1.25, 2026-04-23 120b evidence ported
+to the 20b profile since both models share the same instruction-following
+quirks):
+
+1. ``format_retry_critique`` — imperative ``your NEXT tool_call MUST be X``
+   prose for R0/R1/R5/R7 validator rejections. Gpt-oss rewords its
+   justification under descriptive feedback instead of changing tool choice.
+2. ``post_process_terminal`` — drop grounding_refs that were never read
+   so hallucinated paths don't reject the whole terminal on R1.
+3. ``extra_reactive_skills`` — load ``inbox-processing`` when task text
+   contains inbox phrasing that the global tier1 regex misses.
+"""
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, Sequence, TYPE_CHECKING
 
-from bitgn_contest_agent.schemas import NextStep
+from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
+
+if TYPE_CHECKING:
+    from bitgn_contest_agent.session import Session
 
 from .base import ModelAdapter, ModelProfile
-from ._helpers import try_gpt_oss_full_chain
+from ._helpers import (
+    gpt_oss_extra_reactive_skills,
+    gpt_oss_filter_hallucinated_refs,
+    gpt_oss_format_retry_critique,
+    try_gpt_oss_full_chain,
+)
 
 
 class GptOssAdapter(ModelAdapter):
@@ -36,3 +57,20 @@ class GptOssAdapter(ModelAdapter):
             return result
         content = getattr(message, "content", None) or ""
         return try_gpt_oss_full_chain(content)
+
+    def format_retry_critique(
+        self,
+        reasons: Sequence[str],
+        session: "Session",
+    ) -> str:
+        return gpt_oss_format_retry_critique(reasons)
+
+    def post_process_terminal(
+        self,
+        fn: ReportTaskCompletion,
+        session: "Session",
+    ) -> ReportTaskCompletion:
+        return gpt_oss_filter_hallucinated_refs(fn, session)
+
+    def extra_reactive_skills(self, task_text: str) -> frozenset[str]:
+        return gpt_oss_extra_reactive_skills(task_text)

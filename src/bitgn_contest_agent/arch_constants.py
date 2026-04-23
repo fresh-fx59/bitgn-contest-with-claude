@@ -52,4 +52,9 @@ class ArchResult(StrEnum):
 class RouterSource(StrEnum):
     TIER1_REGEX = "tier1_regex"
     TIER2_LLM = "tier2_llm"
+    # Adapter-extra: per-model ModelAdapter.extra_reactive_skills hook
+    # loaded this skill at task start. Distinct from tier1/tier2 because
+    # the adapter hook runs after the global router and only for models
+    # whose tier1 regex is known to miss. See gpt-oss v0.1.25.
+    ADAPTER_EXTRA = "adapter_extra"
     NONE = "none"

@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import json as _json
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
 
 from pydantic import ValidationError
 
-from bitgn_contest_agent.schemas import NextStep
+from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
+
+if TYPE_CHECKING:
+    from bitgn_contest_agent.session import Session
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,3 +106,53 @@ class ModelAdapter:
             return _build_next_step(getattr(fn, "name", ""), args)
         except ValidationError:
             return None
+
+    # ------------------------------------------------------------------
+    # Per-model behavioral hooks. Defaults preserve pre-hook behavior so
+    # non-gpt-oss adapters remain byte-identical. Gpt-oss overrides live
+    # in ``gpt_oss.py`` and ``gpt_oss_remote.py``; see 2026-04-23 PROD
+    # analysis (v0.1.24 → v0.1.25) for the failure evidence these hooks
+    # target.
+    # ------------------------------------------------------------------
+
+    def format_retry_critique(
+        self,
+        reasons: Sequence[str],
+        session: "Session",
+    ) -> str:
+        """Build the user-message shown to the model when a prior NextStep
+        was rejected (validator or terminal enforcer). Default delegates
+        to ``prompts.critique_injection`` so existing adapters are unchanged.
+
+        Gpt-oss override rewrites the message into an imperative
+        "your next tool_call MUST be X" form for specific rule codes
+        (R0/R1/R5/R7) because descriptive corrections are ignored by
+        that family. See gpt_oss.py docstring for the evidence.
+        """
+        from bitgn_contest_agent.prompts import critique_injection
+
+        return critique_injection(list(reasons))
+
+    def post_process_terminal(
+        self,
+        fn: ReportTaskCompletion,
+        session: "Session",
+    ) -> ReportTaskCompletion:
+        """Last-chance mutation of a terminal ``report_completion`` before
+        the validator runs. Default is identity. Gpt-oss override strips
+        ``grounding_refs`` that were never read (the model hallucinates
+        paths that pass the structural sanitizer but fail R1).
+        """
+        return fn
+
+    def extra_reactive_skills(self, task_text: str) -> frozenset[str]:
+        """Additional skill names to load at task start, on top of whatever
+        the proactive ``Router`` returned. Default: empty set. Gpt-oss
+        override returns ``{"inbox-processing"}`` when the task text
+        matches inbox-style phrasing that the global tier1 regex misses
+        (4 PROD tasks in 2026-04-23 120b run).
+
+        Looked up via ``router.skill_body_for(name)``; names that don't
+        resolve are dropped silently with a warning.
+        """
+        return frozenset()

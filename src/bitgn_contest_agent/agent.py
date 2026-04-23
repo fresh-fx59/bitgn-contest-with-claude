@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from pydantic import ValidationError
 
@@ -297,6 +297,16 @@ class AgentLoop:
         if decision is not None and decision.skill_name:
             session.skills_loaded.add(decision.skill_name)
 
+        # Per-model: load extra skills the global router missed.
+        # Gpt-oss's tier1 regex misses ~4 inbox-processing tasks per 104
+        # (phrases like "inbound note", "invoice-request"). The adapter
+        # hook returns those skill names so we inject their bodies here
+        # before the first LLM call. Default adapter returns an empty
+        # set — non-gpt-oss models see byte-identical behavior.
+        self._inject_extra_reactive_skills(
+            task_text=task_text, session=session, messages=messages,
+        )
+
         # Pre-pass (best effort). The adapter returns extra user-message
         # content (currently the preflight_schema summary) that must be
         # injected into the conversation so skill bodies can reference
@@ -375,7 +385,9 @@ class AgentLoop:
                 retry_messages = list(messages) + [
                     Message(
                         role="user",
-                        content=critique_injection([f"ValidationError: {exc}"]),
+                        content=self._format_critique(
+                            [f"ValidationError: {exc}"], session,
+                        ),
                     )
                 ]
                 try:
@@ -410,6 +422,14 @@ class AgentLoop:
             enforcer_action: str | None = None
 
             if isinstance(fn, ReportTaskCompletion):
+                # Per-model post-processing of the terminal before validation.
+                # Gpt-oss drops grounding_refs that were never read so
+                # hallucinated paths don't reject the whole terminal via R1.
+                # Default adapter hook is identity — non-gpt-oss models
+                # see byte-identical behavior.
+                fn = self._post_process_terminal(fn, session)
+                if fn is not step_obj.function:
+                    step_obj = step_obj.model_copy(update={"function": fn})
                 verdict = self._validator.check_terminal(session, step_obj, step_idx)
                 if verdict.ok:
                     # Pre-completion verification (spec 2026-04-21).
@@ -491,7 +511,7 @@ class AgentLoop:
                     retry_messages = list(messages) + [
                         Message(
                             role="user",
-                            content=critique_injection(verdict.reasons),
+                            content=self._format_critique(verdict.reasons, session),
                         )
                     ]
                     try:
@@ -510,6 +530,13 @@ class AgentLoop:
                         retry_step = step_obj  # fall through to submit_anyway
                     retry_fn = retry_step.function
                     if isinstance(retry_fn, ReportTaskCompletion):
+                        # Same per-model post-processing on the retry's
+                        # terminal so the retry benefits from ref filtering.
+                        retry_fn = self._post_process_terminal(retry_fn, session)
+                        if retry_fn is not retry_step.function:
+                            retry_step = retry_step.model_copy(
+                                update={"function": retry_fn}
+                            )
                         retry_verdict = self._validator.check_terminal(session, retry_step, step_idx)
                         if retry_verdict.ok:
                             tool_result = self._adapter.submit_terminal(retry_fn)
@@ -820,6 +847,95 @@ class AgentLoop:
         )
 
     # -- helpers ---------------------------------------------------------
+
+    def _model_adapter(self):
+        """Return the per-model ``ModelAdapter`` on the backend, if any.
+
+        ``OpenAIToolCallingBackend`` exposes ``model_adapter`` (v0.1.25+).
+        The frontier ``OpenAIChatBackend`` and test-stub backends do not;
+        in those cases we return ``None`` and callers fall back to the
+        pre-hook default behavior.
+        """
+        return getattr(self._backend, "model_adapter", None)
+
+    def _format_critique(
+        self,
+        reasons: Sequence[str],
+        session: Session,
+    ) -> str:
+        """Build the user-message for a validator/validation rejection.
+
+        Default = ``prompts.critique_injection``. When the backend has a
+        ``model_adapter``, delegate to ``adapter.format_retry_critique``
+        so gpt-oss can rewrite the prompt as an imperative tool-call
+        prescription (2026-04-23 v0.1.24 evidence: 15 R7 tasks ignored
+        the descriptive wording).
+        """
+        adapter = self._model_adapter()
+        if adapter is not None:
+            return adapter.format_retry_critique(reasons, session)
+        return critique_injection(list(reasons))
+
+    def _post_process_terminal(
+        self,
+        fn: "ReportTaskCompletion",
+        session: Session,
+    ) -> "ReportTaskCompletion":
+        """Per-model mutation of a terminal ``report_completion`` before
+        ``StepValidator.check_terminal`` runs. Default = identity; gpt-oss
+        drops grounding_refs that were never read to avoid R1 rejection
+        cascades on hallucinated paths.
+        """
+        adapter = self._model_adapter()
+        if adapter is None:
+            return fn
+        return adapter.post_process_terminal(fn, session)
+
+    def _inject_extra_reactive_skills(
+        self,
+        *,
+        task_text: str,
+        session: Session,
+        messages: List[Message],
+    ) -> None:
+        """Load additional skills the adapter declares for this task text.
+
+        Called once at task start, right after the proactive router ran.
+        Skips any skill that's already in ``session.skills_loaded``
+        (proactive router already injected it). Uses
+        ``router.skill_body_for`` for the lookup; if the router is not
+        attached or can't find the skill body, the skill is skipped
+        silently so tests with mocked backends stay green.
+        """
+        adapter = self._model_adapter()
+        if adapter is None or self._router is None:
+            return
+        extras = adapter.extra_reactive_skills(task_text)
+        if not extras:
+            return
+        for skill_name in sorted(extras):
+            if skill_name in session.skills_loaded:
+                continue
+            body = self._router.skill_body_for(skill_name)
+            if body is None:
+                _LOG.warning(
+                    "extra_reactive_skills: adapter requested %r but router "
+                    "has no body for it — skipping",
+                    skill_name,
+                )
+                continue
+            session.skills_loaded.add(skill_name)
+            emit_arch(
+                category=ArchCategory.SKILL_ROUTER,
+                skill=skill_name,
+                source=RouterSource.ADAPTER_EXTRA,
+                details=f"adapter={type(adapter).__name__}",
+            )
+            prefix = (
+                f"SKILL CONTEXT (adapter-extra, model={adapter.name}): "
+                f"{skill_name}\n\n"
+            )
+            messages.append(Message(role="user", content=prefix + body))
 
     def _call_backend_with_retry(
         self,

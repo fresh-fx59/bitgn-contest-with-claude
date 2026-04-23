@@ -28,11 +28,19 @@ Differences from the local ``GptOssAdapter`` (LM Studio MLX, 20b):
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, Sequence, TYPE_CHECKING
 
-from bitgn_contest_agent.schemas import NextStep
+from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
 
-from ._helpers import try_gpt_oss_full_chain
+if TYPE_CHECKING:
+    from bitgn_contest_agent.session import Session
+
+from ._helpers import (
+    gpt_oss_extra_reactive_skills,
+    gpt_oss_filter_hallucinated_refs,
+    gpt_oss_format_retry_critique,
+    try_gpt_oss_full_chain,
+)
 from .base import ModelAdapter, ModelProfile
 
 
@@ -57,3 +65,23 @@ class GptOssRemoteAdapter(ModelAdapter):
             return result
         content = getattr(message, "content", None) or ""
         return try_gpt_oss_full_chain(content)
+
+    # 2026-04-23 v0.1.25 behavioral hooks — see ``gpt_oss.py`` for the
+    # 20b docstring; the 120b shares the same instruction-following
+    # quirks so it reuses the same helpers.
+    def format_retry_critique(
+        self,
+        reasons: Sequence[str],
+        session: "Session",
+    ) -> str:
+        return gpt_oss_format_retry_critique(reasons)
+
+    def post_process_terminal(
+        self,
+        fn: ReportTaskCompletion,
+        session: "Session",
+    ) -> ReportTaskCompletion:
+        return gpt_oss_filter_hallucinated_refs(fn, session)
+
+    def extra_reactive_skills(self, task_text: str) -> frozenset[str]:
+        return gpt_oss_extra_reactive_skills(task_text)

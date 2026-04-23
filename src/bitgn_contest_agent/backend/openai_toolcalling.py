@@ -702,6 +702,19 @@ class OpenAIToolCallingBackend(Backend):
             adapter = GptOssAdapter()
         self._adapter = adapter
 
+    @property
+    def model_adapter(self):
+        """Expose the per-model ``ModelAdapter`` for consumers (e.g. the
+        agent loop) that need to call behavioral hooks like
+        ``format_retry_critique`` or ``post_process_terminal``.
+
+        Other ``Backend`` implementations (frontier ``OpenAIChatBackend``,
+        test stubs) do not expose this attribute; ``agent.py`` reads it
+        with ``getattr(..., None)`` so the default behavior path remains
+        unchanged for non-toolcalling backends.
+        """
+        return self._adapter
+
     @classmethod
     def from_config(
         cls,
