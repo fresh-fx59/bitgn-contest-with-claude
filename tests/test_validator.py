@@ -268,6 +268,77 @@ def test_r6_skips_non_ok_outcome_after_repeated_guards() -> None:
     assert verdict.ok
 
 
+# === R7 — inbox-processing cleanup ===
+#
+# Evidence: 2026-04-23 gpt-oss-120b PROD run, 16/36 failures terminated
+# OUTCOME_OK without deleting the consumed trigger. Rule is keyed on
+# skill identity ("inbox-processing") and the presence of any delete in
+# session.mutations — path-agnostic.
+
+
+def test_r7_rejects_ok_when_inbox_processing_skipped_delete() -> None:
+    v = StepValidator()
+    session = Session()
+    session.skills_loaded.add("inbox-processing")
+    session.mutations.append(("write", "anywhere/x.md"))  # wrote but didn't delete
+    terminal = _mk_terminal("OUTCOME_OK", refs=[])
+    verdict = v.check_terminal(session, terminal, step_idx=10)
+    assert not verdict.ok
+    assert any("R7_INBOX_CLEANUP" in r for r in verdict.reasons)
+
+
+def test_r7_allows_ok_when_delete_present() -> None:
+    v = StepValidator()
+    session = Session()
+    session.skills_loaded.add("inbox-processing")
+    session.mutations.append(("write", "anywhere/x.md"))
+    session.mutations.append(("delete", "anywhere/trigger.md"))
+    terminal = _mk_terminal("OUTCOME_OK", refs=[])
+    verdict = v.check_terminal(session, terminal, step_idx=10)
+    assert verdict.ok, verdict.reasons
+
+
+def test_r7_skips_when_inbox_processing_not_loaded() -> None:
+    """Rule keys on skill identity; other skills aren't subject to it."""
+    v = StepValidator()
+    session = Session()
+    session.skills_loaded.add("finance-lookup")
+    # No delete performed — but also not an inbox-processing task.
+    terminal = _mk_terminal("OUTCOME_OK", refs=[])
+    verdict = v.check_terminal(session, terminal, step_idx=10)
+    assert verdict.ok, verdict.reasons
+
+
+def test_r7_skips_for_non_ok_outcomes() -> None:
+    """CLARIFICATION / DENIED_SECURITY / UNSUPPORTED mean no work was
+    done, so no cleanup is owed."""
+    v = StepValidator()
+    session = Session()
+    session.skills_loaded.add("inbox-processing")
+    for outcome in (
+        "OUTCOME_NONE_CLARIFICATION",
+        "OUTCOME_DENIED_SECURITY",
+        "OUTCOME_NONE_UNSUPPORTED",
+    ):
+        terminal = _mk_terminal(outcome, refs=[])
+        verdict = v.check_terminal(session, terminal, step_idx=10)
+        assert verdict.ok, (outcome, verdict.reasons)
+
+
+def test_r7_any_delete_satisfies_rule() -> None:
+    """The rule is path-agnostic: a move or write does not count, but
+    any ``delete`` does — the skill's Step 4 is the only thing graded."""
+    v = StepValidator()
+    session = Session()
+    session.skills_loaded.add("inbox-processing")
+    # A move is a mutation but not a delete — still rejects.
+    session.mutations.append(("move", "a.md"))
+    terminal = _mk_terminal("OUTCOME_OK", refs=[])
+    verdict = v.check_terminal(session, terminal, step_idx=10)
+    assert not verdict.ok
+    assert any("R7_INBOX_CLEANUP" in r for r in verdict.reasons)
+
+
 def test_stale_gathering_disabled() -> None:
     """Stale gathering rule was disabled — Tier 2 progress check at 60%
     covers this with LLM judgment instead of a dumb threshold."""

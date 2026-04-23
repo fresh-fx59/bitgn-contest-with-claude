@@ -204,6 +204,25 @@ class StepValidator:
                 f"actually requires mutations or is text-only"
             )
 
+        # R7 — inbox-processing cleanup. When the inbox-processing skill
+        # was loaded (proactive or reactive) and the agent reports
+        # OUTCOME_OK, at least one successful delete must have occurred.
+        # The skill mandates removing the consumed trigger as the final
+        # step; 2026-04-23 gpt-oss-120b PROD evidence: 16/36 failures were
+        # OUTCOME_OK terminals with the trigger file still in place. The
+        # rule is keyed on skill identity (not paths), so it generalizes
+        # across inbox layouts — any delete satisfies it.
+        if (
+            "inbox-processing" in session.skills_loaded
+            and fn.outcome == "OUTCOME_OK"
+            and not any(op == "delete" for op, _ in session.mutations)
+        ):
+            reasons.append(
+                "R7_INBOX_CLEANUP: inbox-processing task terminated "
+                "OUTCOME_OK but no file was deleted — the consumed "
+                "inbox item must be removed before reporting done"
+            )
+
         verdict = Verdict(ok=not reasons, reasons=reasons)
         if reasons:
             emit_arch(

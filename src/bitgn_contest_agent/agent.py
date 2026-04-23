@@ -294,6 +294,8 @@ class AgentLoop:
             router=self._router,
             task_id=task_id,
         )
+        if decision is not None and decision.skill_name:
+            session.skills_loaded.add(decision.skill_name)
 
         # Pre-pass (best effort). The adapter returns extra user-message
         # content (currently the preflight_schema summary) that must be
@@ -750,6 +752,7 @@ class AgentLoop:
                 if reactive_decision is not None:
                     reactive_injected_this_step = True
                     reactive_injected.add(reactive_decision.skill_name)
+                    session.skills_loaded.add(reactive_decision.skill_name)
                     trigger_path = fn_dump.get("path") or fn_dump.get("root") or ""
                     emit_arch(
                         category=ArchCategory.REACTIVE,
