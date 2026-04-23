@@ -50,6 +50,13 @@ class ModelProfile:
     # LM Studio to stop generating. The OpenAI HTTP timeout alone does
     # not stop server-side generation; this is the backstop.
     lmstudio_host: str | None = None
+    # Per-call reasoning_effort for ``Backend.call_structured`` (classifier
+    # + preflight probes). ``None`` = inherit ``reasoning_effort``. Split
+    # trigger: 2026-04-22 qwen3.5 PROD run hit 7 step-1 watchdog fires
+    # where the classifier probe wedged on runaway CoT at effort="high";
+    # the routing question is 3-way and doesn't need deep reasoning. Keep
+    # None for adapters whose classifier path is fast (gpt-oss, glm-flash).
+    classifier_reasoning_effort: str | None = None
 
 
 class ModelAdapter:

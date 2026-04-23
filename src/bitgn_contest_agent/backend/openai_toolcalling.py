@@ -621,6 +621,10 @@ def _try_salvage_from_content(content: str) -> NextStep | None:
             ):
                 if merged.get(placeholder_field) == "":
                     merged[placeholder_field] = "—"
+            from bitgn_contest_agent.backend.adapters._helpers import (
+                _sanitize_grounding_refs,
+            )
+            _sanitize_grounding_refs(merged)
             try:
                 return _build_next_step(tool_name, merged)
             except ValidationError:
@@ -983,6 +987,10 @@ class OpenAIToolCallingBackend(Backend):
         manual ``model_validate_json`` on the raw content.
         """
         payload = [{"role": "user", "content": prompt}]
+        effort = (
+            self._adapter.profile.classifier_reasoning_effort
+            or self._reasoning_effort
+        )
         try:
             with _watchdog_guard(self._adapter, self._model):
                 completion = self._client.beta.chat.completions.parse(
@@ -991,7 +999,7 @@ class OpenAIToolCallingBackend(Backend):
                     response_format=response_schema,
                     timeout=timeout_sec,
                     max_tokens=self._adapter.profile.max_completion_tokens,
-                    extra_body={"reasoning": {"effort": self._reasoning_effort}},
+                    extra_body={"reasoning": {"effort": effort}},
                 )
             parsed = completion.choices[0].message.parsed
             if parsed is not None:

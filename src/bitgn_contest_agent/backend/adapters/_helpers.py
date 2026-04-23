@@ -36,6 +36,38 @@ _BARE_ANSWER_CONTINUATION_MARKERS: Tuple[str, ...] = (
 )
 
 
+def _sanitize_grounding_refs(merged: dict) -> None:
+    """Strip non-path junk from ``merged["grounding_refs"]`` in-place.
+
+    Envelope-salvage paths accept whatever the model emitted inside
+    ``function.grounding_refs``. Local models occasionally pad the array
+    with free-text tokens — the 2026-04-22 gpt-oss-120b PROD run saw
+    t103 emit ``["AGENTS.MD", "...bill.md", "5", "5", "", "", ""]``.
+    The grounding_ref validator then rejects the whole terminal on the
+    junk tokens ("grounding_ref '5' never successfully read"), losing an
+    otherwise-valid answer.
+
+    Drop entries that are not strings, empty/whitespace, shorter than 3
+    chars after strip, or contain neither ``/`` (path separator) nor
+    ``.`` (extension). The remaining list is still validated later by
+    ``verify.py`` against the actual read-success set.
+    """
+    refs = merged.get("grounding_refs")
+    if not isinstance(refs, list):
+        return
+    cleaned = []
+    for r in refs:
+        if not isinstance(r, str):
+            continue
+        s = r.strip()
+        if len(s) < 3:
+            continue
+        if "/" not in s and "." not in s:
+            continue
+        cleaned.append(s)
+    merged["grounding_refs"] = cleaned
+
+
 def try_gpt_oss_full_chain(content: str) -> Optional[NextStep]:
     """Delegate to the legacy ``_try_salvage_from_content``.
 
@@ -123,6 +155,7 @@ def try_envelope(content: str) -> Optional[NextStep]:
             for placeholder in ("rulebook_notes", "outcome_justification", "message"):
                 if merged.get(placeholder) == "":
                     merged[placeholder] = "—"
+            _sanitize_grounding_refs(merged)
             try:
                 return _build_next_step(tool_name, merged)
             except ValidationError:

@@ -72,6 +72,12 @@ class QwenA3bAdapter(ModelAdapter):
                 # this bounds worst-case generation on the wire.
                 max_completion_tokens=100_000,
                 lmstudio_host="localhost:1236",
+                # Classifier probe runs at effort="medium" to avoid runaway
+                # CoT on a 3-way routing question. 2026-04-22 PROD p1i1 saw
+                # 7 watchdog fires at step 1 (skill=-, category=UNKNOWN)
+                # where qwen3.5 thought through the classifier prompt for
+                # minutes at effort="high". Agent path stays at high.
+                classifier_reasoning_effort="medium",
             ),
         )
 
