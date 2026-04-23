@@ -96,6 +96,22 @@ budget and causes "no answer provided" timeouts.
 (case-insensitive `rg -i` across filename AND structured fields
 like `related_entity`) to build the complete file list.
 
+**Named-entity budget discipline — do NOT roster sibling entities.**
+When the inbox item references a specific entity by name (a person,
+pet, or system — e.g. "linked to <entity>", "bills for <entity>"):
+
+- Read ONLY that one entity's file (`<entities-lane>/<entity>.md`)
+  to learn its canonical alias and field shape. Do NOT `cat` sibling
+  entity files one-by-one to "build a roster" — sibling entities are
+  irrelevant to the task.
+- Then go directly to the target lane (finance, projects, etc.) and
+  filter records by that entity's canonical alias or `related_entity`
+  field using `rg -i` / `search`. Do NOT read every file in the
+  target lane; use search to narrow first.
+- Reading every entity file or every lane file is a budget violation
+  that causes "no answer provided" timeouts. One entity was named —
+  focus on that one.
+
 ## Step 3: Process ALL items
 
 For each file in your task list:
