@@ -2,7 +2,14 @@
 
 A hardened, single-session agentic system for the [BitGN PAC1](https://github.com/bitgn/sample-agents/tree/main/pac1-py) competition. The agent autonomously solves tasks in John's Obsidian Vault — reading files, writing records, navigating inboxes, handling finances, and resolving security-aware workflows — by driving a ReAct-style tool loop against the BitGN PCM runtime.
 
-**Current score:** 76 OK / 104 tasks (sonnet-4.6), 79 OK (gpt-5.4)
+**Contest score:** 76 OK / 104 tasks  - gpt-5.4
+
+**Current scores:** 
+
+- 104/104 - gpt-5.4
+- 50/104 - gpt-oss-20b
+- 68/104 - gpt-oss-120b
+- 70.8/104 - qwen3.5-35b-a3b
 
 ---
 
