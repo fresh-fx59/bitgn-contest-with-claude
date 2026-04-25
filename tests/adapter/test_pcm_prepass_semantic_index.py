@@ -57,10 +57,22 @@ def test_run_prepass_appends_semantic_index_bootstrap(tmp_path, monkeypatch):
     prepass = adapter.run_prepass(session=session, trace_writer=writer)
     writer.close()
 
-    # Two bootstrap messages: schema first, semantic index second.
-    assert len(prepass.bootstrap_content) == 2
-    assert "WORKSPACE SCHEMA" in prepass.bootstrap_content[0]
-    assert "WORKSPACE SEMANTIC INDEX" in prepass.bootstrap_content[1]
+    # Bootstrap messages now include PRE-PASS tree/AGENTS/context blocks
+    # in addition to schema and semantic index. The exact count depends on
+    # which pre-pass calls returned non-empty content; what matters is that
+    # schema appears before semantic index, both are present, and any
+    # PRE-PASS blocks come before the schema block.
+    schema_idx = next(
+        i for i, c in enumerate(prepass.bootstrap_content)
+        if "WORKSPACE SCHEMA" in c
+    )
+    si_idx = next(
+        i for i, c in enumerate(prepass.bootstrap_content)
+        if "WORKSPACE SEMANTIC INDEX" in c
+    )
+    assert si_idx > schema_idx
+    for c in prepass.bootstrap_content[:schema_idx]:
+        assert c.startswith("PRE-PASS ")
 
     records = [json.loads(line) for line in path.read_text().splitlines() if line]
     cmds = [r.get("cmd") for r in records]
@@ -114,6 +126,8 @@ def test_run_prepass_suppresses_semantic_index_when_empty(tmp_path, monkeypatch)
     writer.close()
 
     # Empty semantic-index content → no bootstrap entry for it.
-    # Schema bootstrap still present.
-    assert len(prepass.bootstrap_content) == 1
-    assert "WORKSPACE SCHEMA" in prepass.bootstrap_content[0]
+    # Schema bootstrap still present; PRE-PASS blocks may also be present.
+    assert any("WORKSPACE SCHEMA" in c for c in prepass.bootstrap_content)
+    assert not any(
+        "WORKSPACE SEMANTIC INDEX" in c for c in prepass.bootstrap_content
+    )

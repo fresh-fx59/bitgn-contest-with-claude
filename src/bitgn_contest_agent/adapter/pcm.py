@@ -303,6 +303,25 @@ class PcmAdapter:
                         session.rulebook_loaded = True
                     for ref in result.refs:
                         session.seen_refs.add(ref)
+                    if label == "tree" and result.content:
+                        bootstrap_content.append(
+                            "PRE-PASS tree(root=\"/\") — already executed, "
+                            "do NOT re-run:\n"
+                            f"{result.content}"
+                        )
+                    if label == "read_agents_md" and result.content:
+                        bootstrap_content.append(
+                            "PRE-PASS read(path=\"AGENTS.md\") — already "
+                            "executed, do NOT re-run. AGENTS.md content "
+                            "below is the rulebook:\n"
+                            f"{result.content}"
+                        )
+                    if label == "context" and result.content:
+                        bootstrap_content.append(
+                            "PRE-PASS context() — already executed, do NOT "
+                            "re-run:\n"
+                            f"{result.content}"
+                        )
                     if label == "preflight_schema" and result.content:
                         bootstrap_content.append(
                             "WORKSPACE SCHEMA (auto-discovered, use these roots "
