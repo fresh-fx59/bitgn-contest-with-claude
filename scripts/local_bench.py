@@ -38,7 +38,11 @@ sys.path.insert(0, str(_REPO / "scripts"))
 
 from local_pcm import LocalPcmClient, TreeEntry
 
-from bitgn_contest_agent.adapter.pcm import ToolResult, PrepassResult
+from bitgn_contest_agent.adapter.pcm import (
+    ToolResult, PrepassResult,
+    _maybe_rewrite_ci, _OPT_A_CASE_INSENSITIVE,
+    _OPT_A_FIND_CI, _find_ci_variants,
+)
 from bitgn_contest_agent.agent import AgentLoop, AgentLoopResult
 from bitgn_contest_agent.backend.openai_compat import OpenAIChatBackend
 from bitgn_contest_agent.bench.run_metrics import RunMetrics
@@ -146,12 +150,69 @@ class LocalPcmAdapter:
                                     refs=())
 
             if isinstance(req, Req_Find):
+                name_in = req.name
+                variants = _find_ci_variants(name_in) if _OPT_A_FIND_CI else [name_in]
+                if _OPT_A_FIND_CI and len(variants) > 1:
+                    union: list[str] = []
+                    seen_paths: set[str] = set()
+                    hits_before = -1
+                    for idx, variant in enumerate(variants):
+                        try:
+                            r = self._client.find(
+                                req.model_copy(update={"name": variant})
+                            )
+                        except Exception:
+                            continue
+                        items = list(getattr(r, "items", []) or [])
+                        if idx == 0:
+                            hits_before = len(items)
+                        for p in items:
+                            if p not in seen_paths:
+                                seen_paths.add(p)
+                                union.append(p)
+                                if len(union) >= req.limit:
+                                    break
+                        if len(union) >= req.limit:
+                            break
+                    _LOG.info(
+                        "[OPT_A] find rewrite root=%s name=%r variants=%s "
+                        "hits_before=%d hits_after=%d",
+                        req.root, name_in, variants, hits_before, len(union),
+                    )
+                    return self._finish(start, json.dumps({"items": union}),
+                                        refs=())
                 resp = self._client.find(req)
+                if _OPT_A_FIND_CI:
+                    _LOG.info(
+                        "[OPT_A] find no-rewrite root=%s name=%r hits=%d",
+                        req.root, name_in, len(resp.items),
+                    )
                 return self._finish(start, json.dumps({"items": resp.items}),
                                     refs=())
 
             if isinstance(req, Req_Search):
-                resp = self._client.search(req)
+                pattern_in = req.pattern
+                pattern_out = _maybe_rewrite_ci(pattern_in)
+                if _OPT_A_CASE_INSENSITIVE and pattern_out != pattern_in:
+                    try:
+                        resp_orig = self._client.search(req)
+                        hits_before = len(resp_orig.matches)
+                    except Exception:
+                        hits_before = -1
+                    rewritten_req = req.model_copy(update={"pattern": pattern_out})
+                    resp = self._client.search(rewritten_req)
+                    hits_after = len(resp.matches)
+                    _LOG.info(
+                        "[OPT_A] search rewrite root=%s orig=%r new=%r hits_before=%d hits_after=%d",
+                        req.root, pattern_in, pattern_out, hits_before, hits_after,
+                    )
+                else:
+                    resp = self._client.search(req)
+                    if _OPT_A_CASE_INSENSITIVE:
+                        _LOG.info(
+                            "[OPT_A] search no-rewrite root=%s pattern=%r hits=%d",
+                            req.root, pattern_in, len(resp.matches),
+                        )
                 matches = [{"path": m.path, "line": m.line_number,
                             "line_text": m.snippet} for m in resp.matches]
                 return self._finish(
