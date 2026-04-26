@@ -5,8 +5,9 @@ Subcommands:
             artifacts/harness_db/scrape_runs/<ts>/lifecycle_spike.json
   seed    — mine existing JSONL traces + server logs for free
             grader-rule seeds; populate scoring_rules in the SQLite DB
+  scrape  — walk PROD workspaces into the local DB (Phase 1)
 
-Both subcommands are thin shims over functions in src/bitgn_scraper/.
+All subcommands are thin shims over functions in src/bitgn_scraper/.
 """
 from __future__ import annotations
 
@@ -33,6 +34,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("phase0", help="run the lifecycle spike (Phase 0)")
     sub.add_parser("seed", help="mine existing logs for free grader rules (Phase 1.5)")
+    sub.add_parser("scrape", help="Phase 1: walk PROD workspaces into the local DB")
     return p
 
 
@@ -45,6 +47,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "seed":
         from bitgn_scraper.seed_rules import run_seed_cli
         return run_seed_cli()
+    if args.cmd == "scrape":
+        from bitgn_scraper.scrape_cli import run_scrape_cli
+        return run_scrape_cli()
     parser.error(f"unknown command: {args.cmd!r}")
     return 2
 
