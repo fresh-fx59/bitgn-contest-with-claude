@@ -1,12 +1,13 @@
 """BitGN scraper CLI.
 
 Subcommands:
-  phase0  — run the lifecycle spike against PROD; write
-            artifacts/harness_db/scrape_runs/<ts>/lifecycle_spike.json
-  seed    — mine existing JSONL traces + server logs for free
-            grader-rule seeds; populate scoring_rules in the SQLite DB
-  scrape  — walk PROD workspaces into the local DB (Phase 1)
-  probe   — iterate task_instantiations and probe each against the live grader (Phase 2)
+  phase0    — run the lifecycle spike against PROD; write
+              artifacts/harness_db/scrape_runs/<ts>/lifecycle_spike.json
+  seed      — mine existing JSONL traces + server logs for free
+              grader-rule seeds; populate scoring_rules in the SQLite DB
+  scrape    — walk PROD workspaces into the local DB (Phase 1)
+  probe     — iterate task_instantiations and probe each against the live grader (Phase 2)
+  validate  — run integrity + coverage + (optional) determinism checks (Phase 3)
 
 All subcommands are thin shims over functions in src/bitgn_scraper/.
 """
@@ -37,6 +38,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("seed", help="mine existing logs for free grader rules (Phase 1.5)")
     sub.add_parser("scrape", help="Phase 1: walk PROD workspaces into the local DB")
     sub.add_parser("probe", help="Phase 2: probe each instantiation against the live grader")
+    sub.add_parser("validate", help="Phase 3: integrity + coverage + determinism checks")
     return p
 
 
@@ -55,6 +57,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "probe":
         from bitgn_scraper.probe_cli import run_probe_cli
         return run_probe_cli()
+    if args.cmd == "validate":
+        from bitgn_scraper.validate_cli import run_validate_cli
+        return run_validate_cli()
     parser.error(f"unknown command: {args.cmd!r}")
     return 2
 
