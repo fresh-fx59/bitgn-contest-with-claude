@@ -6,6 +6,7 @@ Subcommands:
   seed    — mine existing JSONL traces + server logs for free
             grader-rule seeds; populate scoring_rules in the SQLite DB
   scrape  — walk PROD workspaces into the local DB (Phase 1)
+  probe   — iterate task_instantiations and probe each against the live grader (Phase 2)
 
 All subcommands are thin shims over functions in src/bitgn_scraper/.
 """
@@ -35,6 +36,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("phase0", help="run the lifecycle spike (Phase 0)")
     sub.add_parser("seed", help="mine existing logs for free grader rules (Phase 1.5)")
     sub.add_parser("scrape", help="Phase 1: walk PROD workspaces into the local DB")
+    sub.add_parser("probe", help="Phase 2: probe each instantiation against the live grader")
     return p
 
 
@@ -50,6 +52,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "scrape":
         from bitgn_scraper.scrape_cli import run_scrape_cli
         return run_scrape_cli()
+    if args.cmd == "probe":
+        from bitgn_scraper.probe_cli import run_probe_cli
+        return run_probe_cli()
     parser.error(f"unknown command: {args.cmd!r}")
     return 2
 
