@@ -48,11 +48,14 @@ def main() -> int:
                         help="walk only first N trials (debug); 0 = all")
     parser.add_argument("--max-workers", type=int, default=40,
                         help="parallel workers for trial walks + transcript fetch")
+    parser.add_argument("--dump-workspaces", action="store_true",
+                        help="capture every file's content under "
+                             "<out_dir>/workspaces/<task_id>/ for offline replay")
     args = parser.parse_args()
 
     from bitgn_contest_agent.harness import BitgnHarness
     from bitgn_scraper.harness_url_scrape import fetch_trial_data
-    from bitgn_scraper.workspace_walk import walk_workspace
+    from bitgn_scraper.workspace_walk import walk_and_dump_workspace, walk_workspace
     from bitgn.harness_pb2 import GetRunRequest
     from bitgn.vm.pcm_pb2 import AnswerRequest, Outcome
 
@@ -68,6 +71,9 @@ def main() -> int:
     out_dir = args.out_root / ts
     trials_dir = out_dir / "trials"
     trials_dir.mkdir(parents=True, exist_ok=True)
+    workspaces_dir = out_dir / "workspaces"
+    if args.dump_workspaces:
+        workspaces_dir.mkdir(parents=True, exist_ok=True)
     summary_path = out_dir / "run_summary.json"
 
     harness = BitgnHarness.from_env(
@@ -101,7 +107,13 @@ def main() -> int:
             finding["instruction"] = started.instruction
             finding["harness_url"] = started.harness_url
 
-            files = walk_workspace(started.runtime_client)
+            if args.dump_workspaces:
+                files = walk_and_dump_workspace(
+                    started.runtime_client,
+                    workspaces_dir / task_id,
+                )
+            else:
+                files = walk_workspace(started.runtime_client)
             finding["workspace_byte_total"] = sum(f.byte_size for f in files)
             finding["workspace_file_count"] = len(files)
             finding["workspace_files"] = [
