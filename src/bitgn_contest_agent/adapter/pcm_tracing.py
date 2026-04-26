@@ -16,13 +16,23 @@ adapter would miss those.
 """
 from __future__ import annotations
 
+import json
+import os
 import re
+import threading
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Iterator, Optional
 
 from bitgn.vm import pcm_pb2
+
+try:
+    from google.protobuf.json_format import MessageToJson
+except ImportError:
+    MessageToJson = None  # type: ignore
 
 # Gate for search() case-fold retry: a single lowercase alphanumeric
 # token (letters, digits, `_`, `-`). Patterns with regex metacharacters,
@@ -100,6 +110,73 @@ def _response_bytes(resp: Any) -> int:
         return int(resp.ByteSize())
     except Exception:
         return 0
+
+
+_RAW_DUMP_LOCK = threading.Lock()
+_RAW_DUMP_PATH: Optional[Path] = None
+
+
+def _raw_dump_path() -> Optional[Path]:
+    """Resolve the per-process raw-response dump file lazily.
+
+    Returns None when capture is disabled. When enabled, all calls in
+    this process append to the same file so cross-thread interleaving is
+    serialized (file open is JSON-line safe under the lock).
+    """
+    global _RAW_DUMP_PATH
+    if not os.environ.get("BITGN_TRACE_RAW_RESPONSES"):
+        return None
+    if _RAW_DUMP_PATH is not None:
+        return _RAW_DUMP_PATH
+    base = os.environ.get("BITGN_TRACE_RAW_DIR", "logs/raw_responses")
+    Path(base).mkdir(parents=True, exist_ok=True)
+    _RAW_DUMP_PATH = Path(base) / f"pcm_responses.{os.getpid()}.jsonl"
+    return _RAW_DUMP_PATH
+
+
+def _proto_to_dict(msg: Any) -> Any:
+    """Best-effort serialization that works for protobuf and the local
+    duck-typed response wrappers. Returns a JSON-safe dict, or None when
+    the object can't be serialized."""
+    if MessageToJson is not None:
+        try:
+            return json.loads(
+                MessageToJson(msg, preserving_proto_field_name=True)
+            )
+        except Exception:
+            pass
+    try:
+        return {k: getattr(msg, k) for k in getattr(msg, "__dataclass_fields__", {})}
+    except Exception:
+        return None
+
+
+def _dump_raw(op: str, req: Any, resp: Any, *, ok: bool, wall_ms: int,
+              error_code: Optional[str]) -> None:
+    """Append a single raw request/response record to the per-process
+    dump file. Best-effort: any exception is swallowed so capture
+    failures never mask a real PCM error.
+    """
+    path = _raw_dump_path()
+    if path is None:
+        return
+    try:
+        record = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "op": op,
+            "ok": ok,
+            "wall_ms": wall_ms,
+            "error_code": error_code,
+            "request": _proto_to_dict(req) if req is not None else None,
+            "response": _proto_to_dict(resp) if resp is not None else None,
+            "origin": _pcm_op_origin.get(),
+        }
+        line = json.dumps(record, default=str) + "\n"
+        with _RAW_DUMP_LOCK:
+            with path.open("a", encoding="utf-8") as f:
+                f.write(line)
+    except Exception:
+        pass
 
 
 def _classify_exception(exc: BaseException) -> str:
@@ -224,11 +301,16 @@ class TracingPcmClient:
                 self._emit(op="context", path=None, bytes_=0,
                            wall_ms=wall_ms, ok=False,
                            error_code=_classify_exception(exc))
+                _dump_raw("context", None, None, ok=False,
+                          wall_ms=wall_ms,
+                          error_code=_classify_exception(exc))
                 raise
             wall_ms = int((time.monotonic() - start) * 1000)
             self._emit(op="context", path=None,
                        bytes_=_response_bytes(resp), wall_ms=wall_ms,
                        ok=True, error_code=None)
+            _dump_raw("context", None, resp, ok=True,
+                      wall_ms=wall_ms, error_code=None)
             return resp
         return self._traced(req, self._runtime.context)
 
@@ -259,14 +341,17 @@ class TracingPcmClient:
             resp = method(req)
         except BaseException as exc:
             wall_ms = int((time.monotonic() - start) * 1000)
+            ec = _classify_exception(exc)
             self._emit(
                 op=resolved_op,
                 path=resolved_path,
                 bytes_=0,
                 wall_ms=wall_ms,
                 ok=False,
-                error_code=_classify_exception(exc),
+                error_code=ec,
             )
+            _dump_raw(resolved_op, req, None, ok=False,
+                      wall_ms=wall_ms, error_code=ec)
             raise
         wall_ms = int((time.monotonic() - start) * 1000)
         self._emit(
@@ -277,6 +362,8 @@ class TracingPcmClient:
             ok=True,
             error_code=None,
         )
+        _dump_raw(resolved_op, req, resp, ok=True,
+                  wall_ms=wall_ms, error_code=None)
         return resp
 
     def _resolve(
