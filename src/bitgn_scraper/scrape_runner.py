@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from bitgn_scraper.fingerprint import FileRecord, instantiation_hash
+from bitgn_scraper.fingerprint import FileRecord, instantiation_hash, tree_fingerprint
 from bitgn_scraper.workspace_walk import walk_workspace
 
 
@@ -101,7 +101,7 @@ def _persist_instantiation(
     from bitgn.vm.pcm_pb2 import ReadRequest
 
     instruction_hash = hashlib.sha256(instruction.encode("utf-8")).hexdigest()
-    tree_fp = _tree_fingerprint(files)
+    tree_fp = tree_fingerprint(files)
     workspace_dir_rel = f"{task_id}/{instantiation_hash_[:12]}"
     workspace_dir_abs = workspace_root / workspace_dir_rel
     workspace_dir_abs.mkdir(parents=True, exist_ok=True)
@@ -137,6 +137,9 @@ def _persist_instantiation(
 
     with sqlite3.connect(db_path) as cx:
         cx.execute("PRAGMA foreign_keys = ON")
+        # context_time/context_unix snapshot the harness clock from the trial that
+        # first observed this (instruction, workspace) pair; the hash itself excludes
+        # them, so subsequent trials with different clocks collapse to this row.
         cx.execute(
             """
             INSERT INTO task_instantiations
@@ -164,8 +167,3 @@ def _persist_instantiation(
         )
         cx.commit()
 
-
-def _tree_fingerprint(files: list[FileRecord]) -> str:
-    """SHA-256 over the sorted manifest. Stable across runs."""
-    from bitgn_scraper.fingerprint import tree_fingerprint
-    return tree_fingerprint(files)
