@@ -14,6 +14,7 @@ remaining rules are already known.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +23,7 @@ from typing import Any, Callable
 from bitgn_scraper.db import insert_scoring_rule
 from bitgn_scraper.probe_extract import extract_probe_rules
 
+logger = logging.getLogger(__name__)
 
 _PROBE_ORDER = ["P1_empty", "P2_extracted", "P3_with_refs", "P4_with_writes", "P5_outcome_alt"]
 
@@ -43,39 +45,25 @@ def probe_instantiation(
     Updates known_rules in-place so callers can pass pre-known rules in
     (e.g. from Phase 1.5 seed) and read the post-probe state out.
     """
-    from bitgn.harness_pb2 import EndTrialRequest, StartPlaygroundRequest
-    from bitgn.vm.pcm_pb2 import AnswerRequest, Outcome, WriteRequest
-    from connectrpc.errors import ConnectError
-
     n_fired = 0
     for probe_kind in _PROBE_ORDER:
         ans, refs, writes_map, outcome = _build_probe(probe_kind, known_rules)
 
-        started = harness_client.start_playground(
-            StartPlaygroundRequest(benchmark_id=benchmark_id, task_id=task_id)
-        )
-        try:
-            pcm = pcm_factory(started.harness_url)
-            for path, content in writes_map.items():
-                pcm.write(WriteRequest(path=path, content=content))
-            try:
-                pcm.answer(AnswerRequest(message=ans, outcome=outcome))
-            except ConnectError:
-                pass
-        finally:
-            ended = harness_client.end_trial(EndTrialRequest(trial_id=started.trial_id))
-
-        n_fired += 1
-        score = float(ended.score)
-        detail = list(ended.score_detail)
-        probe_id = _persist_probe(
-            db_path=db_path,
+        probe_id, score, detail = _run_single_probe(
+            harness_client=harness_client,
+            pcm_factory=pcm_factory,
             task_id=task_id,
+            benchmark_id=benchmark_id,
             instantiation_hash=instruction_hash,
             probe_kind=probe_kind,
-            ans=ans, refs=refs, writes=writes_map, outcome=outcome,
-            score=score, score_detail=detail, trial_id=started.trial_id,
+            ans=ans,
+            refs=refs,
+            writes=writes_map,
+            outcome=outcome,
+            db_path=db_path,
         )
+        n_fired += 1
+
         for rule in extract_probe_rules(" ".join(detail)):
             insert_scoring_rule(
                 db_path=db_path,
@@ -99,6 +87,52 @@ def probe_instantiation(
         n_fired += _run_p6(harness_client, pcm_factory, task_id, benchmark_id,
                            instruction_hash, db_path)
     return n_fired
+
+
+def _run_single_probe(
+    *,
+    harness_client: Any,
+    pcm_factory: Callable[[str], Any],
+    task_id: str,
+    benchmark_id: str,
+    instantiation_hash: str,
+    probe_kind: str,
+    ans: str,
+    refs: list[str],
+    writes: dict[str, str],
+    outcome: int,
+    db_path: Path,
+) -> tuple[int, float, list[str]]:
+    """Run one probe trial and persist the row. Returns (probe_id, score, score_detail)."""
+    from bitgn.harness_pb2 import EndTrialRequest, StartPlaygroundRequest
+    from bitgn.vm.pcm_pb2 import AnswerRequest, WriteRequest
+    from connectrpc.errors import ConnectError
+
+    started = harness_client.start_playground(
+        StartPlaygroundRequest(benchmark_id=benchmark_id, task_id=task_id)
+    )
+    try:
+        pcm = pcm_factory(started.harness_url)
+        for path, content in writes.items():
+            pcm.write(WriteRequest(path=path, content=content))
+        try:
+            pcm.answer(AnswerRequest(message=ans, outcome=outcome))
+        except ConnectError:
+            logger.debug("pcm.answer ConnectError swallowed", exc_info=True)
+    finally:
+        ended = harness_client.end_trial(EndTrialRequest(trial_id=started.trial_id))
+
+    score = float(ended.score)
+    detail = list(ended.score_detail)
+    probe_id = _persist_probe(
+        db_path=db_path,
+        task_id=task_id,
+        instantiation_hash=instantiation_hash,
+        probe_kind=probe_kind,
+        ans=ans, refs=refs, writes=writes, outcome=outcome,
+        score=score, score_detail=detail, trial_id=started.trial_id,
+    )
+    return probe_id, score, detail
 
 
 def _build_probe(kind: str, known: dict[str, list[str]]) -> tuple[str, list[str], dict[str, str], int]:
@@ -166,35 +200,25 @@ def _run_p2b(
     db_path: Path,
 ) -> int:
     """Single mutation probe — case-flip on the extracted answer."""
-    from bitgn.harness_pb2 import EndTrialRequest, StartPlaygroundRequest
-    from bitgn.vm.pcm_pb2 import AnswerRequest, Outcome
-    from connectrpc.errors import ConnectError
+    from bitgn.vm.pcm_pb2 import Outcome
 
     base = (known.get("expected_answer") or [""])[0]
     if not base:
         return 0
     mutated = base.swapcase() if base != base.swapcase() else base + " "
 
-    started = harness_client.start_playground(
-        StartPlaygroundRequest(benchmark_id=benchmark_id, task_id=task_id)
-    )
-    try:
-        pcm = pcm_factory(started.harness_url)
-        try:
-            pcm.answer(AnswerRequest(message=mutated, outcome=Outcome.OUTCOME_OK))
-        except ConnectError:
-            pass
-    finally:
-        ended = harness_client.end_trial(EndTrialRequest(trial_id=started.trial_id))
-
-    _persist_probe(
-        db_path=db_path,
+    _run_single_probe(
+        harness_client=harness_client,
+        pcm_factory=pcm_factory,
         task_id=task_id,
+        benchmark_id=benchmark_id,
         instantiation_hash=instantiation_hash,
         probe_kind="P2b_mutation",
-        ans=mutated, refs=[], writes={}, outcome=int(Outcome.OUTCOME_OK),
-        score=float(ended.score), score_detail=list(ended.score_detail),
-        trial_id=started.trial_id,
+        ans=mutated,
+        refs=[],
+        writes={},
+        outcome=int(Outcome.OUTCOME_OK),
+        db_path=db_path,
     )
     return 1
 
@@ -208,29 +232,19 @@ def _run_p6(
     db_path: Path,
 ) -> int:
     """Random-but-typed answer probe."""
-    from bitgn.harness_pb2 import EndTrialRequest, StartPlaygroundRequest
-    from bitgn.vm.pcm_pb2 import AnswerRequest, Outcome
-    from connectrpc.errors import ConnectError
+    from bitgn.vm.pcm_pb2 import Outcome
 
-    started = harness_client.start_playground(
-        StartPlaygroundRequest(benchmark_id=benchmark_id, task_id=task_id)
-    )
-    try:
-        pcm = pcm_factory(started.harness_url)
-        try:
-            pcm.answer(AnswerRequest(message="P6_RANDOM", outcome=Outcome.OUTCOME_OK))
-        except ConnectError:
-            pass
-    finally:
-        ended = harness_client.end_trial(EndTrialRequest(trial_id=started.trial_id))
-
-    _persist_probe(
-        db_path=db_path,
+    _run_single_probe(
+        harness_client=harness_client,
+        pcm_factory=pcm_factory,
         task_id=task_id,
+        benchmark_id=benchmark_id,
         instantiation_hash=instantiation_hash,
         probe_kind="P6_random",
-        ans="P6_RANDOM", refs=[], writes={}, outcome=int(Outcome.OUTCOME_OK),
-        score=float(ended.score), score_detail=list(ended.score_detail),
-        trial_id=started.trial_id,
+        ans="P6_RANDOM",
+        refs=[],
+        writes={},
+        outcome=int(Outcome.OUTCOME_OK),
+        db_path=db_path,
     )
     return 1
