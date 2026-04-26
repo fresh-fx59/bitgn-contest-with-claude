@@ -12,6 +12,17 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
+
+# When invoked as `python scripts/bitgn_scraper.py`, Python inserts
+# `scripts/` at sys.path[0], which shadows the `bitgn_scraper` *package*
+# (in src/) with this script file itself. Fix: remove scripts/ entries and
+# ensure src/ appears before any shadowing path.
+_SCRIPTS = Path(__file__).resolve().parent
+_SRC = _SCRIPTS.parent / "src"
+sys.path = [p for p in sys.path if Path(p).resolve() != _SCRIPTS]
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
 
 def _build_parser() -> argparse.ArgumentParser:
