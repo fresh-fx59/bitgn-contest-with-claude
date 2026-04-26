@@ -44,7 +44,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    # Each subcommand re-parses sys.argv[2:] in its own CLI shim, so let
+    # subcommand-specific flags pass through here without erroring.
+    args, _rest = parser.parse_known_args(argv)
     if args.cmd == "phase0":
         from bitgn_scraper.phase0 import run_phase0_cli
         return run_phase0_cli()
