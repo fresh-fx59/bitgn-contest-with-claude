@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import sys
 import threading
 import time
@@ -101,8 +102,11 @@ class LocalPcmAdapter:
         try:
             if isinstance(req, Req_Read):
                 resp = self._client.read(req)
-                return self._finish(start, json.dumps({"content": resp.content}),
-                                    refs=(req.path,))
+                return self._finish(
+                    start,
+                    json.dumps({"path": req.path, "content": resp.content}),
+                    refs=(req.path,),
+                )
 
             if isinstance(req, Req_Write):
                 val = validate_yaml_frontmatter(req.content)
@@ -114,19 +118,19 @@ class LocalPcmAdapter:
                         error_code="FORMAT_INVALID", wall_ms=wall_ms,
                     )
                 self._client.write(req)
-                return self._finish(start, '{"ok": true}', refs=())
+                return self._finish(start, "{}", refs=())
 
             if isinstance(req, Req_Delete):
                 self._client.delete(req)
-                return self._finish(start, '{"ok": true}', refs=())
+                return self._finish(start, "{}", refs=())
 
             if isinstance(req, Req_MkDir):
                 self._client.mkdir(req)
-                return self._finish(start, '{"ok": true}', refs=())
+                return self._finish(start, "{}", refs=())
 
             if isinstance(req, Req_Move):
                 self._client.move(req)
-                return self._finish(start, '{"ok": true}', refs=())
+                return self._finish(start, "{}", refs=())
 
             if isinstance(req, Req_List):
                 resp = self._client.list(req)
@@ -143,7 +147,7 @@ class LocalPcmAdapter:
 
             if isinstance(req, Req_Find):
                 resp = self._client.find(req)
-                return self._finish(start, json.dumps({"paths": resp.paths}),
+                return self._finish(start, json.dumps({"items": resp.items}),
                                     refs=())
 
             if isinstance(req, Req_Search):
@@ -161,7 +165,7 @@ class LocalPcmAdapter:
                 resp = self._client.context()
                 return self._finish(
                     start,
-                    json.dumps({"current_time": resp.current_time}),
+                    json.dumps({"time": resp.time, "unix_time": resp.unix_time}),
                     refs=(),
                 )
 
@@ -189,15 +193,17 @@ class LocalPcmAdapter:
 
     def submit_terminal(self, completion: ReportTaskCompletion) -> ToolResult:
         start = time.monotonic()
+        message = re.sub(r'(?m)^/', '', completion.message)
+        refs = [r.lstrip("/") for r in completion.grounding_refs]
         self.last_answer = {
-            "message": completion.message,
+            "message": message,
             "outcome": completion.outcome,
-            "grounding_refs": list(completion.grounding_refs),
+            "grounding_refs": refs,
             "outcome_justification": getattr(completion, "outcome_justification", ""),
         }
         self._client.answer(completion)
         return self._finish(
-            start, '{"ok": true}',
+            start, "{}",
             refs=tuple(completion.grounding_refs),
         )
 

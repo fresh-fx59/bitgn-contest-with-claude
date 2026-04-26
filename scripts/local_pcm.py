@@ -13,6 +13,7 @@ Usage as a library:
 """
 from __future__ import annotations
 
+import calendar
 import hashlib
 import os
 import re
@@ -163,27 +164,47 @@ class LocalPcmClient:
         return _SearchResponse(matches=matches, total_matches=total)
 
     def find(self, req: Any) -> Any:
-        """Emulate find RPC — find files by name pattern."""
+        """Emulate find RPC — find files by name pattern.
+
+        PROD PCM find is case-sensitive substring (per cf90740 trace
+        evidence: 3/3 PROD find calls returned empty 2-byte envelopes
+        for non-matching exact-case names). Default local matches PROD;
+        set PCM_LOCAL_FIND_CASE_INSENSITIVE=1 to override.
+        """
         root = getattr(req, "root", "/")
         name = getattr(req, "name", "")
         limit = getattr(req, "limit", 100)
         resolved = self._resolve(root)
 
+        case_insensitive = bool(os.environ.get("PCM_LOCAL_FIND_CASE_INSENSITIVE"))
+        needle = name.lower() if case_insensitive else name
+
         results: list[str] = []
         for filepath in sorted(resolved.rglob("*")):
-            if name.lower() in filepath.name.lower():
+            haystack = filepath.name.lower() if case_insensitive else filepath.name
+            if needle in haystack:
                 rel_path = "/" + str(filepath.relative_to(self._root))
                 results.append(rel_path)
                 if len(results) >= limit:
                     break
 
         self.ops_log.append({"op": "find", "root": root, "name": name, "results": len(results)})
-        return _FindResponse(paths=results)
+        return _FindResponse(items=results)
 
     def context(self, req: Any = None) -> Any:
-        """Emulate context RPC — returns current date."""
+        """Emulate context RPC — returns current date.
+
+        PROD ContextResponse has both `time` (ISO8601 string) and
+        `unix_time` (int seconds). We mirror that shape exactly.
+        """
+        time_str = self._context_date
+        try:
+            dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%SZ")
+            unix_time = int(calendar.timegm(dt.timetuple()))
+        except (ValueError, TypeError):
+            unix_time = 0
         self.ops_log.append({"op": "context"})
-        return _ContextResponse(current_time=self._context_date)
+        return _ContextResponse(time=time_str, unix_time=unix_time)
 
     def write(self, req: Any) -> Any:
         """Emulate write RPC — writes content to file."""
@@ -271,11 +292,12 @@ class _SearchResponse:
 
 @dataclass
 class _FindResponse:
-    paths: list[str]
+    items: list[str]
 
 @dataclass
 class _ContextResponse:
-    current_time: str
+    time: str
+    unix_time: int = 0
 
 @dataclass
 class _WriteResponse:
