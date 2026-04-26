@@ -77,3 +77,17 @@ def test_insert_scoring_rule_rejects_bad_confidence(tmp_path: Path) -> None:
             derived_from=None,
             notes=None,
         )
+
+
+def test_foreign_key_enforcement(tmp_path: Path) -> None:
+    """Verify PRAGMA foreign_keys = ON actually rejects orphaned rows."""
+    db_path = tmp_path / "test.db"
+    init_schema(db_path)
+    with connect(db_path) as conn:
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO workspace_files "
+                "(task_id, instantiation_hash, path, is_dir, byte_size, sha256) "
+                "VALUES ('t000', 'no-such-hash', '/AGENTS.MD', 0, 100, 'deadbeef')"
+            )
+            conn.commit()

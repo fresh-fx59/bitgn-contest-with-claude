@@ -28,6 +28,10 @@ EXPECTED_TABLES: tuple[str, ...] = (
 
 VALID_CONFIDENCE: frozenset[str] = frozenset({"high", "medium", "low"})
 
+# NOTE: `derived_from` in `scoring_rules` is intentionally nullable.
+# Seed rules mined from existing JSONL traces and server logs (Phase 1.5 tasks
+# 4-7) predate any probe call, so there is no probe_log row to reference.
+# Only rules produced by Phase-2 probes will have a non-NULL derived_from.
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS task_instantiations (
     task_id              TEXT NOT NULL,
