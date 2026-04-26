@@ -92,11 +92,16 @@ Rationale: SQLite is one file (clean), supports indexed queries (essential for g
 
 ```sql
 -- One row per (task_id, instantiation). Each StartPlayground call
--- produces a fresh instantiation_hash (SHA-256 of instruction text).
+-- produces a fresh instantiation_hash. The hash combines instruction
+-- text AND workspace tree fingerprint (sha256 of sorted "path:size:sha256"
+-- lines for every file) so two trials with identical instructions but
+-- different file contents are treated as distinct instantiations.
 CREATE TABLE task_instantiations (
     task_id              TEXT NOT NULL,
-    instantiation_hash   TEXT NOT NULL,         -- sha256(instruction)
+    instantiation_hash   TEXT NOT NULL,         -- sha256(instruction || tree_fingerprint)
     instruction          TEXT NOT NULL,
+    instruction_hash     TEXT NOT NULL,         -- sha256(instruction) — for deduping by instruction alone
+    tree_fingerprint     TEXT NOT NULL,         -- sha256 of the workspace tree manifest
     context_time         TEXT NOT NULL,         -- RFC3339 from PCM.Context
     context_unix         INTEGER NOT NULL,
     benchmark_id         TEXT NOT NULL,
@@ -191,15 +196,20 @@ Standalone program. Imports `bitgn.harness_pb2` and `bitgn.pcm_pb2` for gRPC typ
 
 ### Phase 0: Lifecycle spike
 
-Goal: validate empirical assumptions before any scaled work.
+Goal: validate empirical assumptions before any scaled work. **Requires `BITGN_API_KEY` in env**, sourced from `.env` like `verify_prod_grader.py`.
 
 Steps:
 1. Call `StartPlayground(t001)` 3 times in succession. Compare the 3 instructions. **Records:** is the instruction text identical? Different? How many distinct variants emerge over N=20 calls? (Answers: does rotation exist? Is the variant pool finite?)
-2. For one trial: time how long `harness_url` remains reachable after `EndTrial`. Probe at t=0s, t=5s, t=30s, t=5min, t=30min. **Records:** does the sandbox stay alive after EndTrial, or is it torn down immediately?
+2. For one trial: time how long `harness_url` remains reachable after `EndTrial`. Probe at t=0s, t=5s, t=30s, t=5min, t=30min. **Records:** does the sandbox stay alive after EndTrial, or is it torn down immediately? (Determines probe Strategy A vs B.)
 3. For one trial without calling `EndTrial`: probe `harness_url` at t=10min, t=30min, t=2h. **Records:** is there a max trial lifetime that auto-terminates?
 4. Try writing a file via `PCM.Write` then `EndTrial` → start a new trial of the same `task_id` → does the new trial see the write? **Records:** is workspace state per-trial-isolated, or shared?
+5. Submit two `Answer` calls in the same trial (A1=wrong, A2=different-wrong), then `EndTrial`. **Records:** does the grader use the last `Answer` or the first? Critical for Strategy A.
+6. **Rate-limit discovery.** Issue 20 parallel `StartPlayground` calls; record HTTP/429 or throttling response. **Records:** rate ceiling; informs scraper concurrency.
+7. **Workspace size sanity.** For 5 tasks, sum file sizes from full tree-walk. **Records:** does any task exceed 10 MB, 100 MB? Sets per-task disk safety abort threshold.
 
-Output: `scrape_runs/<ts>/lifecycle_spike.json`. Findings inform scraper concurrency, retry strategy, and how many instantiations per task to capture.
+Output: `scrape_runs/<ts>/lifecycle_spike.json`. Findings inform scraper concurrency, retry strategy, probe strategy A vs B, and how many instantiations per task to capture.
+
+Estimated wall-clock cost for full pipeline (Phase 1+2 across 104 tasks): ~14 h sequentially at ~10 s/playground call × ~30 calls/task. Phase 0 step 6 may unlock parallelism that brings this to 2–4 h. Disk: assume ≤10 MB/instantiation × 30 instantiations × 104 tasks = ~30 GB worst case; safety abort at 100 MB/instantiation.
 
 ### Phase 1: Workspace scrape
 
@@ -233,16 +243,24 @@ The walker handles arbitrarily deep trees. If a `Read` fails (binary file? encod
 
 ### Phase 2: Grader probe matrix
 
-For each `(task_id, instantiation_hash)` row from Phase 1, run probes adaptively in this order:
+**Rotation correctness.** Each `StartPlayground` produces a fresh instantiation. Naively chaining "submit P1 → use leaked answer in P2" across trials is wrong: P2's trial may target a different entity rotation and the answer extracted from P1 won't apply. Two execution strategies, picked based on Phase 0 finding Q2 (does the sandbox stay alive after `EndTrial`?):
+
+- **Strategy A (preferred, if sandbox persists post-EndTrial or supports multi-Answer-per-trial):** open one trial per instantiation, run P1–P5 sub-probes against the same `harness_url`, aggregate leaks per-instantiation.
+- **Strategy B (fallback):** one trial per probe, aggregate by post-hoc `instruction_hash` matching. Each probe trial records its own instantiation; rules are merged across trials sharing identical instruction text.
+
+For each `(task_id, instantiation_hash)` row from Phase 1, run probes in this order:
 
 | Probe | Answer | Refs | Writes | Outcome | Stops if score=1.0 |
 |---|---|---|---|---|---|
-| P1 | `""` | `[]` | `{}` | `OUTCOME_OK` | yes |
-| P2 | extracted-from-P1 | `[]` | `{}` | `OUTCOME_OK` | yes |
-| P3 | extracted | extracted-from-P1 | `{}` | `OUTCOME_OK` | yes |
-| P4 | extracted | extracted | extracted-from-P1 | `OUTCOME_OK` | yes |
-| P5 | extracted | extracted | extracted | `OUTCOME_NONE_CLARIFICATION` | terminal |
-| P6 | random-but-typed (date/number/name matching question shape) | `[]` | `{}` | `OUTCOME_OK` | n/a — diagnostic only |
+| P1 | `""` | `[]` | `{}` | `OUTCOME_OK` | yes — task fully understood |
+| P2 | extracted-answer | `[]` | `{}` | `OUTCOME_OK` | yes |
+| P2b | extracted-answer with semantic-neighbor mutation (date±1, name case-flip, trailing whitespace, alt format) | `[]` | `{}` | `OUTCOME_OK` | n/a — diagnostic; tests answer-tolerance |
+| P3 | extracted-answer | extracted-refs | `{}` | `OUTCOME_OK` | yes |
+| P4 | extracted-answer | extracted-refs | extracted-writes | `OUTCOME_OK` | yes |
+| P5 | extracted-answer | extracted-refs | extracted-writes | `OUTCOME_NONE_CLARIFICATION` | terminal |
+| P6 | random-but-typed (date/number/name matching question shape) | `[]` | `{}` | `OUTCOME_OK` | n/a — diagnostic on a sample |
+
+P2b is the multi-valued-answer test: if the grader accepts `1989-02-17` when expecting `1989-02-16`, score=1.0 reveals tolerance; otherwise we know it's exact-match. Run on 20 sampled tasks per category to characterise grader strictness, not all 104.
 
 After each probe, parse `score_detail` with regex extractors:
 
@@ -262,6 +280,10 @@ Each match → row in `scoring_rules` with `confidence='high'`. Detail strings t
 **Adaptive stopping:** if any probe returns `score=1.0`, that instantiation is "fully understood" — record the rule set, stop probing this row. If P5 (the outcome-mismatch probe) is reached without `score=1.0`, the task likely uses semantic similarity scoring; flag `confidence='low'` and move on.
 
 P6 is purely diagnostic — its result tells us whether the grader does string-equality on answers or semantic matching. Run on ~10 sampled tasks, not all 104.
+
+### Phase 1.5: Free seed rules from existing traces
+
+Before running any probes, mine `logs/prod_cf90740_full/20260425_181902/*.jsonl` and the 7 PROD server logs (`vm-*.eu.bitgn.com.txt`, `t000-*.log`, `t066-*.log`) for already-observed `score_detail` strings. The 22LAfu4 trace has 2 failed tasks (t000, t066) with explicit "Expected:" / "missing file write" strings; the historical server logs contribute another ~5 failed-task patterns. Apply the regex extractors from Phase 2 to these strings; populate `scoring_rules` with `confidence='high'` and `derived_from=NULL` (no probe id). This gives free coverage on a non-trivial slice before any new API calls.
 
 ### Phase 3: Self-validation
 
@@ -306,7 +328,9 @@ The harness supports a `BITGN_LOCAL_HARNESS_VARIANT_SEED` env var so tests can p
 
 **Existing prior art.** Commit 647b1e8 already ships `BITGN_TRACE_RAW_RESPONSES=1` via `src/bitgn_contest_agent/adapter/pcm_tracing.py`, which dumps every PCM request/response pair as JSONL to `logs/raw_responses/`. That covers the *workspace I/O* side. This component adds the symmetric piece for LLM calls — it does **not** duplicate the PCM raw-response work.
 
-Single change to the agent's LLM call site. Today the trace emits `kind=step` with `llm.prompt_tokens`, `llm.completion_tokens`, etc., but no prompt or completion content. New behavior:
+**Call site located:** `src/bitgn_contest_agent/backend/openai_compat.py:259` (`call_structured`) and the abstract base at `src/bitgn_contest_agent/backend/base.py:52`. The wrapper hooks the concrete subclass return path so all backends (current + future) inherit the trace.
+
+Today the trace emits `kind=step` with `llm.prompt_tokens`, `llm.completion_tokens`, etc., but no prompt or completion content. New behavior:
 
 - If `BITGN_TRACE_LLM_CONTENT=1` (or `=true` / `=yes`), emit an additional event after each LLM call:
   ```json
@@ -363,10 +387,11 @@ These are answered by Phase 0 and don't block design approval — they're flagge
 
 ## Out of scope
 
-- LLM-as-judge fallback grader for tasks with semantic-similarity scoring. Flagged as a follow-up — the framework supports it via `confidence='low'` rules, but we don't implement it in this work.
+- LLM-as-judge fallback grader for tasks with semantic-similarity scoring. Flagged as a follow-up — the framework supports it via `confidence='low'` rules, but we don't implement it in this work. Tasks left in `confidence='low'` after Phase 1.5 + Phase 2 are reported as a residual set; the parity acceptance gate (Validation §3) excludes them with a documented count.
 - Replicating PROD's leaderboard / `RUN_KIND_BLIND` flow. The local harness only models the playground/`EVAL_POLICY_OPEN` path.
 - Scraper UI / admin dashboard. This is a CLI program with JSON outputs.
 - Removing `scripts/local_pcm.py` and `scripts/local_bench.py`. They keep working off filesystem snapshots and are a useful sanity-check fallback during the local-harness rollout. Deprecation is post-Phase 6.
+- Forbidden-value rules ("answer must NOT contain X"). Probe matrix only extracts positive constraints. Flag if encountered.
 
 ## Plan decomposition
 
