@@ -1,0 +1,42 @@
+"""BitGN scraper CLI.
+
+Subcommands:
+  phase0  — run the lifecycle spike against PROD; write
+            artifacts/harness_db/scrape_runs/<ts>/lifecycle_spike.json
+  seed    — mine existing JSONL traces + server logs for free
+            grader-rule seeds; populate scoring_rules in the SQLite DB
+
+Both subcommands are thin shims over functions in src/bitgn_scraper/.
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="bitgn_scraper",
+        description="BitGN PROD harness scraper.",
+    )
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("phase0", help="run the lifecycle spike (Phase 0)")
+    sub.add_parser("seed", help="mine existing logs for free grader rules (Phase 1.5)")
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    if args.cmd == "phase0":
+        from bitgn_scraper.phase0 import run_phase0_cli
+        return run_phase0_cli()
+    if args.cmd == "seed":
+        from bitgn_scraper.seed_rules import run_seed_cli
+        return run_seed_cli()
+    parser.error(f"unknown command: {args.cmd!r}")
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
