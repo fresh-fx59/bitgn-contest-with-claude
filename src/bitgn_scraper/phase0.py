@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -116,6 +116,7 @@ def _spike_url_lifetime(client: Any, task_id: str) -> UrlLifetimeFinding:
     from bitgn.harness_pb2 import EndTrialRequest, StartPlaygroundRequest
     from bitgn_scraper.clients import build_pcm_client
     from bitgn.vm.pcm_pb2 import ContextRequest
+    from connectrpc.errors import ConnectError
 
     started = client.start_playground(
         StartPlaygroundRequest(benchmark_id="bitgn/pac1-prod", task_id=task_id)
@@ -134,7 +135,7 @@ def _spike_url_lifetime(client: Any, task_id: str) -> UrlLifetimeFinding:
         try:
             pcm.context(ContextRequest())
             reachable.append(True)
-        except Exception:
+        except ConnectError:
             reachable.append(False)
     return UrlLifetimeFinding(
         trial_id=started.trial_id,
@@ -149,6 +150,7 @@ def _spike_auto_termination(client: Any, task_id: str) -> AutoTerminationFinding
     from bitgn.harness_pb2 import StartPlaygroundRequest
     from bitgn.vm.pcm_pb2 import ContextRequest
     from bitgn_scraper.clients import build_pcm_client
+    from connectrpc.errors import ConnectError
 
     started = client.start_playground(
         StartPlaygroundRequest(benchmark_id="bitgn/pac1-prod", task_id=task_id)
@@ -165,7 +167,7 @@ def _spike_auto_termination(client: Any, task_id: str) -> AutoTerminationFinding
         try:
             pcm.context(ContextRequest())
             reachable.append(True)
-        except Exception:
+        except ConnectError:
             reachable.append(False)
     inferred: int | None = None
     for i, ok in enumerate(reachable):
@@ -185,6 +187,7 @@ def _spike_state_isolation(client: Any, task_id: str) -> StateIsolationFinding:
     from bitgn.harness_pb2 import EndTrialRequest, StartPlaygroundRequest
     from bitgn.vm.pcm_pb2 import ReadRequest, WriteRequest
     from bitgn_scraper.clients import build_pcm_client
+    from connectrpc.errors import ConnectError
 
     probe_path = "/_scraper_probe.txt"
     probe_content = "scraper-probe"
@@ -204,7 +207,7 @@ def _spike_state_isolation(client: Any, task_id: str) -> StateIsolationFinding:
     try:
         resp = pcm2.read(ReadRequest(path=probe_path))
         saw = (resp.content == probe_content)
-    except Exception:
+    except ConnectError:
         saw = False
     client.end_trial(EndTrialRequest(trial_id=started2.trial_id))
     return StateIsolationFinding(
@@ -227,7 +230,7 @@ def _spike_answer_replay(client: Any, task_id: str) -> AnswerReplayFinding:
     pcm.answer(AnswerRequest(message="beta", outcome=Outcome.OUTCOME_OK))
 
     ended = client.end_trial(EndTrialRequest(trial_id=started.trial_id))
-    detail = " ".join(list(ended.score_detail) or [])
+    detail = " ".join(ended.score_detail)
     if "alpha" in detail and "beta" not in detail:
         graded = "first"
     elif "beta" in detail and "alpha" not in detail:
@@ -297,8 +300,17 @@ def _spike_size_sanity(client: Any, task_ids: list[str]) -> SizeSanityFinding:
 
 
 def _walk_tree_byte_total(pcm: Any, entry: Any, prefix: str) -> int:
-    """Recursive tree-walk; sums byte counts of all files."""
+    """Recursive tree-walk; sums byte counts of all files.
+
+    TreeResponse.Entry exposes only {name, is_dir, children} — no size field,
+    so we have to Read each file. ReadResponse.content is proto TYPE_STRING,
+    so we measure it via .encode("utf-8"). On RPC failure we count the file
+    as 0 rather than aborting the whole scan, but we deliberately let any
+    other exception (AttributeError from an SDK rename, etc.) propagate so
+    the spike fails loudly instead of silently reporting zero bytes.
+    """
     from bitgn.vm.pcm_pb2 import ReadRequest
+    from connectrpc.errors import ConnectError
 
     name = entry.name or ""
     path = prefix + ("/" + name if name and name != "/" else "")
@@ -306,9 +318,9 @@ def _walk_tree_byte_total(pcm: Any, entry: Any, prefix: str) -> int:
         return sum(_walk_tree_byte_total(pcm, c, path) for c in entry.children)
     try:
         resp = pcm.read(ReadRequest(path=path or "/"))
-        return len(resp.content.encode("utf-8"))
-    except Exception:
+    except ConnectError:
         return 0
+    return len(resp.content.encode("utf-8"))
 
 
 def run_phase0_cli() -> int:
