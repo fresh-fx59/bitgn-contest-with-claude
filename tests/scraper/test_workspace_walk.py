@@ -3,6 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from connectrpc.code import Code
+from connectrpc.errors import ConnectError
+
 from bitgn_scraper.workspace_walk import walk_workspace
 
 
@@ -34,7 +37,7 @@ class _FakePcm:
     def read(self, req):
         path = req.path
         if path not in self._files:
-            raise KeyError(path)
+            raise ConnectError(Code.NOT_FOUND, path)
         return _FakeReadResp(content=self._files[path])
 
 
@@ -61,7 +64,7 @@ def test_walk_workspace_skips_unreadable_with_marker() -> None:
         _FakeEntry(name="a.md", is_dir=False),
         _FakeEntry(name="bad.bin", is_dir=False),
     ])
-    files = {"/a.md": "alpha"}  # /bad.bin missing → KeyError on read
+    files = {"/a.md": "alpha"}  # /bad.bin missing → ConnectError on read
     pcm = _FakePcm(tree, files)
 
     records = walk_workspace(pcm)
