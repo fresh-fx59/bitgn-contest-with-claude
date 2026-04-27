@@ -79,12 +79,13 @@ Tool workflow:
     if necessary.
   - `search` and `find` are CASE-SENSITIVE substring/regex matchers.
     A lowercase pattern will MISS matches that appear in capitalized
-    form. For proper-noun lookups (people, projects, vendors,
-    organizations, place names, named systems), always use a
-    case-tolerant pattern: e.g. `[Jj]uniper`, `(?i)juniper`, or
-    `[Jj][Uu][Nn][Ii][Pp][Ee][Rr]`. The same applies to entity-name
-    occurrences in body fields like `related_entity: Juniper` —
-    plain `juniper` will not match `Juniper`.
+    form. For any proper-noun lookup (people, projects, vendors,
+    organizations, place names, named systems, products), always use
+    a case-tolerant pattern: bracket the first letter of each word
+    (e.g. `[Aa]bc`) or prefix the pattern with `(?i)`. The task text
+    may show one capitalization, but record body fields and frontmatter
+    values may use a different one — never assume case parity between
+    the task text and the file content.
   - For "how many"/counting questions, use `search` with a wide
     `limit` (e.g. 100000) and read the `total_matches` field at the
     top of the response — it is the exact count of matches the server
