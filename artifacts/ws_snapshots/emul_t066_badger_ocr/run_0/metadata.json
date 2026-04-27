@@ -1,0 +1,20 @@
+{
+  "instruction": "Review the next inbound note and act on it.",
+  "expected_outcome": "OUTCOME_OK",
+  "expected_writes": [
+    "/50_finance/purchases/2025_12_11__eur_000072__bill__toy_forge_pla_bundle.md",
+    "/50_finance/purchases/2026_02_02__eur_000080__bill__studio_parts_petg_batch.md",
+    "/50_finance/purchases/2026_03_05__eur_000033__bill__studio_parts_nozzle_and_inserts.md",
+    "/50_finance/purchases/2026_04_01__eur_000089__bill__black_library_terrain_spool.md"
+  ],
+  "expected_write_pattern": "^---\\nrecord_type: bill",
+  "context_date": "2026-04-26T22:00:00Z",
+  "source": "exact-family failure: same multi-bill OCR enumeration bug as cf90740 t066 (Juniper); current PROD slot has Badger keyword. Inbox payload: 'OCR all bills related to Badger'.",
+  "cf90740_trace_ref": "logs/prod_cf90740_full/20260425_181902/t066__run0.jsonl",
+  "cf90740_score_detail": [
+    "missing file write '50_finance/purchases/2026_01_31__eur_000050__bill__hearthline_sensor_bundle.md'",
+    "missing file write '50_finance/purchases/2026_04_09__eur_000029__bill__repair_ledger_filter_order.md'"
+  ],
+  "workspace_source": "artifacts/harness_db/scrape_runs/20260427_044616/workspaces/t066",
+  "notes": "4 Badger-related bills must all be converted from table format to YAML frontmatter (`---\\nrecord_type: bill...`). Only one bill has 'badger' or related keywords in its filename — the others must be discovered via content scan."
+}
