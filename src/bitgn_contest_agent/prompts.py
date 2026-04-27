@@ -232,8 +232,22 @@ Entity resolution:
     aliases, relationships, and descriptions all live in the
     entity records' frontmatter and body — scan the record
     itself; do not guess from the display name alone. If two
-    candidates look plausible (e.g. synonyms like "partner" vs
-    "startup partner"), read both records before deciding.
+    candidates look plausible — e.g. when a generic role term
+    has both a bare-relationship match and a modifier-prefixed
+    variant — read both records before deciding.
+  - Possessive / unqualified-role disambiguation: when the task
+    uses an unqualified relational term ("my X", "our X", "the
+    X") and entity records contain multiple candidate matches,
+    prefer the candidate whose `relationship` field is the BARE
+    role term (or its everyday synonym) over candidates whose
+    `relationship` carries a modifier prefix or compound
+    qualifier (`<context>_<role>`, `<adjective>_<role>`). A
+    modifier-prefixed relationship is a qualified role; it does
+    NOT match an unqualified task term unless the task itself
+    uses the same modifier. If no bare-role candidate exists
+    and only qualified ones do, request
+    OUTCOME_NONE_CLARIFICATION rather than guess at which
+    qualifier was meant.
   - Entity-graph traversal for finance lookups: when a task asks
     about a person's bill, invoice, receipt, or financial record,
     do NOT search finance directories using the person's display
