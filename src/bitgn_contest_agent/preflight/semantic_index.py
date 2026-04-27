@@ -10,11 +10,19 @@ visible in a single message.
 """
 from __future__ import annotations
 
+import contextvars
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
 from bitgn_contest_agent.preflight.schema import parse_record_metadata
+
+
+# Bound the per-prepass fan-out. PROD workspaces typically have ~12-30
+# cast records and ~5-15 project subdirs; 16 workers covers both with
+# headroom without overwhelming the harness HTTP pool.
+_PREPASS_PARALLELISM = 16
 
 
 _SUMMARY_MAX = 160
@@ -296,11 +304,28 @@ def _read_text_via_pcm(client, path: str) -> str:
 
 
 def _extract_cast_via_pcm(client, cast_dir: str) -> list[CastEntry]:
-    entries: list[CastEntry] = []
-    md_names = _list_md_names_via_pcm(client, cast_dir)
-    for name in sorted(md_names):
+    md_names = sorted(_list_md_names_via_pcm(client, cast_dir))
+    if not md_names:
+        return []
+
+    def _read_one(name: str) -> tuple[str, str]:
         full = f"{cast_dir}/{name}"
-        text = _read_text_via_pcm(client, full)
+        return name, _read_text_via_pcm(client, full)
+
+    if len(md_names) == 1:
+        texts = [_read_one(md_names[0])]
+    else:
+        with ThreadPoolExecutor(
+            max_workers=min(_PREPASS_PARALLELISM, len(md_names)),
+        ) as ex:
+            futures = [
+                ex.submit(contextvars.copy_context().run, _read_one, name)
+                for name in md_names
+            ]
+            texts = [f.result() for f in futures]
+
+    entries: list[CastEntry] = []
+    for name, text in texts:
         if not text:
             continue
         md = parse_record_metadata(text)
@@ -326,9 +351,11 @@ def _strip_date_prefix(name: str) -> str:
 
 
 def _extract_projects_via_pcm(client, projects_dir: str) -> list[ProjectEntry]:
-    entries: list[ProjectEntry] = []
-    subdirs = _list_subdirs_via_pcm(client, projects_dir)
-    for sub in sorted(subdirs):
+    subdirs = sorted(_list_subdirs_via_pcm(client, projects_dir))
+    if not subdirs:
+        return []
+
+    def _scan_subdir(sub: str) -> Optional[ProjectEntry]:
         sub_path = f"{projects_dir}/{sub}"
         md_names = _list_md_names_via_pcm(client, sub_path)
         readme_name = None
@@ -337,24 +364,37 @@ def _extract_projects_via_pcm(client, projects_dir: str) -> list[ProjectEntry]:
                 readme_name = candidate
                 break
         if readme_name is None:
-            continue
+            return None
         text = _read_text_via_pcm(client, f"{sub_path}/{readme_name}")
         if not text:
-            continue
+            return None
         md = parse_record_metadata(text)
         if not md:
-            continue
+            return None
         goal_field = md.get("goal", "").strip()
         goal = goal_field[:_SUMMARY_MAX] if goal_field else _first_prose_line(text)
         alias = md.get("alias") or sub
-        entries.append(ProjectEntry(
+        return ProjectEntry(
             id=f"project.{_strip_date_prefix(sub)}",
             alias=alias,
             lane=md.get("lane", ""),
             status=md.get("status", ""),
             goal=goal,
-        ))
-    return entries
+        )
+
+    if len(subdirs) == 1:
+        results: list[Optional[ProjectEntry]] = [_scan_subdir(subdirs[0])]
+    else:
+        with ThreadPoolExecutor(
+            max_workers=min(_PREPASS_PARALLELISM, len(subdirs)),
+        ) as ex:
+            futures = [
+                ex.submit(contextvars.copy_context().run, _scan_subdir, sub)
+                for sub in subdirs
+            ]
+            results = [f.result() for f in futures]
+
+    return [e for e in results if e is not None]
 
 
 def run_preflight_semantic_index(client, schema: WorkspaceSchema) -> ToolResult:
@@ -362,17 +402,31 @@ def run_preflight_semantic_index(client, schema: WorkspaceSchema) -> ToolResult:
     `run_preflight_schema` and returns a ToolResult whose `content` is
     the bootstrap digest (or empty string when no roots are available).
     """
-    cast: list[CastEntry] = []
-    projects: list[ProjectEntry] = []
+    def _extract_cast() -> list[CastEntry]:
+        if not schema.entities_root:
+            return []
+        cast_dir = f"{schema.entities_root}/cast"
+        cast = _extract_cast_via_pcm(client, cast_dir)
+        if not cast:
+            # Fallback: walk entities_root directly (non-PROD shape).
+            cast = _extract_cast_via_pcm(client, schema.entities_root)
+        return cast
+
+    def _extract_projects() -> list[ProjectEntry]:
+        if not schema.projects_root:
+            return []
+        return _extract_projects_via_pcm(client, schema.projects_root)
+
     try:
-        if schema.entities_root:
-            cast_dir = f"{schema.entities_root}/cast"
-            cast = _extract_cast_via_pcm(client, cast_dir)
-            if not cast:
-                # Fallback: walk entities_root directly (non-PROD shape).
-                cast = _extract_cast_via_pcm(client, schema.entities_root)
-        if schema.projects_root:
-            projects = _extract_projects_via_pcm(client, schema.projects_root)
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            cast_future = ex.submit(
+                contextvars.copy_context().run, _extract_cast,
+            )
+            projects_future = ex.submit(
+                contextvars.copy_context().run, _extract_projects,
+            )
+            cast = cast_future.result()
+            projects = projects_future.result()
     except Exception as exc:
         return ToolResult(
             ok=False, content="", refs=tuple(), error=str(exc),

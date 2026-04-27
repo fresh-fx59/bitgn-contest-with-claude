@@ -7,10 +7,12 @@ to be fixed.
 """
 from __future__ import annotations
 
+import contextvars
 import logging
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Sequence, Tuple
 
@@ -400,9 +402,25 @@ class PcmAdapter:
             ("context", Req_Context(tool="context")),
             ("preflight_schema", Req_PreflightSchema(tool="preflight_schema")),
         ]
+        # Phase 1 ops are mutually independent (each is its own RPC) so
+        # we dispatch them in parallel. ContextVars don't auto-propagate
+        # to ThreadPoolExecutor workers; copy_context() per-submit gives
+        # each worker the parent's pcm_origin label.
+        def _dispatch_with_origin(req: Any) -> ToolResult:
+            with pcm_origin("prepass"):
+                return self.dispatch(req)
+
+        with ThreadPoolExecutor(max_workers=len(pre_cmds)) as ex:
+            futures = [
+                ex.submit(contextvars.copy_context().run, _dispatch_with_origin, req)
+                for _, req in pre_cmds
+            ]
+            phase1_results = [f.result() for f in futures]
+
+        # Apply side-effects + write trace in canonical order so log
+        # consumers see the same record sequence as the sequential path.
         with pcm_origin("prepass"):
-            for label, req in pre_cmds:
-                result = self.dispatch(req)
+            for (label, _), result in zip(pre_cmds, phase1_results):
                 if result.ok:
                     session.identity_loaded = True
                     if label == "read_agents_md":
