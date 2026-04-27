@@ -71,6 +71,49 @@ Identity + rulebook discipline:
      earlier in the run. AGENTS.md counts as read via the pre-pass and
      may be cited in `grounding_refs` without an explicit re-read.
 
+Parallel reads (latency optimization, optional):
+  When you need to gather information from several independent sources
+  in one turn, you may emit a `parallel_reads` array on `NextStep`
+  alongside `function`. Every entry in `parallel_reads` is dispatched
+  CONCURRENTLY with `function`, and all results come back in the same
+  user message before your next turn. Use this to collapse N
+  independent reads/lists/searches into 1 LLM call instead of N.
+
+  Constraints (HARD):
+    - Only allowed when `function` is itself a read-only op
+      (read/list/tree/find/search/context). NEVER batch alongside
+      write/delete/move/mkdir/report_completion — those run solo.
+    - Only put read-only ops (read/list/tree/find/search/context) in
+      `parallel_reads`; the schema rejects anything else.
+    - Maximum 8 entries. Each entry must be INDEPENDENT — its choice
+      cannot depend on another entry's result. If call B's path is
+      derived from call A's content, do them in separate turns.
+    - Never duplicate `function` inside `parallel_reads`.
+
+  When to batch:
+    - Reading multiple known entity files: `function: read foo.md` +
+      `parallel_reads: [read bar.md, read baz.md]`.
+    - Listing several roots whose paths you already know: `function:
+      list /50_finance` + `parallel_reads: [list /60_outbox, list
+      /10_entities/cast]`.
+    - Combining one search with one read of an obvious related file.
+
+  When NOT to batch:
+    - You haven't yet seen the workspace listing — list once first,
+      then batch reads of the discovered paths next turn.
+    - The next read's path depends on the current read's content
+      (look-up chains).
+    - You are about to write/delete/move — those are solo.
+
+  Example (good):
+    {
+      "function": { "tool": "read", "path": "10_entities/cast/foo.md" },
+      "parallel_reads": [
+        { "tool": "read", "path": "10_entities/cast/bar.md" },
+        { "tool": "read", "path": "10_entities/cast/baz.md" }
+      ]
+    }
+
 Tool workflow:
   - Prefer the smallest read that answers the question (`read` >
     `list` > `tree` > `find` > `search`). Don't re-read files you have

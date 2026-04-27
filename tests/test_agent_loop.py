@@ -357,3 +357,113 @@ def test_agent_loop_writes_real_tokens_into_trace_and_totals(tmp_path: Path, mon
     assert llm["prompt_tokens"] == 137
     assert llm["completion_tokens"] == 42
     assert llm["reasoning_tokens"] == 9
+
+
+def test_agent_loop_dispatches_parallel_reads(tmp_path: Path) -> None:
+    """parallel_reads → all entries dispatch concurrently with the primary
+    function; the user message back to the planner stitches every result."""
+    step1 = NextStep(
+        current_state="batch read",
+        plan_remaining_steps_brief=["batch", "report"],
+        identity_verified=True,
+        observation="read 3 entity files in parallel",
+        outcome_leaning="GATHERING_INFORMATION",
+        function={"tool": "read", "path": "10_entities/cast/foo.md"},
+        parallel_reads=[
+            {"tool": "read", "path": "10_entities/cast/bar.md"},
+            {"tool": "list", "name": "60_outbox"},
+        ],
+    )
+    terminal_step = _mk_step(
+        {
+            "tool": "report_completion",
+            "message": "ok",
+            "grounding_refs": ["10_entities/cast/foo.md", "10_entities/cast/bar.md"],
+            "rulebook_notes": "n",
+            "outcome_justification": "read three sources",
+            "completed_steps_laconic": ["batched 3 reads"],
+            "outcome": "OUTCOME_OK",
+        },
+        observation="task complete",
+        outcome_leaning="OUTCOME_OK",
+    )
+    # Provide an extra copy in case the verify-hook fires.
+    backend = _ScriptedBackend([_wrap(step1), _wrap(terminal_step), _wrap(terminal_step)])
+
+    adapter = MagicMock(spec=PcmAdapter)
+    adapter.run_prepass = MagicMock(
+        side_effect=lambda *, session, trace_writer: _fake_prepass(session)
+    )
+    # Distinct ToolResult per dispatch so we can verify ordering preserved.
+    def _dispatch(req):
+        path = getattr(req, "path", None) or getattr(req, "name", None) or "?"
+        return ToolResult(
+            ok=True, content=f"BODY[{path}]",
+            refs=(path,) if path != "?" else (),
+            error=None, error_code=None, wall_ms=1,
+        )
+    adapter.dispatch.side_effect = _dispatch
+    adapter.submit_terminal.return_value = ToolResult(
+        ok=True, content="", refs=(), error=None, error_code=None, wall_ms=1
+    )
+    writer = _mk_writer(tmp_path)
+
+    loop = AgentLoop(
+        backend=backend, adapter=adapter, writer=writer,
+        max_steps=5, llm_http_timeout_sec=30.0,
+    )
+    result = loop.run(task_id="t-parallel", task_text="read three things")
+    writer.close()
+
+    assert result.terminated_by == "report_completion"
+    # 3 dispatch() calls (one per op in step 1) + 0 (terminal uses submit_terminal).
+    assert adapter.dispatch.call_count == 3
+    # The trace event records the parallel dispatch.
+    records = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    events = [r for r in records if r.get("kind") == "event"]
+    kinds = [e.get("event_kind") for e in events]
+    assert "parallel_reads_dispatched" in kinds
+
+
+def test_agent_loop_drops_parallel_reads_when_primary_is_write(tmp_path: Path) -> None:
+    """parallel_reads supplied next to a write → silently dropped; the
+    write still runs solo and a trace event is emitted."""
+    step1 = NextStep(
+        current_state="bad batch",
+        plan_remaining_steps_brief=["write", "report"],
+        identity_verified=True,
+        observation="attempt batch alongside write",
+        outcome_leaning="GATHERING_INFORMATION",
+        function={"tool": "write", "path": "out.txt", "content": "hello"},
+        parallel_reads=[{"tool": "read", "path": "AGENTS.md"}],
+    )
+    terminal_step = _mk_step(
+        {
+            "tool": "report_completion",
+            "message": "ok",
+            "grounding_refs": ["AGENTS.md"],
+            "rulebook_notes": "n",
+            "outcome_justification": "wrote file",
+            "completed_steps_laconic": ["wrote out.txt"],
+            "outcome": "OUTCOME_OK",
+        },
+        observation="task complete",
+        outcome_leaning="OUTCOME_OK",
+    )
+    backend = _ScriptedBackend([_wrap(step1), _wrap(terminal_step), _wrap(terminal_step)])
+    adapter = _mk_adapter_mock()
+    adapter.run_prepass.side_effect = lambda *, session, trace_writer: _fake_prepass(session)
+    writer = _mk_writer(tmp_path)
+    loop = AgentLoop(
+        backend=backend, adapter=adapter, writer=writer,
+        max_steps=5, llm_http_timeout_sec=30.0,
+    )
+    loop.run(task_id="t-bad-batch", task_text="x")
+    writer.close()
+
+    # Only one dispatch — the write. parallel_reads was dropped.
+    assert adapter.dispatch.call_count == 1
+    records = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    events = [r for r in records if r.get("kind") == "event"]
+    kinds = [e.get("event_kind") for e in events]
+    assert "parallel_reads_dropped" in kinds
