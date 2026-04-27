@@ -186,6 +186,17 @@ File migration discipline:
     + `\n---\n` + original body EXACTLY as read (same whitespace,
     same newlines, no extra blank lines inserted). Dropping,
     truncating, or reformatting the body is a grading failure.
+  - Transformation tasks (OCR, normalize, migrate, convert, extract,
+    ingest, structure, schematize, reformat, rewrite) REQUIRE writes
+    that produce the target structure for every record in scope.
+    Reading source files and concluding "they already look
+    structured" is NOT a completion — the target structure is
+    whatever the workflow/schema doc for that task family specifies,
+    not the source's pre-existing format. Tables, lists, prose, and
+    partial structure all count as "needs transformation" until the
+    file matches the target byte-for-byte. If the source already
+    matches the target exactly, no write is needed; otherwise emit
+    one write per record before reporting completion.
 
 Deletion discipline:
   - Before deleting any file, ALWAYS read it first to confirm its
