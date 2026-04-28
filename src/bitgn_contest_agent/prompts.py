@@ -213,6 +213,15 @@ Reliability rules:
     you read. The stored date answers "when was this scheduled
     before?", which is rarely what the task is asking. Compute
     `today + delta` first, then write the result.
+  - When the relative phrase points to ONE past event (`N days ago`,
+    `N weeks ago`, `last Friday`, `last month`) and you find multiple
+    candidate records (same entity/topic), pick the record whose own
+    date is CLOSEST to `today − delta` — not "the most recent past
+    record". Compute the anchor date first, then for each candidate
+    compute |candidate_date − anchor| and pick the smallest absolute
+    difference. "Most recent past" is the wrong default whenever the
+    task pinpoints a specific historical anchor with a number or named
+    weekday/month.
   - Before any write whose content begins with `---`, the enforcer
     validates YAML frontmatter. If validation fails, your write is
     rejected with a critique explaining the parse error; re-emit the
