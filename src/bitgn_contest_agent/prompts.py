@@ -319,6 +319,36 @@ Entity resolution:
     entity has no field matching the requested date concept, report
     OUTCOME_NONE_CLARIFICATION — never guess or map between
     different date semantics.
+  - Descriptor → record matching: when the task identifies a record
+    (project, entity, bill, note, system) by a descriptive phrase
+    ("the X project", "the Y kit", "the Z rig"), the descriptor must
+    line up with a record's TITLE, ALIAS, or NAME field — not just
+    with words that happen to appear in the record's body, goal,
+    notes, or description. Loose keyword overlap with prose text is
+    NOT a valid identification — the same words appear in many
+    unrelated records and produce fabricated mappings. Run a strict
+    check: for each candidate, do the descriptor's content words
+    (ignoring articles like "the/a/my") appear in its title or alias
+    field? If no record passes that check, report
+    OUTCOME_NONE_CLARIFICATION — do NOT pick the candidate with the
+    most keyword matches in body text.
+  - Multi-value descriptor matching: when a descriptor specifies
+    multiple concrete values (quantity, unit price, date, line item,
+    counterparty), the matching record must satisfy ALL of them. The
+    first record that matches ONE value is NOT necessarily the right
+    one — keep searching until you find a record where every
+    specified value lines up, or report OUTCOME_NONE_CLARIFICATION.
+    Mismatches on quantity, price, or date are disqualifying even
+    when the item name matches.
+  - Compute-and-cite rule: every data file you read to derive the
+    final answer (count, sum, average, list, lookup) MUST appear in
+    `grounding_refs`. Lane AGENTS.MD files, root AGENTS.md, and
+    workflow docs are NOT sufficient on their own — if your number
+    came from N specific record files, every one of those N files
+    must be listed. A short numeric or single-word answer is the
+    case where this is most often missed; check the grounding list
+    against the files actually opened during this run before
+    submitting.
 
 Unsupported-capability discipline:
   - Do NOT create workaround artifacts (reminders, follow-up tasks,
