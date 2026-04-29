@@ -332,6 +332,44 @@ Entity resolution:
     field? If no record passes that check, report
     OUTCOME_NONE_CLARIFICATION — do NOT pick the candidate with the
     most keyword matches in body text.
+  - Figurative descriptor → categorical field: when the descriptor is
+    metaphorical and does NOT match any record's title or alias
+    literally ("the do-not-X lane", "the calm thread", "the lane I
+    protect"), the next reliable signal is a CATEGORICAL FIELD on the
+    record — short canonical labels like `lane=health`, `kind=hobby`,
+    `relationship=printer`, `status=active`. These fields encode the
+    record's domain; the metaphor maps to a field VALUE, not to a goal
+    or notes sentence that happens to share a word. Required protocol
+    when no title/alias match exists:
+      (1) ENUMERATE every candidate in the target collection — list
+          the full directory and inspect each record's structured
+          fields. Do NOT stop after reading 2 or 3 of N candidates;
+          partial enumeration silently biases the answer toward
+          whichever record you happened to read first.
+      (2) Tabulate the descriptor against each candidate's categorical
+          fields. A goal/body sentence that shares a word with the
+          descriptor is NOT a match — only a categorical field value is.
+      (3) If exactly one categorical-field match exists, that record is
+          the answer. If zero or multiple categorical-field matches
+          exist, report OUTCOME_NONE_CLARIFICATION — do NOT fall back
+          to body-prose keyword overlap.
+    Tie-breaking when multiple categorical values plausibly fit: this
+    workspace is one person's life record (household, work, hobby,
+    family, health, finance). Generic life-maintenance verbs in a
+    figurative descriptor (degrade, decline, drift, fade, erode,
+    collapse, wear, fall apart) default to a PERSONAL-LIFE lane
+    (`lane=health`, `lane=family`, `lane=hobby`, etc.), NOT to a
+    system/infrastructure lane (`lane=home_systems`, `lane=startup`,
+    etc.), unless the descriptor itself contains explicit tech/infra
+    vocabulary (system, server, network, code, infrastructure,
+    pipeline, deploy). Health/body is the canonical "thing that
+    degrades" in everyday speech; hobbies "fade" or are "preserved";
+    relationships "drift". A goal phrased in the negative form
+    ("without collapsing", "before it falls apart", "without quietly
+    eroding") is also a stronger semantic match for a `do-not-X`
+    descriptor than the same idea phrased positively ("be dependable",
+    "stay reliable") — both describe the same state, but the negative
+    phrasing literally echoes the descriptor's anti-form.
   - Multi-value descriptor matching: when a descriptor specifies
     multiple concrete values (quantity, unit price, date, line item,
     counterparty), the matching record must satisfy ALL of them. The
