@@ -1,0 +1,12 @@
+{
+  "ws": "artifacts/ws_snapshots/t103_hardened_nozzle_company/run_0",
+  "task_id": "local_t103_hardened_nozzle_company",
+  "instruction": "Looking at my bills. Wow,  2 of 0.6 mm hardened nozzle at price of 19 is crazy. How much did pay this company in total? Number only",
+  "expected_answer": "241",
+  "expected_outcome": "OUTCOME_OK",
+  "context_date": "2026-03-02T18:21:00Z",
+  "source": "prod_fail_t103_vm-03pkx4by81gboz14jx",
+  "harvested_from_bench": "bench7_window_filter (61f2f25)",
+  "intent": "company_total_via_line_item_match",
+  "notes": "User describes a line item 'qty 2 of 0.6 mm hardened nozzle at unit price 19'. Two bills contain a 'hardened nozzle' line item: (a) studio_parts_nozzle_and_inserts (2026-02-04, Düsenschmiede München, qty=1 unit=19 line=19, total=33) and (b) black_library_terrain_spool (2026-03-03, Filamenthütte Wien, qty=2 unit=19 line=38, total=89). Only bill (b) matches BOTH qty AND unit_eur. 'this company' = Filamenthütte Wien. Their bills sum: 72+80+89=241. Agent in bench7 picked Düsenschmiede via filename keyword 'nozzle' even though qty=1 mismatched the user's qty=2 — violation of multi-value descriptor matching rule."
+}

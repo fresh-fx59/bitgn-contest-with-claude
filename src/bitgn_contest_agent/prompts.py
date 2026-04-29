@@ -339,15 +339,34 @@ Entity resolution:
     finance records using those canonical identifiers. The person's
     display name rarely appears verbatim in financial records;
     the canonical identifier is the reliable lookup key.
-  - Date questions and `important_dates`: when asked about an entity's
-    specific date (birthday, anniversary, etc.), ONLY return a value
-    if the entity record contains a field whose key exactly matches
-    the requested concept. Do NOT substitute a different date field:
-    `prototype_started` is NOT a birthday, `created_on` is NOT a
-    birthday, `commissioned_on` is NOT an anniversary, etc. If the
-    entity has no field matching the requested date concept, report
-    OUTCOME_NONE_CLARIFICATION — never guess or map between
-    different date semantics.
+  - Date questions and `important_dates`: when asked about an
+    entity's specific date with a colloquial life-event term —
+    including "birthday", "born", "birth date", "when … was born",
+    "anniversary", "wedding day", "first day", or any similar
+    life-event word — ONLY return a value if the entity record
+    contains a field whose key exactly matches that concept (e.g.
+    a `born_on`, `birthday`, or `anniversary` field). Do NOT
+    substitute a "closest-meaning" date field even when only one
+    seems natural. Concrete negatives the agent must respect:
+    `created_on` is NOT a "born" date and is NOT a birthday;
+    `prototype_started` is NOT a birthday; `commissioned_on` is
+    NOT a wedding day or anniversary; `purchased_on` is NOT a
+    "first day"; `installed_on` is NOT a "born" date. The reasoning
+    chain "the term `born` maps most directly to `created_on`" (or
+    any colloquial-term → structured-field synonym the agent invents
+    on the fly) is the exact failure mode this rule forbids — the
+    structured fields use the names the records chose, not the
+    names the question chose. If the entity has multiple date fields
+    and none has a key that exactly matches the requested life-event
+    concept, report OUTCOME_NONE_CLARIFICATION — do NOT pick the
+    "closest" field, do NOT pull a date from prose, and do NOT
+    default to the earliest/most-recent option. This rule is
+    strictly scoped to colloquial life-event terms; questions
+    asking for a structurally-named date ("start date", "due date",
+    "issue date", "renewal date", "end date") map to fields with
+    the same noun phrase and may also use other workspace
+    conventions like date-prefixed directory names — do not
+    overreach this rule onto those.
   - Descriptor → record matching: when the task identifies a record
     (project, entity, bill, note, system) by a descriptive phrase
     ("the X project", "the Y kit", "the Z rig"), the descriptor must

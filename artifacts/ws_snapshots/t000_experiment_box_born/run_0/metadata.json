@@ -1,0 +1,12 @@
+{
+  "ws": "artifacts/ws_snapshots/t000_experiment_box_born/run_0",
+  "task_id": "local_t000_experiment_box_born",
+  "instruction": "When was the experiment box born? Answer YYYY-MM-DD. Date only",
+  "expected_answer": "",
+  "expected_outcome": "OUTCOME_NONE_CLARIFICATION",
+  "context_date": "2026-03-23T16:35:00Z",
+  "source": "prod_fail_t000_vm-03pkx4bqw92h2w7lbm",
+  "harvested_from_bench": "bench7_window_filter (61f2f25)",
+  "intent": "entity_date_ambiguous",
+  "notes": "Foundry entity (the only 'experiment box' candidate by description 'Loud lab box where risky experiments happen') has TWO date fields: created_on=2026-03-23 and commissioned_on=2025-10-19. Neither is named 'born' or 'birthday'. Per the existing date-substitution rule, the agent must report OUTCOME_NONE_CLARIFICATION rather than substitute one of the two fields. Agent in bench7 picked created_on heuristically and answered 2026-03-23 (rule violation: 'created_on is NOT a birthday')."
+}
