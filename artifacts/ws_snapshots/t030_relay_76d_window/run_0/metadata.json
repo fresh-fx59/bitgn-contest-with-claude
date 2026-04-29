@@ -1,0 +1,12 @@
+{
+  "ws": "artifacts/ws_snapshots/t030_relay_76d_window/run_0",
+  "task_id": "local_t030_relay_76d_window",
+  "instruction": "How much did 深圳市海云电子 charge me in total for the line item relay modules 76 days ago? Answer with a number only",
+  "expected_answer": "6",
+  "expected_outcome": "OUTCOME_OK",
+  "context_date": "2026-03-30T10:47:00Z",
+  "source": "prod_fail_t030_vm-03pkld2z4sgcec35c8",
+  "harvested_from_bench": "bench6_offpeak (e8ac889)",
+  "intent": "receipt_total_relative",
+  "notes": "Two 深圳市海云电子 bills with relay modules: 2025-12-04 (qty 2, line_eur 12, 116 days ago, OLDER than 76-day anchor) and 2026-03-06 (qty 1, line_eur 6, 24 days ago, WITHIN window). Anchor at today−76 = 2026-01-13. Existing closest-date rule (b3ea679) picks 2025-12-04 (40 days from anchor) over 2026-03-06 (52 days from anchor) → submits 12. Expected: 6. Fix: candidates older than `today − N` (i.e., before anchor) must be excluded — 'N days ago' identifies the last N days as the relevant period."
+}

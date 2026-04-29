@@ -215,13 +215,42 @@ Reliability rules:
     `today + delta` first, then write the result.
   - When the relative phrase points to ONE past event (`N days ago`,
     `N weeks ago`, `last Friday`, `last month`) and you find multiple
-    candidate records (same entity/topic), pick the record whose own
-    date is CLOSEST to `today − delta` — not "the most recent past
-    record". Compute the anchor date first, then for each candidate
-    compute |candidate_date − anchor| and pick the smallest absolute
-    difference. "Most recent past" is the wrong default whenever the
-    task pinpoints a specific historical anchor with a number or named
-    weekday/month.
+    candidate records (same entity/topic), apply this selection in
+    order:
+      (a) Compute the anchor `A = today − delta`. CRITICAL:
+          `today` is the date returned by the `context` tool /
+          prepass `context` value — NOT today's actual calendar
+          date, NOT a date inferred from your training data, and
+          NOT a date guessed from filenames. The prepass already
+          fetched `context.time` for this task; use that ISO
+          timestamp's date and nothing else. If you compute `A`
+          against the wrong "today", every step below will be
+          wrong.
+      (b) WINDOW FILTER — drop any candidate whose date is in the
+          FUTURE (`candidate_date > today`). Then, when MORE THAN
+          ONE candidate remains, also drop any candidate whose
+          date is OLDER than `A` (`candidate_date < A`). The
+          phrase "N days ago" identifies the last N days as the
+          relevant period; a record dated more than N days before
+          today is NOT "N days ago" — it is MORE than N days ago,
+          and the question excludes it.
+      (c) CLOSEST-TO-ANCHOR — among the remaining in-window
+          candidates (`A ≤ candidate_date ≤ today`), pick the one
+          whose date is closest to A: compute
+          |candidate_date − A| and take the smallest absolute
+          difference. "Most recent past" is the wrong default
+          whenever the task pinpoints a specific historical anchor
+          with a number or named weekday/month.
+      (d) If after step (b) zero candidates remain AND the set
+          before step (b) had EXACTLY ONE record matching the
+          non-date keys (entity + line item / topic), that single
+          record is the answer regardless of its date — a
+          single-match question is unambiguous even when its date
+          sits outside the literal window. Otherwise (zero
+          in-window candidates with multiple unfiltered matches),
+          report `OUTCOME_NONE_CLARIFICATION` rather than
+          stretching to a record outside the period the question
+          named.
   - Before any write whose content begins with `---`, the enforcer
     validates YAML frontmatter. If validation fails, your write is
     rejected with a critique explaining the parse error; re-emit the
