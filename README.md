@@ -2,7 +2,22 @@
 
 A hardened, single-session agentic system for the [BitGN PAC1](https://github.com/bitgn/sample-agents/tree/main/pac1-py) competition. The agent autonomously solves tasks in John's Obsidian Vault — reading files, writing records, navigating inboxes, handling finances, and resolving security-aware workflows — by driving a ReAct-style tool loop against the BitGN PCM runtime.
 
-**Current score:** 76 OK / 104 tasks (sonnet-4.6), 79 OK (gpt-5.4)
+**Contest score:** 76 OK / 104 tasks  - gpt-5.4
+
+**Current scores:** 
+
+- 104/104 - gpt-5.4
+- 50/104 - gpt-oss-20b
+- 68/104 - gpt-oss-120b
+- 70.8/104 - qwen3.5-35b-a3b
+
+---
+
+## About
+
+This repository is my entry for the **PAC1 (Practical Agents Challenge 1)** hosted by [BitGN](https://github.com/bitgn/sample-agents/tree/main/pac1-py) — a benchmark that grades agents on 104 realistic knowledge-worker tasks inside a simulated Obsidian vault. The challenge was launched and is curated by [Rinat Abdullin](https://abdullin.com/), whose Telegram channel [@llm_under_the_hood](https://t.me/llm_under_the_hood) is the canonical place for PAC1 updates, leaderboards, and design discussion.
+
+I'm documenting the engineering process behind this agent — prompt hardening, grounding enforcement, determinism debugging, and per-failure fix flow — on my own Telegram channel: [@ai_engineer_helper](https://t.me/ai_engineer_helper). If you're building agents against hard benchmarks and want to see the debugging notebook, follow along there.
 
 ---
 
@@ -68,6 +83,58 @@ bitgn-agent triage artifacts/bench/my_run.json
 # Diff two runs
 bitgn-agent triage --before artifacts/bench/baseline.json --after artifacts/bench/candidate.json
 ```
+
+---
+
+## Deploy the agent
+
+To run the agent against a live BitGN contest VM (PROD grading):
+
+### 1. Provision a VM
+
+Request a PAC1 VM from the organizers (see [@llm_under_the_hood](https://t.me/llm_under_the_hood) for the intake form). You will receive a hostname like `vm-03ox0hre13aqu0pme3.eu.bitgn.com` and a per-VM `BITGN_API_KEY`.
+
+### 2. Prepare a `.env` file
+
+Create `.env` at the repo root (it is gitignored) with the three required secrets:
+
+```bash
+BITGN_API_KEY=<vm-issued-bitgn-key>
+BITGN_BASE_URL=https://<your-vm-hostname>
+CLIPROXY_BASE_URL=http://127.0.0.1:8317   # or your proxy endpoint
+CLIPROXY_API_KEY=<cliproxy-key>
+```
+
+### 3. Start the LLM proxy
+
+The agent talks to an OpenAI-compatible endpoint via [`cliproxyapi`](https://github.com/router-for-me/CLIProxyAPI) (default) or any OpenAI-compat backend. Start it locally:
+
+```bash
+cliproxyapi --bind 127.0.0.1:8317 &
+```
+
+### 4. Run the full benchmark
+
+```bash
+set -a; source .env; set +a
+bitgn-agent run-benchmark \
+  --max-parallel 3 \
+  --max-inflight-llm 6 \
+  --runs 1 \
+  --output artifacts/bench/$(git rev-parse --short HEAD)_prod_runs1.json
+```
+
+Recommended p3i6 config (`--max-parallel 3 --max-inflight-llm 6`) keeps LLM concurrency under the proxy's fair-use limit while still exploiting task-level parallelism. Expect ~40–60 minutes wall-clock for a single full run.
+
+### 5. Score and report
+
+The server scores each task outcome as it is submitted. Pull the canonical scores and build an intent-grouped report:
+
+```bash
+python scripts/intent_report.py artifacts/bench/<your-run>.json
+```
+
+Run summaries go to `artifacts/bench/`; per-task JSONL traces go to `logs/`.
 
 ---
 

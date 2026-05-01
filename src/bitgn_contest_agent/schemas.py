@@ -120,6 +120,29 @@ FunctionUnion = Annotated[
 ]
 
 
+ReadOnlyFunctionUnion = Annotated[
+    Union[
+        Req_Read,
+        Req_List,
+        Req_Tree,
+        Req_Find,
+        Req_Search,
+        Req_Context,
+    ],
+    Field(discriminator="tool"),
+]
+
+
+READ_ONLY_REQ_TYPES: tuple[type[BaseModel], ...] = (
+    Req_Read,
+    Req_List,
+    Req_Tree,
+    Req_Find,
+    Req_Search,
+    Req_Context,
+)
+
+
 class NextStep(BaseModel):
     current_state: NonEmptyStr
     plan_remaining_steps_brief: Annotated[List[str], Field(min_length=1, max_length=5)]
@@ -133,6 +156,23 @@ class NextStep(BaseModel):
         "OUTCOME_NONE_UNSUPPORTED",
     ]
     function: FunctionUnion = Field(..., discriminator="tool")
+    parallel_reads: Annotated[
+        List[ReadOnlyFunctionUnion],
+        Field(
+            default_factory=list,
+            max_length=8,
+            description=(
+                "Optional batch of additional read-only ops "
+                "(read/list/tree/find/search/context) dispatched in "
+                "parallel with `function`. Only honored when `function` "
+                "is itself a read-only op. Use this to collapse multiple "
+                "independent reads into a single LLM turn — every entry "
+                "must be independent of the others (no entry's choice "
+                "depends on another's result). Never include "
+                "writes/deletes/moves/report_completion."
+            ),
+        ),
+    ]
 
 
 # Convenience: the set of all Req_* model classes, in canonical order.

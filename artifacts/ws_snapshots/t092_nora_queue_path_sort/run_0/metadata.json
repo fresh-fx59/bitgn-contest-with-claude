@@ -1,0 +1,12 @@
+{
+  "ws": "artifacts/ws_snapshots/t092_nora_queue_path_sort/run_0",
+  "task_id": "local_t092_nora_queue_path_sort",
+  "instruction": "Queue up these docs for migration to my NORA: bulk-processing-and-queueing-frontmatter.md, what-i-want-help-with-and-what-stays-mine.md, parking-lot.md, sending-email.md, processing-inbox-email.md.",
+  "expected_answer": "",
+  "expected_outcome": "OUTCOME_OK",
+  "context_date": "2026-03-02T18:21:00Z",
+  "source": "prod_fail_t092_vm-03plku0bbbggfysv0f",
+  "harvested_from_bench": "bench8_born_rule_fix (ddcd727)",
+  "intent": "nora_queue_full_path_sort",
+  "notes": "User lists 5 docs (basenames only) for NORA migration queue. Workflow doc 99_system/workflows/migrating-to-nora-mcp.md says 'sort the requested file paths alphanumerically and assign queue_order_id from 1 through N in that order'. Schema doc says 'compute queue_order_id after sorting the batch's file paths alphanumerically'. Full-path-sorted order: 1=30_knowledge/notes/parking-lot.md, 2=30_knowledge/notes/what-i-want-help-with-and-what-stays-mine.md, 3=99_system/schemas/bulk-processing-and-queueing-frontmatter.md, 4=99_system/workflows/processing-inbox-email.md, 5=99_system/workflows/sending-email.md. Agent assigned what-i-want-help \u2192 5 instead of 2 (server: 'queue_order_id: expected 2 got 5'). Agent's full assignment was: parking=1, processing-inbox=2, bulk=3, sending=4, what-i-want=5 \u2014 neither basename-sorted nor full-path-sorted, but encounter-order. Rule gap: document-migration skill must enforce explicit deterministic sort by FULL repo-relative path before assigning queue_order_id."
+}

@@ -30,3 +30,10 @@ local_api_key.txt
 
 # Claude Code per-session runtime state
 .claude/scheduled_tasks.lock
+
+# scraper artifacts
+artifacts/harness_db/*.db
+artifacts/harness_db/*.db-journal
+artifacts/harness_db/*.db-wal
+artifacts/harness_db/scrape_runs/
+artifacts/harness_db/workspaces/

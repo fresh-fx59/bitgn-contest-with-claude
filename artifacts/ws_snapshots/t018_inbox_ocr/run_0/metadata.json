@@ -1,0 +1,9 @@
+{
+  "instruction": "Review the next inbound note and act on it.",
+  "expected_answer": "",
+  "expected_outcome": "OUTCOME_OK",
+  "context_date": "2026-03-23T16:35:00Z",
+  "source": "prod_fail_t018_vm-03owny32f4y68f9cda",
+  "intent": "inbox_ocr",
+  "notes": "Inbox item lists 2 explicit files to OCR (northstar_backfill_alpha invoice + toy_forge_pla_bundle purchase). Baseline failed with 'no answer provided' after only exploring AGENTS.MD/99_system — agent timed out before reaching the actual files. Fix: budget-discipline rule in inbox-processing skill telling agent not to bulk-read lanes outside the explicit file list."
+}

@@ -1,0 +1,56 @@
+{
+  "measured": {
+    "answer_replay": {
+      "first_answer": "alpha",
+      "graded_against": "first",
+      "score_detail": [
+        "answer is incorrect. Expected: 'March 26, 2026'"
+      ],
+      "second_answer": "beta",
+      "second_answer_error": "Answer was already provided",
+      "second_answer_outcome": "rejected",
+      "trial_score": 0.0
+    },
+    "size_sanity": {
+      "byte_totals": [
+        130432,
+        130603,
+        130774,
+        130432,
+        130432
+      ],
+      "max_byte_total": 130774,
+      "sampled_task_ids": [
+        "t001",
+        "t010",
+        "t020",
+        "t030",
+        "t050"
+      ]
+    },
+    "state_isolation": {
+      "second_trial_saw_write": false,
+      "wrote_path": "/_scraper_probe.txt"
+    }
+  },
+  "source_note": "Partial Phase 0 run \u2014 4 sub-spikes resolved by user-confirmed facts (2026-04-26), 3 sub-spikes measured below.",
+  "started_at": "2026-04-26T19:11:38.402256+00:00",
+  "user_confirmed": {
+    "auto_termination": {
+      "behavior": "unended trials are NOT auto-terminated by the harness",
+      "implication": "no stale-trial GC behavior to model"
+    },
+    "rate_limit": {
+      "behavior": "no throttling observed on StartPlayground burst calls",
+      "implication": "no backoff strategy required"
+    },
+    "rotation": {
+      "behavior": "instruction text rotates per StartPlayground call for the same task_id",
+      "implication": "local clone must serve N variants per task"
+    },
+    "url_lifetime": {
+      "behavior": "harness_url stays reachable effectively forever after EndTrial",
+      "implication": "no URL-expiration handling needed in clients"
+    }
+  }
+}

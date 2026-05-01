@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import sys
 import threading
 import time
@@ -37,7 +38,11 @@ sys.path.insert(0, str(_REPO / "scripts"))
 
 from local_pcm import LocalPcmClient, TreeEntry
 
-from bitgn_contest_agent.adapter.pcm import ToolResult, PrepassResult
+from bitgn_contest_agent.adapter.pcm import (
+    ToolResult, PrepassResult,
+    _maybe_rewrite_ci, _OPT_A_CASE_INSENSITIVE,
+    _OPT_A_FIND_CI, _find_ci_variants,
+)
 from bitgn_contest_agent.agent import AgentLoop, AgentLoopResult
 from bitgn_contest_agent.backend.openai_compat import OpenAIChatBackend
 from bitgn_contest_agent.bench.run_metrics import RunMetrics
@@ -101,8 +106,11 @@ class LocalPcmAdapter:
         try:
             if isinstance(req, Req_Read):
                 resp = self._client.read(req)
-                return self._finish(start, json.dumps({"content": resp.content}),
-                                    refs=(req.path,))
+                return self._finish(
+                    start,
+                    json.dumps({"path": req.path, "content": resp.content}),
+                    refs=(req.path,),
+                )
 
             if isinstance(req, Req_Write):
                 val = validate_yaml_frontmatter(req.content)
@@ -114,19 +122,19 @@ class LocalPcmAdapter:
                         error_code="FORMAT_INVALID", wall_ms=wall_ms,
                     )
                 self._client.write(req)
-                return self._finish(start, '{"ok": true}', refs=())
+                return self._finish(start, "{}", refs=())
 
             if isinstance(req, Req_Delete):
                 self._client.delete(req)
-                return self._finish(start, '{"ok": true}', refs=())
+                return self._finish(start, "{}", refs=())
 
             if isinstance(req, Req_MkDir):
                 self._client.mkdir(req)
-                return self._finish(start, '{"ok": true}', refs=())
+                return self._finish(start, "{}", refs=())
 
             if isinstance(req, Req_Move):
                 self._client.move(req)
-                return self._finish(start, '{"ok": true}', refs=())
+                return self._finish(start, "{}", refs=())
 
             if isinstance(req, Req_List):
                 resp = self._client.list(req)
@@ -142,12 +150,69 @@ class LocalPcmAdapter:
                                     refs=())
 
             if isinstance(req, Req_Find):
+                name_in = req.name
+                variants = _find_ci_variants(name_in) if _OPT_A_FIND_CI else [name_in]
+                if _OPT_A_FIND_CI and len(variants) > 1:
+                    union: list[str] = []
+                    seen_paths: set[str] = set()
+                    hits_before = -1
+                    for idx, variant in enumerate(variants):
+                        try:
+                            r = self._client.find(
+                                req.model_copy(update={"name": variant})
+                            )
+                        except Exception:
+                            continue
+                        items = list(getattr(r, "items", []) or [])
+                        if idx == 0:
+                            hits_before = len(items)
+                        for p in items:
+                            if p not in seen_paths:
+                                seen_paths.add(p)
+                                union.append(p)
+                                if len(union) >= req.limit:
+                                    break
+                        if len(union) >= req.limit:
+                            break
+                    _LOG.info(
+                        "[OPT_A] find rewrite root=%s name=%r variants=%s "
+                        "hits_before=%d hits_after=%d",
+                        req.root, name_in, variants, hits_before, len(union),
+                    )
+                    return self._finish(start, json.dumps({"items": union}),
+                                        refs=())
                 resp = self._client.find(req)
-                return self._finish(start, json.dumps({"paths": resp.paths}),
+                if _OPT_A_FIND_CI:
+                    _LOG.info(
+                        "[OPT_A] find no-rewrite root=%s name=%r hits=%d",
+                        req.root, name_in, len(resp.items),
+                    )
+                return self._finish(start, json.dumps({"items": resp.items}),
                                     refs=())
 
             if isinstance(req, Req_Search):
-                resp = self._client.search(req)
+                pattern_in = req.pattern
+                pattern_out = _maybe_rewrite_ci(pattern_in)
+                if _OPT_A_CASE_INSENSITIVE and pattern_out != pattern_in:
+                    try:
+                        resp_orig = self._client.search(req)
+                        hits_before = len(resp_orig.matches)
+                    except Exception:
+                        hits_before = -1
+                    rewritten_req = req.model_copy(update={"pattern": pattern_out})
+                    resp = self._client.search(rewritten_req)
+                    hits_after = len(resp.matches)
+                    _LOG.info(
+                        "[OPT_A] search rewrite root=%s orig=%r new=%r hits_before=%d hits_after=%d",
+                        req.root, pattern_in, pattern_out, hits_before, hits_after,
+                    )
+                else:
+                    resp = self._client.search(req)
+                    if _OPT_A_CASE_INSENSITIVE:
+                        _LOG.info(
+                            "[OPT_A] search no-rewrite root=%s pattern=%r hits=%d",
+                            req.root, pattern_in, len(resp.matches),
+                        )
                 matches = [{"path": m.path, "line": m.line_number,
                             "line_text": m.snippet} for m in resp.matches]
                 return self._finish(
@@ -161,7 +226,7 @@ class LocalPcmAdapter:
                 resp = self._client.context()
                 return self._finish(
                     start,
-                    json.dumps({"current_time": resp.current_time}),
+                    json.dumps({"time": resp.time, "unix_time": resp.unix_time}),
                     refs=(),
                 )
 
@@ -189,15 +254,17 @@ class LocalPcmAdapter:
 
     def submit_terminal(self, completion: ReportTaskCompletion) -> ToolResult:
         start = time.monotonic()
+        message = re.sub(r'(?m)^/', '', completion.message)
+        refs = [r.lstrip("/") for r in completion.grounding_refs]
         self.last_answer = {
-            "message": completion.message,
+            "message": message,
             "outcome": completion.outcome,
-            "grounding_refs": list(completion.grounding_refs),
+            "grounding_refs": refs,
             "outcome_justification": getattr(completion, "outcome_justification", ""),
         }
         self._client.answer(completion)
         return self._finish(
-            start, '{"ok": true}',
+            start, "{}",
             refs=tuple(completion.grounding_refs),
         )
 

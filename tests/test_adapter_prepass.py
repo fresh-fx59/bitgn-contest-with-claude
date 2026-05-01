@@ -43,12 +43,18 @@ def test_prepass_runs_tree_read_context_preflight_and_marks_loaded() -> None:
     assert all(e["ok"] for e in writer.events)
     assert writer.events[3]["cmd"] == "preflight_schema"
 
-    # preflight_schema bootstrap content returned for injection into the
-    # conversation. run_preflight_schema wraps internal exceptions in
-    # `schema.errors` but still returns ok=True, so there is always content.
+    # Bootstrap now also includes PRE-PASS blocks for tree/AGENTS/context
+    # so the LLM can skip the redundant identity bootstrap on step 1.
+    # run_preflight_schema wraps internal exceptions in `schema.errors`
+    # but still returns ok=True, so there is always schema content.
     assert isinstance(prepass.bootstrap_content, list)
-    assert len(prepass.bootstrap_content) == 1
-    assert "WORKSPACE SCHEMA" in prepass.bootstrap_content[0]
+    assert any("WORKSPACE SCHEMA" in c for c in prepass.bootstrap_content)
+    schema_idx = next(
+        i for i, c in enumerate(prepass.bootstrap_content)
+        if "WORKSPACE SCHEMA" in c
+    )
+    for c in prepass.bootstrap_content[:schema_idx]:
+        assert c.startswith("PRE-PASS ")
 
     # The typed schema is parsed from the preflight_schema envelope. Since
     # the runtime mock returned an empty TreeResponse, no roots get

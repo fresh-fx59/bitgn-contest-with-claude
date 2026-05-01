@@ -7,9 +7,12 @@ to be fixed.
 """
 from __future__ import annotations
 
+import contextvars
 import logging
+import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Sequence, Tuple
 
@@ -38,6 +41,40 @@ from bitgn_contest_agent.arch_log import emit_arch
 from bitgn_contest_agent.format_validator import validate_yaml_frontmatter
 
 _LOG = logging.getLogger(__name__)
+
+_OPT_A_CASE_INSENSITIVE = os.getenv("BITGN_OPT_A_CASE_INSENSITIVE", "") == "1"
+_OPT_A_FIND_CI = os.getenv("BITGN_OPT_A_FIND_CI", "") == "1"
+
+_CI_PREFIX_RE = re.compile(r"^\(\?[a-zA-Z]*i[a-zA-Z]*\)")
+
+
+def _maybe_rewrite_ci(pattern: str) -> str:
+    """Prefix `(?i)` to make the pattern case-insensitive, unless the
+    pattern already enables the `i` inline flag at the start. Used by the
+    Option-A experiment to absorb LLM forgetfulness around `rg -i`.
+    """
+    if not pattern:
+        return pattern
+    if _CI_PREFIX_RE.match(pattern):
+        return pattern
+    return "(?i)" + pattern
+
+
+def _find_ci_variants(name: str) -> list[str]:
+    """Generate cased variants of a find `name` to fan-out for CI find.
+
+    PROD `find` is case-sensitive substring; this helper produces the
+    minimum set of variants that, when unioned, approximate
+    case-insensitive matching for ASCII names. Order is stable so the
+    "original" variant gets dispatched first.
+    """
+    if not name:
+        return [name]
+    seen: dict[str, None] = {}
+    for v in (name, name.lower(), name.upper(), name.title(), name.capitalize()):
+        if v not in seen:
+            seen[v] = None
+    return list(seen.keys())
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,21 +228,92 @@ class PcmAdapter:
                 resp = self._runtime.tree(pcm_pb2.TreeRequest(root=req.root))
                 return self._finish(start, resp, refs=())
             if isinstance(req, Req_Find):
-                resp = self._runtime.find(
-                    pcm_pb2.FindRequest(
-                        root=req.root,
-                        name=req.name,
-                        type=_FIND_TYPE_MAP[req.type],
-                        limit=req.limit,
+                name_in = req.name
+                variants = _find_ci_variants(name_in) if _OPT_A_FIND_CI else [name_in]
+                if _OPT_A_FIND_CI and len(variants) > 1:
+                    union: list[str] = []
+                    seen_paths: set[str] = set()
+                    hits_before = -1
+                    for idx, variant in enumerate(variants):
+                        try:
+                            r = self._runtime.find(
+                                pcm_pb2.FindRequest(
+                                    root=req.root,
+                                    name=variant,
+                                    type=_FIND_TYPE_MAP[req.type],
+                                    limit=req.limit,
+                                )
+                            )
+                        except Exception:
+                            continue
+                        items = list(getattr(r, "items", []) or [])
+                        if idx == 0:
+                            hits_before = len(items)
+                        for p in items:
+                            if p not in seen_paths:
+                                seen_paths.add(p)
+                                union.append(p)
+                                if len(union) >= req.limit:
+                                    break
+                        if len(union) >= req.limit:
+                            break
+                    resp = pcm_pb2.FindResponse(items=union)
+                    _LOG.info(
+                        "[OPT_A] find rewrite root=%s name=%r variants=%s "
+                        "hits_before=%d hits_after=%d",
+                        req.root, name_in, variants, hits_before, len(union),
                     )
-                )
+                else:
+                    resp = self._runtime.find(
+                        pcm_pb2.FindRequest(
+                            root=req.root,
+                            name=name_in,
+                            type=_FIND_TYPE_MAP[req.type],
+                            limit=req.limit,
+                        )
+                    )
+                    if _OPT_A_FIND_CI:
+                        items = list(getattr(resp, "items", []) or [])
+                        _LOG.info(
+                            "[OPT_A] find no-rewrite root=%s name=%r hits=%d",
+                            req.root, name_in, len(items),
+                        )
                 return self._finish(start, resp, refs=())
             if isinstance(req, Req_Search):
-                resp = self._runtime.search(
-                    pcm_pb2.SearchRequest(
-                        root=req.root, pattern=req.pattern, limit=req.limit
+                pattern_in = req.pattern
+                pattern_out = _maybe_rewrite_ci(pattern_in)
+                if _OPT_A_CASE_INSENSITIVE and pattern_out != pattern_in:
+                    try:
+                        resp_orig = self._runtime.search(
+                            pcm_pb2.SearchRequest(
+                                root=req.root, pattern=pattern_in, limit=req.limit
+                            )
+                        )
+                        hits_before = len(getattr(resp_orig, "matches", []) or [])
+                    except Exception:
+                        hits_before = -1
+                    resp = self._runtime.search(
+                        pcm_pb2.SearchRequest(
+                            root=req.root, pattern=pattern_out, limit=req.limit
+                        )
                     )
-                )
+                    hits_after = len(getattr(resp, "matches", []) or [])
+                    _LOG.info(
+                        "[OPT_A] search rewrite root=%s orig=%r new=%r hits_before=%d hits_after=%d",
+                        req.root, pattern_in, pattern_out, hits_before, hits_after,
+                    )
+                else:
+                    resp = self._runtime.search(
+                        pcm_pb2.SearchRequest(
+                            root=req.root, pattern=pattern_in, limit=req.limit
+                        )
+                    )
+                    if _OPT_A_CASE_INSENSITIVE:
+                        hits_after = len(getattr(resp, "matches", []) or [])
+                        _LOG.info(
+                            "[OPT_A] search no-rewrite root=%s pattern=%r hits=%d",
+                            req.root, pattern_in, hits_after,
+                        )
                 return self._finish(start, resp, refs=())
             if isinstance(req, Req_Context):
                 resp = self._runtime.context(pcm_pb2.ContextRequest())
@@ -294,15 +402,50 @@ class PcmAdapter:
             ("context", Req_Context(tool="context")),
             ("preflight_schema", Req_PreflightSchema(tool="preflight_schema")),
         ]
+        # Phase 1 ops are mutually independent (each is its own RPC) so
+        # we dispatch them in parallel. ContextVars don't auto-propagate
+        # to ThreadPoolExecutor workers; copy_context() per-submit gives
+        # each worker the parent's pcm_origin label.
+        def _dispatch_with_origin(req: Any) -> ToolResult:
+            with pcm_origin("prepass"):
+                return self.dispatch(req)
+
+        with ThreadPoolExecutor(max_workers=len(pre_cmds)) as ex:
+            futures = [
+                ex.submit(contextvars.copy_context().run, _dispatch_with_origin, req)
+                for _, req in pre_cmds
+            ]
+            phase1_results = [f.result() for f in futures]
+
+        # Apply side-effects + write trace in canonical order so log
+        # consumers see the same record sequence as the sequential path.
         with pcm_origin("prepass"):
-            for label, req in pre_cmds:
-                result = self.dispatch(req)
+            for (label, _), result in zip(pre_cmds, phase1_results):
                 if result.ok:
                     session.identity_loaded = True
                     if label == "read_agents_md":
                         session.rulebook_loaded = True
                     for ref in result.refs:
                         session.seen_refs.add(ref)
+                    if label == "tree" and result.content:
+                        bootstrap_content.append(
+                            "PRE-PASS tree(root=\"/\") — already executed, "
+                            "do NOT re-run:\n"
+                            f"{result.content}"
+                        )
+                    if label == "read_agents_md" and result.content:
+                        bootstrap_content.append(
+                            "PRE-PASS read(path=\"AGENTS.md\") — already "
+                            "executed, do NOT re-run. AGENTS.md content "
+                            "below is the rulebook:\n"
+                            f"{result.content}"
+                        )
+                    if label == "context" and result.content:
+                        bootstrap_content.append(
+                            "PRE-PASS context() — already executed, do NOT "
+                            "re-run:\n"
+                            f"{result.content}"
+                        )
                     if label == "preflight_schema" and result.content:
                         bootstrap_content.append(
                             "WORKSPACE SCHEMA (auto-discovered, use these roots "

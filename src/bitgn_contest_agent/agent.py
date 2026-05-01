@@ -14,15 +14,17 @@
 """
 from __future__ import annotations
 
+import contextvars
 import json as _json
 import logging
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 
 from pydantic import ValidationError
 
@@ -40,7 +42,11 @@ from bitgn_contest_agent.validator import StepValidator, Verdict
 from bitgn_contest_agent.prompts import critique_injection, loop_nudge, system_prompt
 from bitgn_contest_agent.reactive_router import ReactiveRouter
 from bitgn_contest_agent.router import Router, RoutingDecision
-from bitgn_contest_agent.schemas import NextStep, ReportTaskCompletion
+from bitgn_contest_agent.schemas import (
+    READ_ONLY_REQ_TYPES,
+    NextStep,
+    ReportTaskCompletion,
+)
 from bitgn_contest_agent.session import Session
 from bitgn_contest_agent.task_hints import hint_for_task
 from bitgn_contest_agent.trace_schema import (
@@ -186,6 +192,36 @@ def _extract_body(content: str) -> str:
     if body_start < 0:
         return ""
     return content[body_start + 1:]
+
+
+def _describe_call(req: Any) -> str:
+    """Compact label for one tool call (used in batched-result headers)."""
+    tool = getattr(req, "tool", type(req).__name__)
+    for attr in ("path", "name", "root", "from_name"):
+        v = getattr(req, attr, None)
+        if isinstance(v, str) and v:
+            return f"{tool} {attr}={v!r}"
+    pat = getattr(req, "pattern", None)
+    if isinstance(pat, str) and pat:
+        return f"{tool} pattern={pat!r}"
+    return tool
+
+
+def _dispatch_parallel(adapter: PcmAdapter, ops: List[Any]) -> List[ToolResult]:
+    """Dispatch N independent ops concurrently; return results in submission order.
+
+    Uses `contextvars.copy_context().run` per worker so the `pcm_origin`
+    ContextVar (set by the agent loop to e.g. `step:7`) propagates into
+    every worker's traced PCM call.
+    """
+    if len(ops) == 1:
+        return [adapter.dispatch(ops[0])]
+    with ThreadPoolExecutor(max_workers=len(ops)) as ex:
+        futures = [
+            ex.submit(contextvars.copy_context().run, adapter.dispatch, op)
+            for op in ops
+        ]
+        return [f.result() for f in futures]
 
 
 def _build_initial_messages(
@@ -595,37 +631,72 @@ class AgentLoop:
                         error_msg="loop nudge budget exhausted",
                     )
 
-            tool_result = self._adapter.dispatch(fn)
-            tool_name = getattr(fn, "tool", "")
-            # Track every read attempt (success or failure) for R1 validator.
-            if tool_name == "read":
-                _record_read_attempt(
-                    session, getattr(fn, "path", ""), tool_result
+            # Parallel-reads gate: only honor `parallel_reads` when the
+            # primary `function` is itself a read-only op. The schema's
+            # discriminated union prevents writes/terminals from appearing
+            # inside `parallel_reads`, but the primary `function` may still
+            # be any tool — so we gate here to keep mutation ordering
+            # deterministic.
+            primary_is_readonly = isinstance(fn, READ_ONLY_REQ_TYPES)
+            requested_batch = list(getattr(step_obj, "parallel_reads", []) or [])
+            if requested_batch and not primary_is_readonly:
+                # Drop quietly with a trace event — the model emitted an
+                # invalid combination; the primary call still runs.
+                self._writer.append_event(
+                    at_step=step_idx,
+                    event_kind="parallel_reads_dropped",
+                    details=f"non-readonly fn={getattr(fn, 'tool', '?')} dropped_count={len(requested_batch)}",
                 )
-            if tool_result.ok:
-                for ref in tool_result.refs:
+                requested_batch = []
+
+            if requested_batch:
+                ops: list[Any] = [fn] + requested_batch
+                tool_results = _dispatch_parallel(self._adapter, ops)
+                tool_result = tool_results[0]
+                self._writer.append_event(
+                    at_step=step_idx,
+                    event_kind="parallel_reads_dispatched",
+                    details=(
+                        f"count={len(ops)} tools="
+                        + ",".join(getattr(o, "tool", "?") for o in ops)
+                    ),
+                )
+            else:
+                ops = [fn]
+                tool_results = [self._adapter.dispatch(fn)]
+                tool_result = tool_results[0]
+
+            # Per-op session updates (read tracking, refs, caches, mutations).
+            for op, op_result in zip(ops, tool_results):
+                op_tool = getattr(op, "tool", "")
+                if op_tool == "read":
+                    _record_read_attempt(
+                        session, getattr(op, "path", ""), op_result
+                    )
+                if not op_result.ok:
+                    continue
+                for ref in op_result.refs:
                     session.seen_refs.add(ref)
-                # Track successful mutations for terminal integrity check.
-                if tool_name in ("write", "delete", "move"):
-                    mut_path = getattr(fn, "path", "") or getattr(fn, "from_name", "")
-                    session.mutations.append((tool_name, mut_path))
+                if op_tool in ("write", "delete", "move"):
+                    mut_path = (
+                        getattr(op, "path", "") or getattr(op, "from_name", "")
+                    )
+                    session.mutations.append((op_tool, mut_path))
                     write_history.append(WriteOp(
-                        op=tool_name,
+                        op=op_tool,
                         path=mut_path,
                         step=step_idx,
-                        content=getattr(fn, "content", None) if tool_name == "write" else None,
+                        content=getattr(op, "content", None) if op_tool == "write" else None,
                     ))
-                # Track outbox attachments for terminal R5 check.
-                if tool_name == "write" and "outbox" in mut_path.lower():
-                    _extract_outbox_attachments(
-                        getattr(fn, "content", ""), session
-                    )
-                # Cache file content on successful read for body validation.
-                if tool_name == "read":
-                    read_path = getattr(fn, "path", "")
-                    if read_path and tool_result.content:
+                    if op_tool == "write" and "outbox" in mut_path.lower():
+                        _extract_outbox_attachments(
+                            getattr(op, "content", ""), session
+                        )
+                if op_tool == "read":
+                    read_path = getattr(op, "path", "")
+                    if read_path and op_result.content:
                         try:
-                            parsed = _json.loads(tool_result.content)
+                            parsed = _json.loads(op_result.content)
                             file_text = parsed.get("content", "")
                         except (ValueError, AttributeError):
                             file_text = ""
@@ -634,25 +705,30 @@ class AgentLoop:
 
             # Feed the tool result back to the planner.
             #
-            # When the backend returned structured ``tool_calls`` on the
-            # assistant turn (OpenAIToolCallingBackend native path), replay
-            # the canonical OpenAI assistant-with-tool_calls shape so
-            # LM Studio's gpt-oss chat template reinjects the preserved
-            # chain-of-thought into the next turn. Otherwise (salvage path
-            # for local models, or the chat backend that never sets
-            # ``tool_calls``) fall back to the legacy content-only shape.
+            # Two paths:
             #
-            # Tool results are emitted uniformly as ``role="tool"``; each
-            # backend's payload builder maps that to its wire shape
-            # (native tool role for toolcalling backend; ``role="user"``
-            # with the ``Tool result:\n`` prefix for the chat/cliproxyapi
-            # backend, per the T24 workaround).
-            tool_body = (
-                tool_result.content
-                if tool_result.ok
-                else f"ERROR ({tool_result.error_code}): {tool_result.error}"
-            )
+            # 1. Native tool_calls path (OpenAIToolCallingBackend / gpt-oss
+            #    on LM Studio). Replays the canonical OpenAI
+            #    assistant-with-tool_calls + role="tool" shape so the chat
+            #    template can reinject the preserved chain-of-thought into
+            #    the next turn. parallel_reads is single-shot in this path
+            #    (the native protocol expects one tool_call per assistant
+            #    turn) so we always feed back tool_results[0].
+            #
+            # 2. Salvage / chat path (cliproxyapi-compatible). T24
+            #    observation: cliproxyapi translates OpenAI chat-completions
+            #    into Codex /v1/responses items. A role="tool" message is
+            #    mapped to a function_call_output that requires a matching
+            #    call_id, but our salvage assistant messages are plain JSON
+            #    content — no native tool_calls — so cliproxyapi emits an
+            #    empty call_id and Codex rejects the request. Wrap tool
+            #    results in role="user" so they round-trip as plain text.
             if step_result.tool_calls:
+                tool_body = (
+                    tool_result.content
+                    if tool_result.ok
+                    else f"ERROR ({tool_result.error_code}): {tool_result.error}"
+                )
                 messages.append(
                     Message(
                         role="assistant",
@@ -670,21 +746,45 @@ class AgentLoop:
                     )
                 )
             else:
-                # Salvage path: no native tool_call_id. Preserve the legacy
-                # content-only shape so nothing downstream assumes we have
-                # structured tool_calls to replay.
                 messages.append(
                     Message(
                         role="assistant",
                         content=step_obj.model_dump_json(),
                     )
                 )
-                messages.append(
-                    Message(
-                        role="user",
-                        content=f"Tool result:\n{tool_body}",
+                if len(tool_results) == 1:
+                    tool_body = (
+                        tool_result.content
+                        if tool_result.ok
+                        else f"ERROR ({tool_result.error_code}): {tool_result.error}"
                     )
-                )
+                    messages.append(
+                        Message(
+                            role="user",
+                            content=f"Tool result:\n{tool_body}",
+                        )
+                    )
+                else:
+                    parts: list[str] = []
+                    for idx, (op, op_result) in enumerate(zip(ops, tool_results), start=1):
+                        head = f"=== call {idx}: {_describe_call(op)} ==="
+                        body = (
+                            op_result.content
+                            if op_result.ok
+                            else f"ERROR ({op_result.error_code}): {op_result.error}"
+                        )
+                        parts.append(f"{head}\n{body}")
+                    composite = "\n\n".join(parts)
+                    messages.append(
+                        Message(
+                            role="user",
+                            content=(
+                                f"Parallel tool results ({len(ops)} calls; the "
+                                "first corresponds to your `function`, the rest "
+                                "to `parallel_reads`):\n" + composite
+                            ),
+                        )
+                    )
 
             # Format validation hook — catch YAML errors after writes.
             if getattr(fn, "tool", "") == "write" and tool_result.ok:

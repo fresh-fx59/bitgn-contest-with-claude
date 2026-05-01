@@ -22,10 +22,62 @@ asking:
 
 - **"What is the start date of project X?"** → This is a PROJECT
   ATTRIBUTE query. Preflight project matches ARE useful here. Read the
-  matched file and extract the date.
+  matched file and extract the date. **BUT**: if X is a colloquial
+  descriptor rather than a proper project title/alias (e.g. "the house
+  AI thing", "the household assistant", "our family wall project",
+  "the finance followup project"), DO NOT trust the first keyword
+  search hit. Follow the disambiguation protocol below before
+  answering.
 
 - **Other project queries** → Use preflight data if it returned a
   useful match; fall through to search strategy if not.
+
+### Colloquial project descriptor → disambiguation protocol
+
+A colloquial descriptor is any phrase that is NOT a proper project
+alias (`hearthline`, `house_mesh`) and NOT the exact Title Case name.
+Signs: leading "the", possessives ("our"), domain-role words like
+"thing"/"project"/"initiative", or descriptive phrases ("the house AI
+thing", "the kid schedule board"). When you detect one:
+
+1. **Enumerate candidates by domain.** `list 40_projects` (every
+   project folder). Read the README frontmatter of EVERY project whose
+   `kind` or `lane` plausibly matches the descriptor's domain:
+   - "house / household / home ..." → all projects with
+     `kind: house_system` or `lane: home_systems`
+   - "work / client / helios / northstar ..." → `lane: work` or the
+     matching client alias
+   - "kids / school / study / homework ..." → projects linking
+     `entity.daughter` / `entity.son` / child-role entities
+   - "finance / billing / receipts ..." → finance-domain projects
+2. **Do NOT stop at the first keyword match.** Substring search for a
+   word like "AI" in project README bodies will often hit a project
+   that merely *mentions* the concept (e.g. "preserving a base for
+   later AI help") instead of the project whose *purpose is* the
+   concept. You must read every same-domain candidate.
+3. **Rank candidates by semantic fit** using all these signals, not
+   just literal keyword presence:
+   - `goal` field: does the stated goal describe the thing the
+     descriptor names? (A project whose goal is *household
+     coordination* is "the house AI thing" more than one whose goal is
+     *keep the house infrastructure dependable*.)
+   - `linked_entities`: if the descriptor implies an AI / assistant /
+     automation flavor, projects linking the AI-ish entity (commonly
+     `entity.nora` in the household ontology, or any other
+     assistant/MCP entity in the current workspace) score higher.
+   - `alias` / title: literal word overlap with the descriptor is a
+     weak tiebreaker, not a primary signal — the keyword might not
+     appear at all in the correct project.
+   - `priority`, `status`, `updated_on`: when two candidates are
+     otherwise tied, prefer the higher-priority / more recently
+     updated / active one.
+4. **If two candidates remain genuinely tied**, read the full README
+   body of each (not just frontmatter) and re-rank on narrative fit.
+   Only after this should you answer. Never guess from folder prefix
+   without confirming the project identity first.
+5. **Grounding:** the README you extract the answer from MUST appear
+   in the final `grounding_refs`. The grader rejects the answer if the
+   referenced file isn't the expected one.
 
 **CRITICAL grounding rule:** You MUST `read` every file you reference
 in your answer. The grader checks that referenced files appear in your

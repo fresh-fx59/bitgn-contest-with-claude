@@ -7,7 +7,7 @@ matcher_patterns:
   - '(?i)\b(work|process|handle)\b.*\b(oldest|next|first|latest|newest)\b.*\b(inbox|message|item)\b'
   - '(?i)\b(oldest|next|first)\b.*\b(inbox|message)\b'
   - '(?i)\binbox\b.*\b(item|message|task)\b'
-classifier_hint: "Tasks asking to process, work, or handle inbox items — including OCR, forwarding, filing, or any multi-step inbox workflow"
+classifier_hint: "Tasks asking the agent to process, work on, handle, review, or act on a pending item arriving in the inbox lane — including OCR, forwarding, filing, adding frontmatter, or any multi-step intake workflow. Applies whenever the task points at the inbox lane or the next pending item there, regardless of the specific vocabulary the task uses."
 ---
 
 # Inbox Processing Strategy
@@ -66,10 +66,51 @@ Common inbox actions include:
 that file list. Read each file path exactly as given. Do NOT search
 for alternatives or widen the scope.
 
+**Explicit file list → budget discipline. Do NOT bulk-explore the
+workspace.** The inbox item plus the listed files carry enough
+information to act. Broad sibling-lane reading burns the step
+budget and causes "no answer provided" timeouts.
+
+- Do NOT bulk-read directories unrelated to the listed files to
+  "gather context". Entity records, knowledge captures, project
+  READMEs, and general notes are not needed to act on a specific
+  listed artifact. The listed file's own structured fields
+  (`counterparty`, `related_entity`, `project`, etc.) are
+  sufficient — if a pointer is missing, the action itself does
+  not require it.
+- Do NOT open nested `AGENTS.md` files in lanes you are not
+  writing to. The top-level `AGENTS.md`, the inbox lane's own
+  `AGENTS.md`, and the one workflow doc matching the requested
+  action are enough policy. Other lanes' `AGENTS.md` are noise.
+- Permitted reads for an explicit-file-list inbox task:
+  (a) the inbox item itself,
+  (b) every file in the listed task set,
+  (c) the single workflow doc matching the requested action
+      (OCR, forward, file, etc.),
+  (d) the single schema doc for the structured fields the action
+      writes, if the action writes structured fields.
+  Going beyond this set is a budget violation.
+
 **If the inbox item references entities instead of files** (e.g.
 "process all bills for Hearthline"): apply the Step 0 search recipe
 (case-insensitive `rg -i` across filename AND structured fields
 like `related_entity`) to build the complete file list.
+
+**Named-entity budget discipline — do NOT roster sibling entities.**
+When the inbox item references a specific entity by name (a person,
+pet, or system — e.g. "linked to <entity>", "bills for <entity>"):
+
+- Read ONLY that one entity's file (`<entities-lane>/<entity>.md`)
+  to learn its canonical alias and field shape. Do NOT `cat` sibling
+  entity files one-by-one to "build a roster" — sibling entities are
+  irrelevant to the task.
+- Then go directly to the target lane (finance, projects, etc.) and
+  filter records by that entity's canonical alias or `related_entity`
+  field using `rg -i` / `search`. Do NOT read every file in the
+  target lane; use search to narrow first.
+- Reading every entity file or every lane file is a budget violation
+  that causes "no answer provided" timeouts. One entity was named —
+  focus on that one.
 
 ## Step 3: Process ALL items
 

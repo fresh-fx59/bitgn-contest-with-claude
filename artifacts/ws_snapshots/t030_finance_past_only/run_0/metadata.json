@@ -1,0 +1,9 @@
+{
+  "instruction": "How much did Filamenthütte Wien charge me in total for the line item PLA spool mixed colors 161 days ago? Answer with a number only",
+  "expected_answer": "72",
+  "expected_outcome": "OUTCOME_OK",
+  "context_date": "2026-03-30T10:47:00Z",
+  "source": "prod_fail_t030_vm-03owny3353zxxh4fm7",
+  "intent": "finance_lookup",
+  "notes": "Filamenthütte Wien has 3 invoices in workspace: 2025-12-11 (PLA spool mixed colors qty 3 line_eur 72), 2026-02-03 (PETG only, no match), 2026-04-01 (PLA spool mixed colors qty 1 line_eur 24). Context date 2026-03-30 → 2026-04-01 is in the future. 'Ago' phrasing requires past-only filter: only 2025-12-11 qualifies → expected 72. Baseline (pre-fix) picks the most-recent=2026-04-01 → wrong answer 24."
+}
