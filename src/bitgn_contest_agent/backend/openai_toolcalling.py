@@ -788,6 +788,20 @@ class OpenAIToolCallingBackend(Backend):
                     or "model unloaded" in msg):
                 raise TransientBackendError(str(exc)) from exc
             raise
+        except openai.NotFoundError as exc:
+            # The neuraldeep LiteLLM gateway transiently returns
+            # ``404 page not found`` (HTML body, not a JSON API error)
+            # when its upstream provider routing reloads — observed
+            # 2026-05-01 qwen3.6 PROD run, 10× 404s spread across step 1
+            # of t006/t011/t012/t013/t015/t016/t017 (lost ~7 tasks).
+            # cliproxyapi config 404s carry a different body — typically
+            # ``unknown provider for model <name>``, which is a real
+            # config bug and must NOT retry. Pattern-match the body to
+            # split the two cases.
+            msg = str(exc).lower()
+            if "page not found" in msg:
+                raise TransientBackendError(str(exc)) from exc
+            raise
 
         choice = completion.choices[0]
         # Surface the cap-hit signal. When LM Studio hits ``max_tokens``
@@ -1027,5 +1041,13 @@ class OpenAIToolCallingBackend(Backend):
             msg = str(exc).lower()
             if ("model reloaded" in msg or "model has crashed" in msg
                     or "model unloaded" in msg):
+                raise TransientBackendError(str(exc)) from exc
+            raise
+        except openai.NotFoundError as exc:
+            # See the comment on the agent-loop NotFoundError clause
+            # above — neuraldeep gateway routing flap reads as transient
+            # via the ``page not found`` body marker.
+            msg = str(exc).lower()
+            if "page not found" in msg:
                 raise TransientBackendError(str(exc)) from exc
             raise

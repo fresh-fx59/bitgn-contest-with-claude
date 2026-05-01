@@ -316,6 +316,13 @@ def gpt_oss_filter_hallucinated_refs(
 # Rule codes that map cleanly to imperative, tool-call-shaped nudges.
 # Ordered: the first matching reason wins when multiple are present.
 # Everything else falls through to the default descriptive critique.
+#
+# Originally tuned for gpt-oss (descriptive critiques re-worded
+# justification instead of changing tool choice). The same pattern hits
+# qwen3.6 — 2026-05-01 qwen3.6/neuraldeep PROD run: 4× R7_INBOX_CLEANUP,
+# 2× R6_MUTATION_DISCIPLINE, 2× R0_MIN_EXPLORE all terminated via
+# submit_anyway after re-emitting the same shape. Reusable across any
+# instruction-following local model.
 _GPT_OSS_IMPERATIVE_RULES: Tuple[Tuple[str, str], ...] = (
     (
         "R7_INBOX_CLEANUP",
@@ -337,6 +344,20 @@ _GPT_OSS_IMPERATIVE_RULES: Tuple[Tuple[str, str], ...] = (
         "least one concrete exploration step (tree, read, list, or search) "
         "that materially progresses the task. Only after at least 3 total "
         "steps may you consider terminating."
+    ),
+    (
+        "R6_MUTATION_DISCIPLINE",
+        "Your previous report_completion was rejected because you mutated "
+        "files (write/delete/move) while still in GATHERING_INFORMATION. "
+        "Mutations must only happen AFTER the task plan is clear and the "
+        "outcome is known.\n"
+        "If the task is read-only (a question that just needs an answer): "
+        "your NEXT tool_call MUST be a fresh ``report_completion`` with "
+        "outcome=OUTCOME_OK and no further mutations.\n"
+        "If the task genuinely requires mutations: your NEXT tool_call MUST "
+        "advance the actual mutation plan (e.g. write to the correct target "
+        "path) — do NOT mutate exploratory scratch files. Re-read the task "
+        "prompt before acting."
     ),
     (
         "grounding_ref",  # substring match — covers R1 reason phrasings

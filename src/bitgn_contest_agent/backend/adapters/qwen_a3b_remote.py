@@ -29,13 +29,20 @@ substantive reasoning prose (not the zero counter).
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
 
 from bitgn_contest_agent.schemas import NextStep
 
-from ._helpers import try_envelope, try_qwen_bare_answer
+from ._helpers import (
+    gpt_oss_format_retry_critique,
+    try_envelope,
+    try_qwen_bare_answer,
+)
 from .base import ModelAdapter, ModelProfile
 from .qwen_a3b import _QWEN_SYSTEM_NUDGE
+
+if TYPE_CHECKING:
+    from bitgn_contest_agent.session import Session
 
 
 class QwenA3bRemoteAdapter(ModelAdapter):
@@ -93,3 +100,18 @@ class QwenA3bRemoteAdapter(ModelAdapter):
         if parsed is not None:
             return parsed
         return try_qwen_bare_answer(content)
+
+    def format_retry_critique(
+        self,
+        reasons: Sequence[str],
+        session: "Session",
+    ) -> str:
+        """Reuse the imperative critique helper. Despite the
+        ``gpt_oss_`` prefix the patterns are model-agnostic (R7 inbox
+        cleanup, R0 min-explore, R6 mutation discipline, R1 unread refs,
+        R5 outbox attachment). 2026-05-01 qwen3.6/neuraldeep PROD run:
+        terminals re-emitted the same shape under descriptive critiques
+        and terminated via submit_anyway. The imperative wording forces
+        a tool-call switch instead.
+        """
+        return gpt_oss_format_retry_critique(reasons)

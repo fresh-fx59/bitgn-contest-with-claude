@@ -49,46 +49,54 @@ def _mk_terminal(refs: list[str]) -> ReportTaskCompletion:
 
 
 # ---------------------------------------------------------------------------
-# Default hook behavior — non-gpt-oss adapters must see no change
+# Default hook behavior — adapters that opt out of the imperative critique
+# (glm, lfm2, qwen3.5 local) must still see byte-identical defaults.
+#
+# QwenA3bRemoteAdapter (qwen3.6/neuraldeep) intentionally opts IN to the
+# imperative critique helper as of 2026-05-01; it is therefore tested
+# alongside the gpt-oss adapters below, not in this default group.
 # ---------------------------------------------------------------------------
 
 
-def _non_gpt_oss_adapters():
+def _default_hook_adapters():
     return [
         GlmFlashAdapter(),
         Lfm2Adapter(),
         QwenA3bAdapter(),
-        QwenA3bRemoteAdapter(),
     ]
 
 
-def test_default_format_retry_critique_is_generic_for_all_non_gpt_oss() -> None:
+def test_default_format_retry_critique_is_generic_for_default_adapters() -> None:
     """Default ``format_retry_critique`` MUST delegate to
-    ``prompts.critique_injection`` verbatim. If a future adapter overrides
-    this without meaning to, validator retries would start carrying
-    gpt-oss's imperative wording to other models — a behavioral regression
-    that is hard to spot in bench numbers.
+    ``prompts.critique_injection`` verbatim for adapters that opted out
+    of the imperative rewrite. If a future adapter overrides this
+    without meaning to, validator retries would start carrying
+    imperative wording to models that haven't been validated against it
+    — a behavioral regression that is hard to spot in bench numbers.
     """
     session = Session()
     reasons = ["R7_INBOX_CLEANUP: missing delete of 00_inbox/000_foo.md"]
-    for adapter in _non_gpt_oss_adapters():
+    for adapter in _default_hook_adapters():
         out = adapter.format_retry_critique(reasons, session)
         assert "Revise and retry" in out, (
             f"{type(adapter).__name__} unexpectedly rewrote the critique"
         )
         assert "Your NEXT tool_call MUST be" not in out, (
-            f"{type(adapter).__name__} leaked gpt-oss imperative wording"
+            f"{type(adapter).__name__} leaked imperative wording"
         )
 
 
-def test_default_post_process_terminal_is_identity_for_all_non_gpt_oss() -> None:
+def test_default_post_process_terminal_is_identity_for_default_adapters() -> None:
     """Default ``post_process_terminal`` MUST return the exact ``fn`` it was
     given (same object, no mutation). Otherwise, a terminal that was
-    already valid would be mutated for models that never asked for it."""
+    already valid would be mutated for models that never asked for it.
+    QwenA3bRemoteAdapter is included here — it only overrides the
+    critique hook, not the terminal post-processor."""
     session = Session()
     session.seen_refs.add("real.md")
     fn = _mk_terminal(["real.md", "hallucinated.md"])
-    for adapter in _non_gpt_oss_adapters():
+    adapters = [*_default_hook_adapters(), QwenA3bRemoteAdapter()]
+    for adapter in adapters:
         out = adapter.post_process_terminal(fn, session)
         assert out is fn, (
             f"{type(adapter).__name__} mutated the terminal"
@@ -96,13 +104,16 @@ def test_default_post_process_terminal_is_identity_for_all_non_gpt_oss() -> None
         assert out.grounding_refs == ["real.md", "hallucinated.md"]
 
 
-def test_default_extra_reactive_skills_is_empty_for_all_non_gpt_oss() -> None:
+def test_default_extra_reactive_skills_is_empty_for_default_adapters() -> None:
     """Default ``extra_reactive_skills`` MUST be the empty frozenset even
     on task text that gpt-oss would match. Otherwise the ``inbox-processing``
     skill body would start being injected for qwen/glm/lfm2 runs, blowing
-    the bitgn prompt cache and changing their behavior."""
+    the bitgn prompt cache and changing their behavior.
+    QwenA3bRemoteAdapter is included here — it only overrides the
+    critique hook, not the reactive-skills hook."""
     task_text = "Review the next inbound note and act on it."
-    for adapter in _non_gpt_oss_adapters():
+    adapters = [*_default_hook_adapters(), QwenA3bRemoteAdapter()]
+    for adapter in adapters:
         out = adapter.extra_reactive_skills(task_text)
         assert out == frozenset(), (
             f"{type(adapter).__name__} unexpectedly returned {out!r}"
@@ -335,6 +346,48 @@ def test_gpt_oss_extra_reactive_skills_is_case_insensitive() -> None:
             assert out == frozenset({"inbox-processing"}), (
                 f"{type(adapter).__name__} missed case-variation: {text!r}"
             )
+
+
+# ---------------------------------------------------------------------------
+# QwenA3bRemoteAdapter (qwen3.6 / neuraldeep) — opts in to the imperative
+# critique helper. Local QwenA3bAdapter (qwen3.5 / LM Studio) does NOT.
+# ---------------------------------------------------------------------------
+
+
+def test_qwen36_remote_uses_imperative_critique_for_r7() -> None:
+    """qwen3.6 hits the same R7 failure mode as gpt-oss
+    (re-emits report_completion under descriptive feedback). The remote
+    adapter must rewrite the critique imperatively — same body as
+    gpt-oss for consistency. 2026-05-01 qwen3.6/neuraldeep PROD run:
+    4× R7_INBOX_CLEANUP all terminated via submit_anyway."""
+    session = Session()
+    reasons = ["R7_INBOX_CLEANUP: consumed inbox file was not deleted"]
+    out = QwenA3bRemoteAdapter().format_retry_critique(reasons, session)
+    assert "Your NEXT tool_call MUST be exactly" in out
+    assert 'function.tool = "delete"' in out
+
+
+def test_qwen36_remote_uses_imperative_critique_for_r6_mutation() -> None:
+    """R6_MUTATION_DISCIPLINE: 2× rejections in qwen3.6 PROD run where
+    the model mutated during GATHERING_INFORMATION on a read-only task.
+    The imperative must steer it back to a fresh report_completion."""
+    session = Session()
+    reasons = ["R6_MUTATION_DISCIPLINE: mutation_guard fired 2× during GATHERING_INFORMATION"]
+    out = QwenA3bRemoteAdapter().format_retry_critique(reasons, session)
+    assert "NEXT tool_call MUST" in out
+    assert "GATHERING_INFORMATION" in out
+
+
+def test_qwen35_local_keeps_default_critique() -> None:
+    """qwen3.5 local (LM Studio) is a separate adapter and has different
+    behavioral evidence; it must continue to use the generic
+    ``critique_injection`` until it is independently validated against
+    the imperative wording. This test pins the boundary."""
+    session = Session()
+    reasons = ["R7_INBOX_CLEANUP: deletion missing"]
+    out = QwenA3bAdapter().format_retry_critique(reasons, session)
+    assert "Revise and retry" in out
+    assert "Your NEXT tool_call MUST be" not in out
 
 
 # ---------------------------------------------------------------------------
