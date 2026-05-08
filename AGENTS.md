@@ -128,6 +128,27 @@ Suggested template:
     ```
     `p1i1` encodes `--max-parallel 1 --max-inflight-llm 1`; raising either is the qwen adapter's documented crash trigger on LM Studio.
   - **Local qwen3.5 on LM Studio is mandatorily single-slot: `--max-parallel 1 --max-inflight-llm 1` on every launch.** Do not rely on the `QwenA3bAdapter` profile defaults (which historically read `max_parallel_tasks=2` / `max_inflight_llm=2` from PROD tuning that predates LM Studio crash evidence). Always pass both `--max-parallel 1` and `--max-inflight-llm 1` on the CLI — env-var / CLI overrides win over adapter profile in the precedence resolver, so this is the only safe way to guarantee single-slot behavior regardless of future adapter drift.
+  - **Remote qwen3.6 via the neuraldeep LiteLLM gateway** uses a separate adapter (`QwenA3bRemoteAdapter`) and a different access pattern than the local LM Studio path. The gateway lives at `https://api.neuraldeep.ru/v1`; its key is `sk-`-prefixed (LiteLLM virtual key format), not the hex cliproxyapi key. Two env-var traps will kill the run silently if you miss them:
+    1. The agent reads `CLIPROXY_API_KEY` / `CLIPROXY_BASE_URL` (see `config.py:_require("CLIPROXY_API_KEY")`), NOT `OPENAI_API_KEY`. Setting only `OPENAI_API_KEY` leaves the agent using the cliproxy hex key against the neuraldeep endpoint, which fails with `Authentication Error, LiteLLM Virtual Key expected. Received=…, expected to start with 'sk-'` on every task.
+    2. The classifier defaults to `claude-haiku-4-5-20251001` (`router_config.py:23`), which is NOT in the neuraldeep key allowlist (`['gpt-oss-120b', 'qwen3.6-35b-a3b', 'e5-large', 'bge-m3', 'bge-reranker', 'whisper-1', 'frida', 'jina-embeddings-v4', 'qwen3-embedding-4b', 'whisper-podlodka-turbo']`). The classifier shares `CLIPROXY_BASE_URL` with the agent, so it lands at neuraldeep too and fails with `key not allowed to access model`. Override with `BITGN_CLASSIFIER_MODEL=qwen3.6-35b-a3b` (or `gpt-oss-120b`) to keep classifier on an allowed model — same client, same key, no second OpenAI factory needed.
+
+    Standard remote qwen3.6 launch (PROD, full 104 tasks; p4/i4 per `QwenA3bRemoteAdapter` profile — gateway returned 191× 502 at p10/i20 in prior runs):
+    ```
+    set -a && . .worktrees/plan-b/.env && set +a
+    CLIPROXY_BASE_URL=https://api.neuraldeep.ru/v1 \
+    CLIPROXY_API_KEY=<sk-…neuraldeep virtual key> \
+    AGENT_MODEL=qwen3.6-35b-a3b \
+    BITGN_CLASSIFIER_MODEL=qwen3.6-35b-a3b \
+    AGENT_TOOLCALLING=1 \
+    AGENT_MAX_BACKOFF_SEC=60 \
+    .venv/bin/python -m bitgn_contest_agent.cli run-benchmark \
+      --benchmark bitgn/pac1-prod \
+      --max-parallel 4 --max-inflight-llm 4 \
+      --runs 1 \
+      --output artifacts/bench/<commit>_qwen36_neuraldeep_p4i4_prod_runs1.json \
+      --log-dir logs/qwen36_<commit>_prod
+    ```
+    `AGENT_MAX_BACKOFF_SEC=60` extends the backend retry tail past the default 16s so a single agent call can survive a gateway 502 burst (neuraldeep instability is the dominant failure mode at any concurrency >1). `p4i4` matches the `QwenA3bRemoteAdapter` profile defaults; raise only with explicit user approval.
   - Do not advance to the next implementation step until the active regression or validation target is confirmed fixed by the required verification for that step.
 - Iterate-fix loop (when a PROD bench run hits a failed task and the user shares the failed-trial URL, or you stop a bench early on a failure):
   1. **Stop if running.** Per `Process safety` rules, don't kill a running bench unless asked. If the user asked you to stop on the first failure, send SIGINT/SIGTERM, wait for the orphan trial to close, and confirm before proceeding.
